@@ -1,0 +1,121 @@
+{
+  "bottons": [
+    {
+      "Name": "Game_mode_input",
+      "botton_setting": [
+        {
+          "botton_id": 0,
+          "botton_name": "a"
+        },
+        {
+          "botton_id": 1,
+          "botton_name": "b"
+        },
+        {
+          "botton_id": 2,
+          "botton_name": "c"
+        },
+        {
+          "botton_id": 3,
+          "botton_name": "d"
+        },
+        {
+          "botton_id": 4,
+          "botton_name": "e"
+        },
+        {
+          "botton_id": 5,
+          "botton_name": "f"
+        },
+        {
+          "botton_id": 6,
+          "botton_name": "g"
+        },
+        {
+          "botton_id": 7,
+          "botton_name": "h"
+        },
+        {
+          "botton_id": 8,
+          "botton_name": "i"
+        },
+        {
+          "botton_id": 9,
+          "botton_name": "j"
+        },
+        {
+          "botton_id": 10,
+          "botton_name": "k"
+        },
+        {
+          "botton_id": 11,
+          "botton_name": "l"
+        },
+        {
+          "botton_id": 12,
+          "botton_name": "m"
+        },
+        {
+          "botton_id": 13,
+          "botton_name": "n"
+        },
+        {
+          "botton_id": 14,
+          "botton_name": "o"
+        },
+        {
+          "botton_id": 15,
+          "botton_name": "p"
+        },
+        {
+          "botton_id": 16,
+          "botton_name": "q"
+        },
+        {
+          "botton_id": 17,
+          "botton_name": "r"
+        },
+        {
+          "botton_id": 18,
+          "botton_name": "s"
+        },
+        {
+          "botton_id": 19,
+          "botton_name": "t"
+        },
+        {
+          "botton_id": 20,
+          "botton_name": "u"
+        },
+        {
+          "botton_id": 21,
+          "botton_name": "v"
+        },
+        {
+          "botton_id": 22,
+          "botton_name": "w"
+        },
+        {
+          "botton_id": 23,
+          "botton_name": "x"
+        },
+        {
+          "botton_id": 24,
+          "botton_name": "y"
+        },
+        {
+          "botton_id": 25,
+          "botton_name": "z"
+        },
+        {
+          "botton_id": 26,
+          "botton_name": "9"
+        },
+        {
+          "botton_id": 27,
+          "botton_name": "0"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,366 @@
+{
+  "songs": [
+    {
+      "displayName": "ただ声一つ",
+      "author": "ロクデナシ",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 15,
+          "chartFileName": "one_voice/one_voice",
+          "audioResourcePath": "one_voice/one_voice_piano",
+          "coverResourcePath": "one_voice/one_voice"
+        }
+      ]
+    },
+    {
+      "displayName": "Abiogenesis",
+      "author": "Juggernaut.",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 13,
+          "chartFileName": "Abiogenesis/Abiogenesis",
+          "audioResourcePath": "Abiogenesis/Abiogenesis_ele",
+          "pianoAudioResourcePath": "Abiogenesis/Abiogenesis_piano",
+          "coverResourcePath": "Abiogenesis/Abiogenesis"
+        }
+      ]
+    },
+    {
+      "displayName": "Wings of Piano",
+      "author": "V.K arr. phyxinon",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 14,
+          "chartFileName": "wings_of_piano/no_raw/wings-of-piano",
+          "audioResourcePath": "wings_of_piano/Wings_of_Piano_mv",
+          "pianoAudioResourcePath": "wings_of_piano/wings-of-piano_piano",
+          "coverResourcePath": "wings_of_piano/Wings_of_Piano",
+          "audioManage" :[
+            { "audioResource" :[
+                {
+                  "useMixer" : false,
+                  "audiochangeTime": 257143,
+                  "originalBPM": 85,
+                  "newBPM": 84
+                },
+                {
+                  "useMixer" : false,
+                  "fade": 260000,
+                  "fadeDurationMs": 10000
+                }
+              ],
+              "pianoAudioResource" :[
+                {
+                }
+              ]
+            }
+        ]
+        },
+        {
+          "difficultyName": "Master_string",
+          "difficultyLevel": 14,
+          "chartFileName": "wings_of_piano/raw/wings-of-piano_85bpm",
+          "audioResourcePath": "wings_of_piano/Wings_of_Piano_mv",
+          "pianoAudioResourcePath": "wings_of_piano/wings-of-piano_piano",
+          "coverResourcePath": "wings_of_piano/Wings_of_Piano",
+          "audioManage" :[
+            { "audioResource" :[
+                {
+                  
+                }
+      
+              ],
+              "pianoAudioResource" :[
+                {
+                  "useMixer" : false,
+                  "audiochangeTime": 257143,
+                  "originalBPM": 84,
+                  "newBPM": 85
+                },
+                {
+                  "useMixer" : false,
+                  "atempo": 274285
+                },
+                {
+                  "useMixer" : false,
+                  "audiochangeTime": 274286,
+                  "originalBPM": 84,
+                  "newBPM": 87
+                },
+                {
+                  "useMixer" : false,
+                  "atempo": 280000
+                },
+                {
+                  "useMixer" : false,
+                  "audiochangeTime": 280000,
+                  "originalBPM": 84,
+                  "newBPM": 85
+                },
+                {
+                  "useMixer" : false,
+                  "atempo": 291428
+                },
+                {
+                  "useMixer" : false,
+                  "audiochangeTime": 291429,
+                  "originalBPM": 84,
+                  "newBPM": 85
+                },
+                {
+                  "useMixer" : false,
+                  "atempo": 304445
+                }
+                
+              ]
+            }
+        ]
+        }
+      ]
+    },
+    {
+      "displayName": "La Campanella",
+      "author": "Liszt",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 19,
+          "chartFileName": "La_Campanella/La_Campanella",
+          "audioResourcePath": "La_Campanella/La_Campanella",
+          "coverResourcePath": "La_Campanella/La_Campanella"
+        }
+      ]
+    },
+    {
+      "displayName": "Scherzo alla napolitana",
+      "author": "Amedee Mereaux",
+      "difficulties": [
+        {
+          "difficultyName": "'Original'",
+          "difficultyLevel": 25,
+          "chartFileName": "no45-scherzo-alla-napolitana/Unplayable/Scherzo_alla_napolitana_bpm190",
+          "audioResourcePath": "no45-scherzo-alla-napolitana/Scherzo_alla_napolitana",
+          "coverResourcePath": "no45-scherzo-alla-napolitana/Scherzo_alla_napolitana",
+          "audioManage" : [
+            {
+              "audioSpeed" : [
+                {
+                  "useMixer" : false,
+                  "originalBPM": 150,
+                  "newBPM": 190
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "difficultyName": "Maestro",
+          "difficultyLevel": 22,
+          "chartFileName": "no45-scherzo-alla-napolitana/Maestro/Scherzo_alla_napolitana",
+          "audioResourcePath": "no45-scherzo-alla-napolitana/Scherzo_alla_napolitana",
+          "coverResourcePath": "no45-scherzo-alla-napolitana/Scherzo_alla_napolitana"
+        }
+      ]
+    },
+    {
+      "displayName": "Ultimate Force",
+      "author": "sakuzyo",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 17,
+          "chartFileName": "ulti_force/ulti_force",
+          "audioResourcePath": "ulti_force/ulti_force",
+          "coverResourcePath": "ulti_force/ulti_force"
+        }
+      ]
+    },
+    {
+      "displayName": "Entrance",
+      "author": "ICE arr. phyxinon",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 17,
+          "chartFileName": "Entrance/entrance",
+          "audioResourcePath": "Entrance/entrance",
+          "coverResourcePath": "Entrance/entrance"
+        }
+      ]
+    },
+    {
+      "displayName": "Anima",
+      "author": "xi arr. phyxinon",
+      "filepath":"anima/register.json",
+      "difficulties": [
+        {
+          "difficultyName": "Real",
+          "difficultyLevel": 18,
+          "chartFileName": "anima/Real/anima-xi-fullarr-phyxinon",
+          "audioResourcePath": "anima/Real/anima-xi-arr-phyxinon-full",
+          "coverResourcePath": "anima/ANIMA"
+        },
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 16,
+          "chartFileName": "anima/Master/anima-xi-fullarr-phyxinon_master",
+          "audioResourcePath": "anima/Master/anima-xi-arr-phyxinon-full",
+          "coverResourcePath": "anima/ANIMA"
+        },
+        {
+          "difficultyName": "Expert",
+          "difficultyLevel": 14,
+          "chartFileName": "anima/Expert/xi-anima-phyxinon-cover",
+          "audioResourcePath": "anima/Expert/xi-anima-phyxinon-cover_piano",
+          "coverResourcePath": "anima/ANIMA"
+        }
+      ]
+    },
+    {
+      "displayName": "[ ]DENTITY",
+      "author": "BEMANI Sound Team HuΣeR",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 18,
+          "chartFileName": "[ ]DENTITY/Real/[ ]DENTITY_Real_18",
+          "audioResourcePath": "[ ]DENTITY/[ ]DENTITY",
+          "coverResourcePath": "[ ]DENTITY/[ ]DENTITY"
+        },
+        {
+          "difficultyName": "MAXIMUM",
+          "difficultyLevel": 20,
+          "chartFileName": "[ ]DENTITY/Real+/[ ]DENTITY_Real_20",
+          "audioResourcePath": "[ ]DENTITY/[ ]DENTITY",
+          "coverResourcePath": "[ ]DENTITY/[ ]DENTITY"
+        }
+      ]
+    },
+    {
+      "displayName": "Sheriruth",
+      "author": "Team Grimoire",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 17,
+          "chartFileName": "Sheriruth/Sheriruth_Real_15",
+          "audioResourcePath": "Sheriruth/Sheriruth_Real_15",
+          "pianoAudioResourcePath": "Sheriruth/Sheriruth_Real_15_piano",
+          "coverResourcePath": "Sheriruth/Sheriruth"
+        }
+      ]
+    },
+    {
+      "displayName": "Grievous Lady",
+      "author": "Team Grimoire vs Laur arr. phyxinon",
+      "difficulties": [
+        {
+          "difficultyName": "malicious",
+          "difficultyLevel": 18,
+          "chartFileName": "Grievous_Lady/Grievous_Lady_Real_16",
+          "audioResourcePath": "Grievous_Lady/Grievous_Lady_Real_16",
+          "pianoAudioResourcePath": "Grievous_Lady/Grievous_Lady_Real_16_piano",
+          "coverResourcePath": "Grievous_Lady/Grievous_Lady_Real_16"
+        }
+      ]
+    },
+    {
+      "displayName": "Latent Kingdom",
+      "author": "Laur vs 大国奏音",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 19,
+          "chartFileName": "Latent_Kingdom/Latent_Kingdom",
+          "audioResourcePath": "Latent_Kingdom/Latent_Kingdom_ele",
+          "pianoAudioResourcePath": "Latent_Kingdom/Latent_Kingdom_piano",
+          "coverResourcePath": "Latent_Kingdom/Latent_Kingdom",
+          "videoPath": "Latent_Kingdom/Latent_Kingdom.mp4",
+          "videostartTime": 0.175
+        }
+      ]
+    },
+    {
+      "displayName": "氷滅の135小節",
+      "author": "大国奏音",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 16,
+          "chartFileName": "氷滅の135小節/氷滅の135小節 _ 大国奏音_Real_16",
+          "audioResourcePath": "氷滅の135小節/氷滅の135小節 _ 大国奏音_Real_16",
+          "coverResourcePath": "氷滅の135小節/氷滅の135小節 _ 大国奏音_Real_16"
+        }
+      ]
+    },
+    {
+      "displayName": "封焔の135秒",
+      "author": "大国奏音",
+      "difficulties": [
+        {
+          "difficultyName": "Ferocious",
+          "difficultyLevel": 18,
+          "chartFileName": "feng-yanno135miao/feng-yanno135miao_Real_17",
+          "audioResourcePath": "feng-yanno135miao/feng-yanno135miao_ele",
+          "pianoAudioResourcePath": "feng-yanno135miao/feng-yanno135miao",
+          "coverResourcePath": "feng-yanno135miao/feng-yanno135miao"
+        }
+      ]
+    },
+    {
+      "displayName": "LaVI_Bavellabion",
+      "author": "SLAVE.V-V-R feat. 三木谷奈々",
+      "difficulties": [
+        {
+          "difficultyName": "Expert",
+          "difficultyLevel": 10,
+          "chartFileName": "LaVI_Bavellabion/Expert_12/LaVI_Bavellabion",
+          "audioResourcePath": "LaVI_Bavellabion/LaVI_Bavellabion",
+          "pianoAudioResourcePath": "LaVI_Bavellabion/LaVI_Bavellabion_piano",
+          "coverResourcePath": "LaVI_Bavellabion/LaVI_Bavellabion",
+          "videoPath": "LaVI_Bavellabion/LaVI_Bavellabion.mp4",
+          "videostartTime": 0.38
+        },
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 13,
+          "chartFileName": "LaVI_Bavellabion/Real_14/LaVI_Bavellabion",
+          "audioResourcePath": "LaVI_Bavellabion/LaVI_Bavellabion",
+          "pianoAudioResourcePath": "LaVI_Bavellabion/LaVI_Bavellabion_piano",
+          "coverResourcePath": "LaVI_Bavellabion/LaVI_Bavellabion",
+          "videoPath": "LaVI_Bavellabion/LaVI_Bavellabion.mp4",
+          "videostartTime": 0.38
+        }
+      ]
+    },
+    {
+      "displayName": "あしゅらしゅら",
+      "author": "ユリイ・カノン",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 15,
+          "chartFileName": "asyurasyura/あしゅらしゅら___asyurasyura",
+          "audioResourcePath": "asyurasyura/あしゅらしゅら___asyurasyura",
+          "coverResourcePath": "asyurasyura/あしゅらしゅら___asyurasyura"
+        }
+      ]
+    },
+    {
+      "displayName": "東方萃夢想 - 砕月",
+      "author": "ZUN",
+      "difficulties": [
+        {
+          "difficultyName": "Master",
+          "difficultyLevel": 10,
+          "chartFileName": "broken-moon/東方萃夢想 - 砕月",
+          "audioResourcePath": "broken-moon/東方萃夢想 - 砕月",
+          "coverResourcePath": "broken-moon/東方萃夢想 - 砕月"
+        }
+      ]
+    }
+  ]
+}

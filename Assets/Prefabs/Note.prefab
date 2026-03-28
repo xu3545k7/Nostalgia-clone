@@ -1,0 +1,157 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4365682939301940679
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6976216405641483638}
+  - component: {fileID: 8229753428376413143}
+  - component: {fileID: 3756125536534702929}
+  - component: {fileID: 949644356261181867}
+  - component: {fileID: 5314650882250893533}
+  m_Layer: 0
+  m_Name: Note
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6976216405641483638
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4365682939301940679}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -159.76604, y: -134.01176, z: 85.1033}
+  m_LocalScale: {x: 1, y: 0.1, z: 0.2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &8229753428376413143
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4365682939301940679}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &3756125536534702929
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4365682939301940679}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!65 &949644356261181867
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4365682939301940679}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &5314650882250893533
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4365682939301940679}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af37fb0e4feb54a4b9b196bf894ecf7c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NoteController
+  rightHandMaterial: {fileID: 2100000, guid: 93da6d773e6ac444a88dd6e037a19caa, type: 2}
+  leftHandMaterial: {fileID: 2100000, guid: 47cd3ff38a26b014b8f3cec77d184da7, type: 2}
+  rightHandSprite: {fileID: 21300000, guid: daa5920e0d58f404b8d771eb3b726e01, type: 3}
+  leftHandSprite: {fileID: 21300000, guid: db8fa6de58b130840aa3b6f42c0acd64, type: 3}
+  staccatoRightSprite: {fileID: 21300000, guid: cf4e1efa465233f4798c3e2147762f1f, type: 3}
+  staccatoLeftSprite: {fileID: 21300000, guid: d34aad4c4310c4240a1b3cfcf8c5cb0d, type: 3}
+  softSprite: {fileID: 21300000, guid: d87aa03a629c45945824ba42d363c858, type: 3}
+  softTexture: {fileID: 0}
+  rightHandTexture: {fileID: 0}
+  leftHandTexture: {fileID: 0}
+  rightStaccatoIndicatorSprite: {fileID: 21300000, guid: e1d4610629e7b59438b3d23bceb3dab7, type: 3}
+  leftStaccatoIndicatorSprite: {fileID: 21300000, guid: 5e1937ee2bb0c6642acd1b4f5a5d4ca7, type: 3}
+  staccatoIndicatorOffset: {x: 0, y: 5, z: 0}
+  staccatoIndicatorScale: 1
+  staccatoIndicatorHeight: 5
+  staccatoIndicatorUpright: 1
+  staccatoIndicatorOffsetRelativeToWidth: 1
+  startTime: 0
+  endTime: 0
+  rightHoldTailTexture: {fileID: 2800000, guid: 37b26247578101d4eb9d1bba6709a68c, type: 3}
+  leftHoldTailTexture: {fileID: 2800000, guid: e12d7b78581d3914d8462e8d58beacd8, type: 3}
+  holdTailShaderOverride: {fileID: 0}
+  rightTailTint: {r: 1, g: 1, b: 1, a: 1}
+  leftTailTint: {r: 1, g: 1, b: 1, a: 1}
+  releaseZThreshold: 0.05
+  holdTailYOffset: 0
+  holdTailShrinkSpeed: 1
+  holdTailWidthFactor: 0.7
+  tailEndOffsetMs: 40
+  minimumHoldTailVisualLength: 0
+  tailLengthUpdateThreshold: 0.001
