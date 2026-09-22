@@ -152,6 +152,7 @@ public class GamePauseManager : MonoBehaviour
     [ContextMenu("ShowPauseOverlay")]
     public void ShowPauseOverlay()
     {
+        GameplayEntryPresentation.RevealCursor();
         var conductor = FindObjectOfType<Conductor>();
         PauseGame(conductor);
 
@@ -179,13 +180,13 @@ public class GamePauseManager : MonoBehaviour
         var vLayout = container.AddComponent<VerticalLayoutGroup>(); vLayout.childControlHeight = true; vLayout.childControlWidth = true; vLayout.spacing = 12; vLayout.padding = new RectOffset(12,12,12,12);
         var csf = container.AddComponent<ContentSizeFitter>(); csf.horizontalFit = ContentSizeFitter.FitMode.PreferredSize; csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        var left = CreateButtonStyled("Reselect", container.transform);
+        var left = CreateButtonStyled(Localize.T("重新選曲", "重新选曲", "Reselect Song"), container.transform);
         left.onClick.AddListener(() => { try { GameManager.Instance?.ReselectSong(); } catch { } ; StartOverlayCoroutine(WaitThenHideOverlay(0.15f)); });
 
-        var middle = CreateButtonStyled("Cancel", container.transform);
+        var middle = CreateButtonStyled(Localize.T("繼續", "继续", "Resume"), container.transform);
         middle.onClick.AddListener(() => { StartCountdown(3); });
 
-        var right = CreateButtonStyled("Restart", container.transform);
+        var right = CreateButtonStyled(Localize.T("重新開始", "重新开始", "Restart"), container.transform);
         right.onClick.AddListener(() => { try { GameManager.Instance?.RestartSong(); } catch { } ; StartOverlayCoroutine(WaitThenHideOverlay(0.15f)); });
 
         var closeBtn = _overlayRoot.AddComponent<Button>(); closeBtn.onClick.RemoveAllListeners(); closeBtn.onClick.AddListener(() => HidePauseOverlay());
@@ -206,6 +207,7 @@ public class GamePauseManager : MonoBehaviour
         var le = go.AddComponent<LayoutElement>(); le.preferredHeight = 44f; le.preferredWidth = 280f; le.minWidth = 160f; le.flexibleWidth = 1f;
         var lblGO = new GameObject("Label"); lblGO.transform.SetParent(go.transform, false);
         var lbl = lblGO.AddComponent<TextMeshProUGUI>(); lbl.text = label ?? string.Empty; lbl.alignment = TextAlignmentOptions.Center; lbl.fontSize = 22; lbl.color = Color.white; lbl.enableWordWrapping = false; lbl.richText = false;
+        ClassicalBookUITheme.ApplyLocalizedFont(lbl);
         var lblRT = lblGO.GetComponent<RectTransform>(); lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one; lblRT.offsetMin = Vector2.zero; lblRT.offsetMax = Vector2.zero;
         return btn;
     }
@@ -241,7 +243,9 @@ public class GamePauseManager : MonoBehaviour
         _countdownLabel.gameObject.SetActive(true);
         for (int i = seconds; i > 0; i--)
         {
-            _countdownLabel.text = $"Resuming in {i}...";
+            _countdownLabel.text = Localize.T(
+                $"{i} 秒後繼續…", $"{i} 秒后继续…", $"Resuming in {i}…");
+            ClassicalBookUITheme.ApplyLocalizedFont(_countdownLabel);
             yield return new WaitForSecondsRealtime(1f);
         }
         _countdownLabel.text = "";

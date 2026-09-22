@@ -1,0 +1,26 @@
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Abiogenesis\Abiogenesis.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Chronomia\Chronomia.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Entrance\entrance.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Evans\Evans.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Grievous_Lady\Grievous_Lady_Real_16.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Longinus\Longinus.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Lost in the Nowhere\Lost in the Nowhere.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\MarbleBlue\MarbleBlue.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Marigold\Marigold.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Ocean's_Wish\Ocean's_Wish.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Oceanus\Oceanus.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Parodia Sonatina -Grande-\Parodia Sonatina -Grande-.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\PRAGMATISM -RESURRECTION-\Pragmatism_resurrection.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Recollect Lines\recollect_lines.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Reflection (Mirror Night)\Reflection (Mirror Night).png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scherzo_pain_in_rain\Scherzo_pain_in_rain.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scorpion_fire\Scorpion_fire.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Testify\testify.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\ulti_force\ulti_force.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\wings_of_piano\Wings_of_Piano.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\[ ]DENTITY\[ ]DENTITY.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\エンドマークに希望と涙を添えて\endomakuni-xi-wangto-leiwo-tianete.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\グラウンドスライダー協奏曲第一番「風唄」.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\氷滅の135小節\氷滅の135小節 _ 大国奏音_Real_16.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\系ぎて\xigite.png	MISSING_REPLACEMENT
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\華麗なる大犬円舞曲\華麗なる大犬円舞曲.png	REPLACED_WITH	D:\Nostalgia\qt_editor\UnityProject\nos_clone\Assets\Resources\songs\華麗なる大犬円舞曲\華麗なる大犬円舞曲.png

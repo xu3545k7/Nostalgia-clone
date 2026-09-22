@@ -34,13 +34,17 @@ namespace
         uint8_t status_;
         uint8_t data1_;
         uint8_t data2_;
+        uint64_t qpc_timestamp_;
 
     public:
 
-        MidiMessage(DeviceID source, uint32_t rawData)
-            : source_(source), status_(rawData), data1_(rawData >> 8), data2_(rawData >> 16)
+        MidiMessage(DeviceID source, uint32_t rawData, uint64_t qpcTimestamp)
+            : source_(source), status_(rawData), data1_(rawData >> 8),
+              data2_(rawData >> 16), qpc_timestamp_(qpcTimestamp)
         {
         }
+
+        uint64_t QpcTimestamp() const { return qpc_timestamp_; }
 
         uint64_t Encode64Bit()
         {
@@ -61,9 +65,12 @@ namespace
 
     // Incoming MIDI message queue
     std::queue<MidiMessage> message_queue;
+    uint64_t last_dequeued_qpc_timestamp = 0;
 
     // Device handler lists
     std::list<DeviceHandle> active_handles;
+    std::map<DeviceHandle, unsigned int> handle_device_indices;
+    std::set<unsigned int> active_device_indices;
     std::stack<DeviceHandle> handles_to_close;
 
     // Mutex for resources
@@ -76,8 +83,10 @@ namespace
         {
             DeviceID id = DeviceHandleToID(hMidiIn);
             uint32_t raw = static_cast<uint32_t>(dwParam1);
+            LARGE_INTEGER qpc;
+            QueryPerformanceCounter(&qpc);
             resource_lock.lock();
-            message_queue.push(MidiMessage(id, raw));
+            message_queue.push(MidiMessage(id, raw, static_cast<uint64_t>(qpc.QuadPart)));
             resource_lock.unlock();
         }
         else if (wMsg == MIM_CLOSE)
@@ -103,15 +112,25 @@ namespace
     // Open a MIDI device with a given index.
     void OpenDevice(unsigned int index)
     {
+        // RefreshDevices is called from the polling path. Without tracking the
+        // opened device indices, a driver that permits shared MIDI input would
+        // be opened again every frame and report the same physical key press
+        // through multiple handles.
+        {
+            std::lock_guard<std::recursive_mutex> lock(resource_lock);
+            if (active_device_indices.count(index) != 0) return;
+        }
+
         static const DWORD_PTR callback = reinterpret_cast<DWORD_PTR>(MidiInProc);
         DeviceHandle handle;
         if (midiInOpen(&handle, index, callback, NULL, CALLBACK_FUNCTION) == MMSYSERR_NOERROR)
         {
             if (midiInStart(handle) == MMSYSERR_NOERROR)
             {
-                resource_lock.lock();
+                std::lock_guard<std::recursive_mutex> lock(resource_lock);
                 active_handles.push_back(handle);
-                resource_lock.unlock();
+                handle_device_indices[handle] = index;
+                active_device_indices.insert(index);
             }
             else
             {
@@ -125,9 +144,14 @@ namespace
     {
         midiInClose(handle);
 
-        resource_lock.lock();
+        std::lock_guard<std::recursive_mutex> lock(resource_lock);
         active_handles.remove(handle);
-        resource_lock.unlock();
+        const auto index = handle_device_indices.find(handle);
+        if (index != handle_device_indices.end())
+        {
+            active_device_indices.erase(index->second);
+            handle_device_indices.erase(index);
+        }
     }
 
     // Open the all devices.
@@ -196,12 +220,26 @@ EXPORT_API uint64_t MidiJackDequeueIncomingData()
 {
     RefreshDevices();
 
-    if (message_queue.empty()) return 0;
-
     resource_lock.lock();
+    if (message_queue.empty())
+    {
+        resource_lock.unlock();
+        return 0;
+    }
     auto msg = message_queue.front();
     message_queue.pop();
+    last_dequeued_qpc_timestamp = msg.QpcTimestamp();
     resource_lock.unlock();
 
     return msg.Encode64Bit();
+}
+
+// QPC timestamp captured inside the native MIDI callback for the message most
+// recently returned by MidiJackDequeueIncomingData.
+EXPORT_API uint64_t MidiJackGetLastDequeuedTimestampQpc()
+{
+    resource_lock.lock();
+    auto timestamp = last_dequeued_qpc_timestamp;
+    resource_lock.unlock();
+    return timestamp;
 }

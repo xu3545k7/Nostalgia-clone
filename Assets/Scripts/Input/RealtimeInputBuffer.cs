@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -45,6 +46,59 @@ public class RealtimeInputBuffer : MonoBehaviour
     private readonly double[] lastPressTime = new double[LaneCount];
     private readonly double[] lastReleaseTime = new double[LaneCount];
     private readonly double[] lastStableChangeTime = new double[LaneCount];
+    private struct BufferedLaneEvent
+    {
+        public int lane;
+        public bool pressed;
+        public double timestamp;
+    }
+    // Preserve every stable edge in arrival order. A single "pressed this
+    // frame" bit cannot represent press/release/press during one long frame,
+    // which is especially destructive for 0.125-second Trill slots.
+    private readonly Queue<BufferedLaneEvent> gameplayEvents =
+        new Queue<BufferedLaneEvent>(64);
+
+    /// <summary>
+    /// Returns the hardware event timestamp (realtimeSinceStartup) of the last stable press
+    /// on the given lane, or double.NegativeInfinity if never pressed.
+    /// Use this instead of frame-time songPos for sub-frame judgment accuracy.
+    /// </summary>
+    public double GetLastPressTime(int lane)
+    {
+        if ((uint)lane >= LaneCount) return double.NegativeInfinity;
+        return lastPressTime[lane];
+    }
+
+    /// <summary>
+    /// Returns the hardware event timestamp of the last stable release on the given lane.
+    /// </summary>
+    public double GetLastReleaseTime(int lane)
+    {
+        if ((uint)lane >= LaneCount) return double.NegativeInfinity;
+        return lastReleaseTime[lane];
+    }
+
+    public bool TryDequeueGameplayEvent(out int lane, out bool isPressed, out double timestamp)
+    {
+        if (gameplayEvents.Count == 0)
+        {
+            lane = -1;
+            isPressed = false;
+            timestamp = 0.0;
+            return false;
+        }
+
+        BufferedLaneEvent inputEvent = gameplayEvents.Dequeue();
+        lane = inputEvent.lane;
+        isPressed = inputEvent.pressed;
+        timestamp = inputEvent.timestamp;
+        return true;
+    }
+
+    public void ClearGameplayEvents()
+    {
+        gameplayEvents.Clear();
+    }
 
     private uint currentSequence;
     private uint frameSequence;
@@ -159,15 +213,13 @@ public class RealtimeInputBuffer : MonoBehaviour
             RefreshKeyControls();
         }
 
-        double timestamp = eventPtr.time;
-        if (double.IsNaN(timestamp) || timestamp <= 0)
-        {
-            timestamp = InputState.currentTime;
-            if (double.IsNaN(timestamp) || timestamp <= 0)
-            {
-                timestamp = GetRealtimeSinceStartup();
-            }
-        }
+        // onEvent executes as Unity receives the hardware state event, before
+        // gameplay Update. Stamp that arrival directly on Unity's realtime
+        // clock. InputEvent.time/InputState.currentTime use the Input Runtime
+        // clock; deriving an "age" between that clock and realtime produced a
+        // stable 20-30 ms over-backdate for keyboard-emulated MIDI devices.
+        // Arrival time still preserves sub-frame precision without that bias.
+        double timestamp = GetRealtimeSinceStartup();
 
         for (int i = 0; i < LaneCount; i++)
         {
@@ -229,6 +281,7 @@ public class RealtimeInputBuffer : MonoBehaviour
         Array.Clear(pendingActive, 0, pendingActive.Length);
         Array.Clear(pendingTarget, 0, pendingTarget.Length);
         Array.Clear(pendingStartTime, 0, pendingStartTime.Length);
+        gameplayEvents.Clear();
         for (int i = 0; i < LaneCount; i++)
         {
             lastPressTime[i] = double.NegativeInfinity;
@@ -253,7 +306,10 @@ public class RealtimeInputBuffer : MonoBehaviour
             bool target = pendingTarget[lane];
             if (target == newPressed)
             {
-                pendingStartTime[lane] = timestamp;
+                // Keep the timestamp of the first edge. Full keyboard state
+                // events can repeat an unchanged control when another key
+                // moves; resetting here could postpone confirmation forever
+                // during dense chords.
                 return;
             }
 
@@ -321,7 +377,10 @@ public class RealtimeInputBuffer : MonoBehaviour
             }
 
             pendingActive[i] = false;
-            ApplyStableState(i, target, now);
+            // 用實際硬體事件時間（pendingStartTime）作為穩定時間戳，而非確認當下的幀時間 now。
+            // now 只負責判斷「是否已等夠 threshold」；若在這裡寫入 now，lastPressTime 會被記成
+            // 最晚可達一整幀之後的幀時間，抵銷本 buffer 設計的 sub-frame 精度，導致判定系統性偏晚。
+            ApplyStableState(i, target, pendingStartTime[i]);
         }
     }
 
@@ -353,6 +412,12 @@ public class RealtimeInputBuffer : MonoBehaviour
         }
 
         lastStableChangeTime[lane] = timestamp;
+        gameplayEvents.Enqueue(new BufferedLaneEvent
+        {
+            lane = lane,
+            pressed = newPressed,
+            timestamp = timestamp
+        });
     }
 
     private double GetThresholdSeconds(bool isPress)

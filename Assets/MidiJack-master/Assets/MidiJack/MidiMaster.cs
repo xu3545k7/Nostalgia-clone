@@ -41,6 +41,10 @@ namespace MidiJack
             set { MidiDriver.Instance.knobDelegate = value; }
         }
 
+        public static ulong lastEventTimestampQpc {
+            get { return MidiDriver.Instance.lastEventTimestampQpc; }
+        }
+
         // Returns the key state (on: velocity, off: zero).
         public static float GetKey(MidiChannel channel, int noteNumber)
         {

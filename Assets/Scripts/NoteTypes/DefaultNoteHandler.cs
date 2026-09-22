@@ -8,7 +8,8 @@ public class DefaultNoteHandler : INoteHandler
     public virtual JudgmentResult EvaluateHead(NoteController note, float songPos, float delta, int buttonId)
     {
         // default: follow JudgmentManager thresholds via a simple delta-based mapping.
-        if (SettingsManager.Instance != null && SettingsManager.Instance.DebugMode)
+        if ((SettingsManager.Instance != null && SettingsManager.Instance.DebugModeInPlay)
+            || (note != null && note.IsTutorialDemo))
         {
             return JudgmentResult.Perfect;
         }

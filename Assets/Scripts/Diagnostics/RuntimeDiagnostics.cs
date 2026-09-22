@@ -10,6 +10,8 @@ using UnityEngine.Profiling;
 /// </summary>
 public class RuntimeDiagnostics : MonoBehaviour
 {
+    [Tooltip("Enable allocation/stack diagnostics. Keep this off during normal 120 FPS gameplay.")]
+    public bool enableDiagnostics = false;
     private static long lastTotalAllocated = 0;
     private static int instantiates = 0;
     private static int destroys = 0;
@@ -61,6 +63,7 @@ public class RuntimeDiagnostics : MonoBehaviour
 
     void Update()
     {
+        if (!enableDiagnostics) return;
         // Measure allocation delta this frame (approximate)
         try
         {

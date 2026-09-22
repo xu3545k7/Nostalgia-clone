@@ -1,0 +1,76 @@
+Song image check
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Abiogenesis\register.json	songs/Abiogenesis/Abiogenesis	ok	Assets\Resources\songs\Abiogenesis\Abiogenesis.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\anima\register.json	songs/anima/ANIMA	ok	Assets\Resources\songs\anima\ANIMA.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\anima\register.json	songs/anima/ANIMA	ok	Assets\Resources\songs\anima\ANIMA.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\anima\register.json	songs/anima/ANIMA	ok	Assets\Resources\songs\anima\ANIMA.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\asyurasyura\register.json	songs/asyurasyura/あしゅらしゅら___asyurasyura	ok	Assets\Resources\songs\asyurasyura\あしゅらしゅら___asyurasyura.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\birth_of_devil\register.json	songs/birth_of_devil/birth_of_devil	ok	Assets\Resources\songs\birth_of_devil\birth_of_devil.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\birth_of_devil\register.json	songs/birth_of_devil/birth_of_devil	ok	Assets\Resources\songs\birth_of_devil\birth_of_devil.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Break_Through_the_Dome\register.json	songs/Break_Through_the_Dome/Break_Through_the_Dome	ok	Assets\Resources\songs\Break_Through_the_Dome\Break_Through_the_Dome.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Break_Through_the_Dome\register.json	songs/Break_Through_the_Dome/Break_Through_the_Dome	ok	Assets\Resources\songs\Break_Through_the_Dome\Break_Through_the_Dome.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\broken-moon\register.json	songs/broken-moon/東方萃夢想 - 砕月	ok	Assets\Resources\songs\broken-moon\東方萃夢想 - 砕月.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Chronomia\register.json	songs/Chronomia/Chronomia	ok	Assets\Resources\songs\Chronomia\Chronomia.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Chronomia\register.json	songs/Chronomia/Chronomia	ok	Assets\Resources\songs\Chronomia\Chronomia.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Croatian_Rhapsody\register.json	songs/Croatian_Rhapsody/Croatian_Rhapsody	ok	Assets\Resources\songs\Croatian_Rhapsody\Croatian_Rhapsody.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\End_Time\register.json	songs/End_Time/End_Time	ok	Assets\Resources\songs\End_Time\End_Time.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Entrance\register.json	songs/Entrance/entrance	ok	Assets\Resources\songs\Entrance\entrance.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Entrance\register.json	songs/Entrance/entrance	ok	Assets\Resources\songs\Entrance\entrance.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Evans\register.json	songs/Evans/Evans	ok	Assets\Resources\songs\Evans\Evans.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Evans\register.json	songs/Evans/Evans	ok	Assets\Resources\songs\Evans\Evans.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\feng-yanno135miao\register.json	songs/feng-yanno135miao/feng-yanno135miao	ok	Assets\Resources\songs\feng-yanno135miao\feng-yanno135miao.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Flight_of_the_Bamboo_Cutter_Lunatic_Princess\register.json	songs/Flight_of_the_Bamboo_Cutter_Lunatic_Princess/Flight_of_the_Bamboo_Cutter_Lunatic_Princess	ok	Assets\Resources\songs\Flight_of_the_Bamboo_Cutter_Lunatic_Princess\Flight_of_the_Bamboo_Cutter_Lunatic_Princess.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Forest_of_Clock\register.json	songs/Forest_of_Clock/Forest_of_Clock	ok	Assets\Resources\songs\Forest_of_Clock\Forest_of_Clock.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Grievous_Lady\register.json	songs/Grievous_Lady/Grievous_Lady_Real_16	ok	Assets\Resources\songs\Grievous_Lady\Grievous_Lady_Real_16.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Grievous_Lady\register.json	songs/Grievous_Lady/Grievous_Lady_Real_16	ok	Assets\Resources\songs\Grievous_Lady\Grievous_Lady_Real_16.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Latent_Kingdom\register.json	songs/Latent_Kingdom/Latent_Kingdom	ok	Assets\Resources\songs\Latent_Kingdom\Latent_Kingdom.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\LaVI_Bavellabion\register.json	songs/LaVI_Bavellabion/LaVI_Bavellabion	ok	Assets\Resources\songs\LaVI_Bavellabion\LaVI_Bavellabion.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\LaVI_Bavellabion\register.json	songs/LaVI_Bavellabion/LaVI_Bavellabion	ok	Assets\Resources\songs\LaVI_Bavellabion\LaVI_Bavellabion.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\La_Campanella\register.json	songs/La_Campanella/La_Campanella	ok	Assets\Resources\songs\La_Campanella\La_Campanella.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Longinus\register.json	songs/Longinus/Longinus	ok	Assets\Resources\songs\Longinus\Longinus.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Lost in the Nowhere\register.json	songs/Lost in the Nowhere/Lost in the Nowhere	ok	Assets\Resources\songs\Lost in the Nowhere\Lost in the Nowhere.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\MarbleBlue\register.json	songs/MarbleBlue/MarbleBlue	ok	Assets\Resources\songs\MarbleBlue\MarbleBlue.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Marigold\register.json	songs/Marigold/Marigold	ok	Assets\Resources\songs\Marigold\Marigold.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Marigold\register.json	songs/Marigold/Marigold	ok	Assets\Resources\songs\Marigold\Marigold.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\no45-scherzo-alla-napolitana\register.json	songs/no45-scherzo-alla-napolitana/Scherzo_alla_napolitana	ok	Assets\Resources\songs\no45-scherzo-alla-napolitana\Scherzo_alla_napolitana.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\no45-scherzo-alla-napolitana\register.json	songs/no45-scherzo-alla-napolitana/Scherzo_alla_napolitana	ok	Assets\Resources\songs\no45-scherzo-alla-napolitana\Scherzo_alla_napolitana.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Ocean's_Wish\register.json	songs/Ocean's_Wish/Ocean's_Wish	ok	Assets\Resources\songs\Ocean's_Wish\Ocean's_Wish.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Oceanus\register.json	songs/Oceanus/Oceanus	ok	Assets\Resources\songs\Oceanus\Oceanus.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\one_voice\register.json	songs/one_voice/one_voice	ok	Assets\Resources\songs\one_voice\one_voice.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Parodia Sonatina -Grande-\register.json	songs/Parodia Sonatina -Grande-/Parodia Sonatina -Grande-	ok	Assets\Resources\songs\Parodia Sonatina -Grande-\Parodia Sonatina -Grande-.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\PRAGMATISM -RESURRECTION-\register.json	songs/PRAGMATISM -RESURRECTION-/Pragmatism_resurrection	ok	Assets\Resources\songs\PRAGMATISM -RESURRECTION-\Pragmatism_resurrection.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\PRAGMATISM -RESURRECTION-\register.json	songs/PRAGMATISM -RESURRECTION-/Pragmatism_resurrection	ok	Assets\Resources\songs\PRAGMATISM -RESURRECTION-\Pragmatism_resurrection.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Recollect Lines\register.json	songs/Recollect Lines/recollect_lines	ok	Assets\Resources\songs\Recollect Lines\recollect_lines.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Recollect Lines\register.json	songs/Recollect Lines/recollect_lines	ok	Assets\Resources\songs\Recollect Lines\recollect_lines.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Reflection (Mirror Night)\register.json	songs/Reflection (Mirror Night)/Reflection (Mirror Night)	ok	Assets\Resources\songs\Reflection (Mirror Night)\Reflection (Mirror Night).png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Re_miniscence\register.json	songs/Re_miniscence/Re_miniscence	ok	Assets\Resources\songs\Re_miniscence\Re_miniscence.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\RE_UNION_Duo_Blade_Against\register.json	songs/RE_UNION_Duo_Blade_Against/Reunion_duo_blade_against	ok	Assets\Resources\songs\RE_UNION_Duo_Blade_Against\Reunion_duo_blade_against.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\RE_UNION_Duo_Blade_Against\register.json	songs/RE_UNION_Duo_Blade_Against/Reunion_duo_blade_against	ok	Assets\Resources\songs\RE_UNION_Duo_Blade_Against\Reunion_duo_blade_against.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Rrhar'il\register.json	songs/Rrhar'il/Rrhar'il	ok	Assets\Resources\songs\Rrhar'il\Rrhar'il.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Rrhar'il\register.json	songs/Rrhar'il/Rrhar'il	ok	Assets\Resources\songs\Rrhar'il\Rrhar'il.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scherzo_pain_in_rain\register.json	songs/Scherzo_pain_in_rain/Scherzo_pain_in_rain	ok	Assets\Resources\songs\Scherzo_pain_in_rain\Scherzo_pain_in_rain.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scorpion_fire\register.json	songs/Scorpion_fire/Scorpion_fire	ok	Assets\Resources\songs\Scorpion_fire\Scorpion_fire.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scorpion_fire\register.json	songs/Scorpion_fire/Scorpion_fire	ok	Assets\Resources\songs\Scorpion_fire\Scorpion_fire.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Sheriruth\register.json	songs/Sheriruth/Sheriruth	ok	Assets\Resources\songs\Sheriruth\Sheriruth.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Testify\register.json	songs/Testify/testify	ok	Assets\Resources\songs\Testify\testify.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Testify\register.json	songs/Testify/testify	ok	Assets\Resources\songs\Testify\testify.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\this_game_animenz\register.json	songs/this_game_animenz/this_game_animenz	ok	Assets\Resources\songs\this_game_animenz\this_game_animenz.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\this_game_animenz\register.json	songs/this_game_animenz/this_game_animenz	ok	Assets\Resources\songs\this_game_animenz\this_game_animenz.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\ulti_force\register.json	songs/ulti_force/ulti_force	ok	Assets\Resources\songs\ulti_force\ulti_force.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Unwelcome School\register.json	songs/Unwelcome School/Unwelcome School	ok	Assets\Resources\songs\Unwelcome School\Unwelcome School.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\wings_of_piano\register.json	songs/wings_of_piano/Wings_of_Piano	ok	Assets\Resources\songs\wings_of_piano\Wings_of_Piano.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\wings_of_piano\register.json	songs/wings_of_piano/Wings_of_Piano	ok	Assets\Resources\songs\wings_of_piano\Wings_of_Piano.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\[ ]DENTITY\register.json	songs/[ ]DENTITY/[ ]DENTITY	ok	Assets\Resources\songs\[ ]DENTITY\[ ]DENTITY.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\[ ]DENTITY\register.json	songs/[ ]DENTITY/[ ]DENTITY	ok	Assets\Resources\songs\[ ]DENTITY\[ ]DENTITY.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\エンドマークに希望と涙を添えて\register.json	songs/エンドマークに希望と涙を添えて/endomakuni-xi-wangto-leiwo-tianete	ok	Assets\Resources\songs\エンドマークに希望と涙を添えて\endomakuni-xi-wangto-leiwo-tianete.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\エンドマークに希望と涙を添えて\register.json	songs/エンドマークに希望と涙を添えて/endomakuni-xi-wangto-leiwo-tianete	ok	Assets\Resources\songs\エンドマークに希望と涙を添えて\endomakuni-xi-wangto-leiwo-tianete.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\register.json	songs/グラウンドスライダー協奏曲第一番「風唄」/グラウンドスライダー協奏曲第一番「風唄」	ok	Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\グラウンドスライダー協奏曲第一番「風唄」.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\register.json	songs/グラウンドスライダー協奏曲第一番「風唄」/グラウンドスライダー協奏曲第一番「風唄」	ok	Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\グラウンドスライダー協奏曲第一番「風唄」.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\register.json	songs/グラウンドスライダー協奏曲第一番「風唄」/グラウンドスライダー協奏曲第一番「風唄」	ok	Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\グラウンドスライダー協奏曲第一番「風唄」.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\其のエメラルドを見よ\register.json	songs/其のエメラルドを見よ/其のエメラルドを見よ	ok	Assets\Resources\songs\其のエメラルドを見よ\其のエメラルドを見よ.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\夜の向日葵\register.json	songs/夜の向日葵/夜の向日葵	ok	Assets\Resources\songs\夜の向日葵\夜の向日葵.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\旅\register.json	songs/旅/旅	ok	Assets\Resources\songs\旅\旅.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\旅\register.json	songs/旅/旅	ok	Assets\Resources\songs\旅\旅.jpg
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\氷滅の135小節\register.json	songs/氷滅の135小節/氷滅の135小節 _ 大国奏音_Real_16	ok	Assets\Resources\songs\氷滅の135小節\氷滅の135小節 _ 大国奏音_Real_16.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\系ぎて\register.json	songs/系ぎて/xigite	ok	Assets\Resources\songs\系ぎて\xigite.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\系ぎて\register.json	songs/系ぎて/xigite	ok	Assets\Resources\songs\系ぎて\xigite.png
+D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\華麗なる大犬円舞曲\register.json	songs/華麗なる大犬円舞曲/華麗なる大犬円舞曲	ok	Assets\Resources\songs\華麗なる大犬円舞曲\華麗なる大犬円舞曲.png

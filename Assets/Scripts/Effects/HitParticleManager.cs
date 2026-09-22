@@ -12,7 +12,9 @@ public class HitParticleManager : MonoBehaviour
     public static HitParticleManager Instance { get; private set; }
 
     [Header("Prefab / Pooling")]
-    [SerializeField] private ParticleSystem particlePrefab;
+    [SerializeField, Tooltip("Legacy single emitter used by the original main scene.")]
+    private ParticleSystem particlePrefab;
+    [SerializeField] private ParticleSystem[] particlePrefabs;
     [SerializeField] private int initialPoolSize = 12;
     [SerializeField] private Transform poolRoot;
 
@@ -32,12 +34,20 @@ public class HitParticleManager : MonoBehaviour
     [SerializeField] private Color perfectColor = new Color(1f, 0.95f, 0.7f);
     [SerializeField] private Color greatColor = new Color(0.7f, 0.9f, 1f);
     [SerializeField] private Color goodColor = new Color(0.7f, 0.8f, 1f);
+    [SerializeField] private Color leftThemeColor = new Color(0.2745098f, 0.6392157f, 1f, 1f);
+    [SerializeField] private Color rightThemeColor = new Color(1f, 0.1764706f, 0.1764706f, 1f);
 
     [Header("Emission Tweaks")]
-    [SerializeField] private Vector2 startSizeRange = new Vector2(0.35f, 0.7f);
+    [SerializeField] private Vector2 startSizeRange = new Vector2(0.6f, 1.2f);
     [SerializeField] private Vector2 startSpeedRange = new Vector2(2.5f, 4.5f);
     [SerializeField] private Vector2 lifetimeRange = new Vector2(0.25f, 0.55f);
     [SerializeField] private float rotationJitter = 15f;
+    [SerializeField, Tooltip("Global multiplier for normal hit particle size.")]
+    private float particleSizeMultiplier = 1.5f;
+    [SerializeField, Tooltip("Width multiplier for particle spawn shape when matching note width.")]
+    private float particleShapeWidthMultiplier = 1.5f;
+    [SerializeField, Tooltip("If true, adjusts the particle shape width to match the note width for standard notes.")]
+    private bool adaptShapeToNoteWidth = true;
 
     [Header("Spawn Placement")]
     [SerializeField] private Vector3 spawnOffset = new Vector3(0f, 0.05f, 0f);
@@ -46,7 +56,7 @@ public class HitParticleManager : MonoBehaviour
 
     [Header("Laser Beam")]
     [SerializeField, Tooltip("If true, spawns the LK laser beam along the same direction as the particles.")]
-    private bool enableLaserBeam = true;
+    private bool enableLaserBeam = false;
     [SerializeField, Tooltip("Prefab that contains a LineRenderer with LK_Lazer.mat and a LaserBeamBurst script.")]
     private LaserBeamBurst laserBeamPrefab;
     [SerializeField, Tooltip("Initial pooled beam instances.")]
@@ -88,7 +98,7 @@ public class HitParticleManager : MonoBehaviour
     [Header("Hold Emission")]
     [SerializeField, Tooltip("If true, hold notes keep spawning particles while the key stays pressed.")]
     private bool enableHoldEmissionLoop = true;
-    [SerializeField, Tooltip("Seconds between each hold emission burst."), Min(0.01f)]
+    [SerializeField, Tooltip("Fallback interval only when no valid BPM is available."), Min(0.01f)]
     private float holdEmissionInterval = 0.08f;
 
     private readonly Queue<ParticleSystem> availableSystems = new Queue<ParticleSystem>();
@@ -107,11 +117,6 @@ public class HitParticleManager : MonoBehaviour
         public Vector3 shapeScale;
         public float shapeAngle;
         public float shapeRadius;
-        public bool velocityEnabled;
-        public ParticleSystemSimulationSpace velocitySpace;
-        public ParticleSystem.MinMaxCurve velocityX;
-        public ParticleSystem.MinMaxCurve velocityY;
-        public ParticleSystem.MinMaxCurve velocityZ;
     }
     
     private class HoldEmissionState
@@ -155,9 +160,41 @@ public class HitParticleManager : MonoBehaviour
         holdEmissionStates.Clear();
     }
 
+    /// <summary>
+    /// Stops chart-scoped emission and returns every live effect to its pool.
+    /// The prewarmed pool itself is intentionally retained for the next song.
+    /// </summary>
+    public void ClearActiveEffects()
+    {
+        StopAllCoroutines();
+        holdEmissionStates.Clear();
+
+        var systems = new List<ParticleSystem>(activeSystems);
+        activeSystems.Clear();
+        for (int i = 0; i < systems.Count; i++)
+        {
+            ParticleSystem system = systems[i];
+            if (system == null) continue;
+            system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            system.gameObject.SetActive(false);
+            RestoreSystemDefaults(system);
+            availableSystems.Enqueue(system);
+        }
+
+        var beams = new List<LaserBeamBurst>(activeBeams);
+        activeBeams.Clear();
+        for (int i = 0; i < beams.Count; i++)
+        {
+            LaserBeamBurst beam = beams[i];
+            if (beam == null) continue;
+            beam.gameObject.SetActive(false);
+            availableBeams.Enqueue(beam);
+        }
+    }
+
     private void PrewarmPool(int count)
     {
-        if (particlePrefab == null || count <= 0) return;
+        if (!HasParticlePrefab() || count <= 0) return;
         for (int i = 0; i < count; i++)
         {
             availableSystems.Enqueue(CreateSystemInstance());
@@ -166,7 +203,9 @@ public class HitParticleManager : MonoBehaviour
 
     private ParticleSystem CreateSystemInstance()
     {
-        var instance = Instantiate(particlePrefab, poolRoot);
+        ParticleSystem selectedPrefab = PickParticlePrefab();
+        if (selectedPrefab == null) return null;
+        var instance = Instantiate(selectedPrefab, poolRoot);
         instance.gameObject.SetActive(false);
         instance.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         CacheDefaultModules(instance);
@@ -222,21 +261,53 @@ public class HitParticleManager : MonoBehaviour
 
     private ParticleSystem GetSystem()
     {
-        if (particlePrefab == null)
+        if (!HasParticlePrefab())
         {
-            Debug.LogWarning("HitParticleManager: particlePrefab is not assigned.");
+            Debug.LogWarning("HitParticleManager: no particle emitter prefab is assigned.");
             return null;
         }
 
         if (availableSystems.Count == 0)
         {
-            availableSystems.Enqueue(CreateSystemInstance());
+            var created = CreateSystemInstance();
+            if (created == null) return null;
+            availableSystems.Enqueue(created);
         }
 
         var system = availableSystems.Dequeue();
         activeSystems.Add(system);
         RestoreSystemDefaults(system);
         return system;
+    }
+
+    private bool HasParticlePrefab()
+    {
+        if (particlePrefab != null) return true;
+        if (particlePrefabs == null) return false;
+        for (int i = 0; i < particlePrefabs.Length; i++)
+        {
+            if (particlePrefabs[i] != null) return true;
+        }
+        return false;
+    }
+
+    private ParticleSystem PickParticlePrefab()
+    {
+        if (particlePrefabs != null && particlePrefabs.Length > 0)
+        {
+            for (int attempt = 0; attempt < particlePrefabs.Length; attempt++)
+            {
+                var candidate = particlePrefabs[Random.Range(0, particlePrefabs.Length)];
+                if (candidate != null) return candidate;
+            }
+
+            for (int i = 0; i < particlePrefabs.Length; i++)
+            {
+                if (particlePrefabs[i] != null) return particlePrefabs[i];
+            }
+        }
+
+        return particlePrefab;
     }
 
     /// <summary>
@@ -249,45 +320,69 @@ public class HitParticleManager : MonoBehaviour
         if (system == null) return;
 
         Vector3 spawnPos = note.transform.position + spawnOffset;
+        Quaternion hitRotation = Quaternion.identity;
+        bool hasJudgmentAnchor = false;
+        try
+        {
+            var judgeMesh = NoteJudgementMeshManager.EnsureCreated();
+            if (judgeMesh != null && judgeMesh.TryGetHitOrigin(
+                note, out var hitOrigin, out hitRotation, out _, laneId))
+            {
+                spawnPos = hitOrigin + hitRotation * spawnOffset;
+                hasJudgmentAnchor = true;
+            }
+        }
+        catch { }
         if (laneId < 0 && note.NoteData != null)
         {
             laneId = note.NoteData.startLane;
         }
 
-        spawnPos.x += ComputeLaneOffsetX(note, laneId);
+        // A judgment anchor already contains the exact note/lane centre. The
+        // legacy absolute lane offset would apply the lane position twice.
+        if (!hasJudgmentAnchor)
+        {
+            spawnPos.x += ComputeLaneOffsetX(note, laneId);
+        }
         Vector3 trackNormal = ResolveTrackNormal(note);
 
         bool isSharp = note.IsStaccato;
         bool isLeft = DetermineIsLeftLane(laneId, note);
+        Color themedHitColor = ResolveThemedColor(result, isLeft);
 
         var main = system.main;
         if (isSharp && enableSharpLinearFlight)
         {
-            main.startSize = Random.Range(sharpSizeRange.x, sharpSizeRange.y);
-            main.startSpeed = 0f;
+            main.startSize = Random.Range(sharpSizeRange.x, sharpSizeRange.y) * particleSizeMultiplier;
+            main.startSpeed = Random.Range(sharpSpeedRange.x, sharpSpeedRange.y);
             main.startLifetime = Random.Range(sharpLifetimeRange.x, sharpLifetimeRange.y);
-            ApplySharpLinearFlight(system, note, trackNormal);
+            ApplySharpLinearFlight(system, note);
         }
         else
         {
-            main.startSize = Random.Range(startSizeRange.x, startSizeRange.y);
-            main.startSpeed = 0f;
+            main.startSize = Random.Range(startSizeRange.x, startSizeRange.y) * particleSizeMultiplier;
+            main.startSpeed = Random.Range(startSpeedRange.x, startSpeedRange.y);
             main.startLifetime = Random.Range(lifetimeRange.x, lifetimeRange.y);
-            ApplyStandardFlight(system, trackNormal);
+            ApplyStandardFlight(system, note);
         }
         main.startRotation = Random.Range(-rotationJitter, rotationJitter) * Mathf.Deg2Rad;
-        main.startColor = ResolveColor(result);
+        main.startColor = themedHitColor;
 
         ApplyTexture(system, isSharp, isLeft);
 
         var t = system.transform;
         t.position = spawnPos;
-        Vector3 lookDir = trackNormal.sqrMagnitude > 1e-4f ? trackNormal.normalized : Vector3.up;
-        if (lookDir.sqrMagnitude < 1e-4f)
+        // Cone and Box shapes fire along the emitter's local +Z, so aim that
+        // axis at the track normal and the burst leaves the track surface
+        // instead of sliding along the lane. The remaining in-plane axis only
+        // decides which way the emission box spans, so any of them will do.
+        Vector3 emitDirection = trackNormal.sqrMagnitude > 1e-4f ? trackNormal.normalized : Vector3.up;
+        Vector3 emitUp = ResolveTrackForward(note);
+        if (Mathf.Abs(Vector3.Dot(emitUp, emitDirection)) > 0.999f)
         {
-            lookDir = Vector3.up;
+            emitUp = Mathf.Abs(emitDirection.y) < 0.9f ? Vector3.up : Vector3.forward;
         }
-        t.rotation = Quaternion.LookRotation(lookDir, Vector3.up);
+        t.rotation = Quaternion.LookRotation(emitDirection, emitUp);
         system.gameObject.SetActive(true);
         system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         system.Play(true);
@@ -295,11 +390,15 @@ public class HitParticleManager : MonoBehaviour
 
         try
         {
-            JudgmentLineGlow.Instance?.TriggerGlow();
+            JudgmentLineGlow.GetOrCreate()?.TriggerGlow();
         }
         catch { }
 
-        EmitLaserBeam(note, spawnPos, trackNormal, result);
+        EmitLaserBeam(note, spawnPos, trackNormal, result, themedHitColor);
+        // Keep repeated Hold flashes centred on the judgment line. The
+        // persistent mesh is responsible for enclosing the remaining tail.
+        ClassicalHitAccent.Play(spawnPos, t.rotation, ComputeNoteWidth(note), themedHitColor,
+            note.GetCurrentWorldHeight(), 0f);
     }
 
     private IEnumerator ReturnWhenFinished(ParticleSystem system)
@@ -315,7 +414,7 @@ public class HitParticleManager : MonoBehaviour
         availableSystems.Enqueue(system);
     }
 
-    private void EmitLaserBeam(NoteController note, Vector3 spawnPos, Vector3 trackNormal, JudgmentResult result)
+    private void EmitLaserBeam(NoteController note, Vector3 spawnPos, Vector3 trackNormal, JudgmentResult result, Color themedHitColor)
     {
         var beam = GetLaserInstance();
         if (beam == null)
@@ -328,7 +427,7 @@ public class HitParticleManager : MonoBehaviour
         float length = (!usePrefabLaserLength && laserLengthOverride > 0f) ? laserLengthOverride : -1f;
         float duration = laserDurationOverride > 0f ? laserDurationOverride : -1f;
         float width = ComputeNoteWidth(note);
-        Color beamColor = overrideLaserColor ? laserOverrideColor : ResolveColor(result);
+        Color beamColor = overrideLaserColor ? laserOverrideColor : themedHitColor;
         beam.Play(start, trackForward, beamColor, length, duration, width, trackNormal);
     }
 
@@ -340,8 +439,8 @@ public class HitParticleManager : MonoBehaviour
             return laneSpacing;
         }
 
-        int span = Mathf.Max(1, Mathf.Abs(nd.endLane - nd.startLane) + 1);
-        float width = span * laneSpacing * Mathf.Max(0.01f, laserWidthMultiplier);
+        float trackWidth = PianoVisualLayout.ResolveTrackWidth(note != null ? note.TrackTransform : null);
+        float width = PianoVisualLayout.ResolveVisualWidth(nd, trackWidth) * Mathf.Max(0.01f, laserWidthMultiplier);
 
         if (laserWidthClamp.y > 0f && laserWidthClamp.y > laserWidthClamp.x)
         {
@@ -451,7 +550,8 @@ public class HitParticleManager : MonoBehaviour
 
     private IEnumerator HoldEmissionCoroutine(NoteController note)
     {
-        var wait = new WaitForSeconds(holdEmissionInterval);
+        Conductor conductor = GameManager.Instance != null ? GameManager.Instance.Conductor : null;
+        double nextSixteenthMs = -1d;
         while (enableHoldEmissionLoop)
         {
             if (note == null)
@@ -465,8 +565,28 @@ public class HitParticleManager : MonoBehaviour
                 yield break;
             }
 
-            PlayHitEffect(note, state.LaneId, JudgmentResult.Perfect);
-            yield return wait;
+            float bpm = conductor != null ? conductor.bpm : 0f;
+            // Visual glow only: four pulses per former sixteenth-note interval.
+            double intervalMs = bpm > 0.001f
+                ? 3750d / bpm
+                : Mathf.Max(10f, holdEmissionInterval * 250f);
+            double songMs = conductor != null
+                ? conductor.GetDspSongPositionMs()
+                : Time.unscaledTimeAsDouble * 1000d;
+
+            if (nextSixteenthMs < 0d)
+            {
+                nextSixteenthMs = (System.Math.Floor(songMs / intervalMs) + 1d) * intervalMs;
+            }
+
+            if (songMs + 0.5d >= nextSixteenthMs)
+            {
+                PlayHitEffect(note, state.LaneId, JudgmentResult.Perfect);
+                // Advance by whole grid steps so a slow frame never causes a burst storm.
+                do { nextSixteenthMs += intervalMs; }
+                while (nextSixteenthMs <= songMs);
+            }
+            yield return null;
         }
 
         holdEmissionStates.Remove(note);
@@ -487,6 +607,24 @@ public class HitParticleManager : MonoBehaviour
         }
     }
 
+    private Color ResolveThemedColor(JudgmentResult result, bool isLeft)
+    {
+        Color theme = isLeft ? leftThemeColor : rightThemeColor;
+        float intensity;
+        switch (result)
+        {
+            case JudgmentResult.Perfect: intensity = 1.25f; break;
+            case JudgmentResult.Great: intensity = 1f; break;
+            case JudgmentResult.Good: intensity = 0.72f; break;
+            default: intensity = 0.85f; break;
+        }
+        theme.r *= intensity;
+        theme.g *= intensity;
+        theme.b *= intensity;
+        theme.a = 1f;
+        return theme;
+    }
+
     private void CacheDefaultModules(ParticleSystem system)
     {
         if (system == null || defaultModuleStates.ContainsKey(system)) return;
@@ -499,19 +637,12 @@ public class HitParticleManager : MonoBehaviour
         }
 
         var shape = system.shape;
-        var velocity = system.velocityOverLifetime;
-
         var snapshot = new ParticleSystemModulesSnapshot
         {
             shapeType = shape.shapeType,
             shapeScale = shape.scale,
             shapeAngle = shape.angle,
-            shapeRadius = shape.radius,
-            velocityEnabled = velocity.enabled,
-            velocitySpace = velocity.space,
-            velocityX = velocity.x,
-            velocityY = velocity.y,
-            velocityZ = velocity.z
+            shapeRadius = shape.radius
         };
 
         defaultModuleStates[system] = snapshot;
@@ -528,15 +659,9 @@ public class HitParticleManager : MonoBehaviour
         shape.angle = snapshot.shapeAngle;
         shape.radius = snapshot.shapeRadius;
 
-        var velocity = system.velocityOverLifetime;
-        velocity.enabled = snapshot.velocityEnabled;
-        velocity.space = snapshot.velocitySpace;
-        velocity.x = snapshot.velocityX;
-        velocity.y = snapshot.velocityY;
-        velocity.z = snapshot.velocityZ;
     }
 
-    private void ApplySharpLinearFlight(ParticleSystem system, NoteController note, Vector3 trackNormal)
+    private void ApplySharpLinearFlight(ParticleSystem system, NoteController note)
     {
         if (!enableSharpLinearFlight || system == null) return;
 
@@ -548,42 +673,35 @@ public class HitParticleManager : MonoBehaviour
         shape.position = Vector3.zero;
         shape.rotation = Vector3.zero;
 
-        var velocity = system.velocityOverLifetime;
-        velocity.enabled = true;
-        velocity.space = ParticleSystemSimulationSpace.World;
-        Vector3 forward = trackNormal.sqrMagnitude > 1e-4f ? trackNormal.normalized : ResolveTrackNormal(note);
-        float speed = Random.Range(sharpSpeedRange.x, sharpSpeedRange.y);
-        velocity.x = new ParticleSystem.MinMaxCurve(forward.x * speed);
-        velocity.y = new ParticleSystem.MinMaxCurve(forward.y * speed);
-        velocity.z = new ParticleSystem.MinMaxCurve(forward.z * speed);
     }
 
-    private void ApplyStandardFlight(ParticleSystem system, Vector3 trackNormal)
+    private void ApplyStandardFlight(ParticleSystem system, NoteController note)
     {
         if (system == null) return;
 
-        var velocity = system.velocityOverLifetime;
-        velocity.enabled = true;
-        velocity.space = ParticleSystemSimulationSpace.World;
-
-        Vector3 dir = trackNormal.sqrMagnitude > 1e-4f ? trackNormal.normalized : Vector3.up;
-        float speed = Random.Range(startSpeedRange.x, startSpeedRange.y);
-        velocity.x = new ParticleSystem.MinMaxCurve(dir.x * speed);
-        velocity.y = new ParticleSystem.MinMaxCurve(dir.y * speed);
-        velocity.z = new ParticleSystem.MinMaxCurve(dir.z * speed);
+        if (adaptShapeToNoteWidth)
+        {
+            var shape = system.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            float width = ComputeNoteWidth(note) * particleShapeWidthMultiplier;
+            shape.scale = new Vector3(width, 0.04f, 0.04f);
+            shape.position = Vector3.zero;
+            shape.rotation = Vector3.zero;
+        }
     }
 
     private float ComputeSharpWidth(NoteController note)
     {
         var nd = note?.NoteData;
-        int span = 1;
         if (nd != null)
         {
-            span = Mathf.Max(1, nd.endLane - nd.startLane + 1);
+            float trackWidth = PianoVisualLayout.ResolveTrackWidth(note != null ? note.TrackTransform : null);
+            float derivedWidth = PianoVisualLayout.ResolveVisualWidth(nd, trackWidth) * sharpWidthMultiplier;
+            return Mathf.Max(minSharpWidth, derivedWidth);
         }
 
-        float derived = span * laneSpacing * sharpWidthMultiplier;
-        return Mathf.Max(minSharpWidth, derived);
+        return Mathf.Max(minSharpWidth, laneSpacing * sharpWidthMultiplier);
     }
 
     private static Vector3 ResolveTrackNormal(NoteController note)
@@ -645,6 +763,12 @@ public class HitParticleManager : MonoBehaviour
 
     private float ComputeLaneOffsetX(NoteController note, int laneId)
     {
+        if (note != null && note.NoteData != null && PianoVisualLayout.HasPianoPitch(note.NoteData))
+        {
+            float width = ComputeNoteWidth(note);
+            return Random.Range(-width * 0.5f, width * 0.5f);
+        }
+
         int minLane;
         int maxLane;
 

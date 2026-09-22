@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Linq;
@@ -34,11 +34,11 @@ public class UIManager : MonoBehaviour
 
     void Start()
     {
-        // --- Defensive Null Checks ---
-        if (speedUpButton == null) Debug.LogWarning("UIManager: Speed Up Button is not assigned!");
-        if (speedDownButton == null) Debug.LogWarning("UIManager: Speed Down Button is not assigned!");
-        if (speedText == null) Debug.LogWarning("UIManager: Speed Text is not assigned!");
-        if (restartButton == null) Debug.LogWarning("UIManager: Restart Button is not assigned!");
+        // 這四個是**選配**的：底下每一處使用都先做了 null 檢查，沒接上去就只是
+        // 少一顆按鈕，不是故障。把選配講成警告，久了就沒有人看警告了。
+        BuildLogger.Log("UIManager wiring: "
+            + $"speedUp={(speedUpButton != null)} speedDown={(speedDownButton != null)} "
+            + $"speedText={(speedText != null)} restart={(restartButton != null)}");
 
         // Add listeners for the buttons
         if (speedUpButton != null) speedUpButton.onClick.AddListener(IncreaseSpeed);

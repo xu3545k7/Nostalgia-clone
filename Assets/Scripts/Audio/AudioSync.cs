@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// Simple audio sync helper that uses AudioSettings.dspTime as the authoritative timebase.
@@ -9,6 +9,11 @@ public class AudioSync : MonoBehaviour
 {
     [Tooltip("The AudioSource that plays the music. Should be configured with the correct clip.")]
     public AudioSource audioSource;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [SerializeField, Tooltip("Show the DSP timing overlay. Keep disabled during normal play; formatting it every frame creates avoidable GC.")]
+    private bool showDebugOverlay = false;
+#endif
 
     // dsp time when playback was started (AudioSettings.dspTime)
     private double startDspTime = 0.0;
@@ -103,12 +108,12 @@ public class AudioSync : MonoBehaviour
     void OnGUI()
     {
         // Keep this lightweight and optional; only when running in Editor and a debug define is set
-        #if UNITY_EDITOR
-        if (audioSource != null && Application.isPlaying)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (showDebugOverlay && audioSource != null && Application.isPlaying)
         {
             string s = string.Format("dspNow={0:F3} scheduled={1:F3} audioTime={2:F3}", AudioSettings.dspTime, scheduledDspTime, GetAudioTime());
             GUI.Label(new Rect(10, 10, 600, 20), s);
         }
-        #endif
+#endif
     }
 }

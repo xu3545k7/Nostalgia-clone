@@ -110,6 +110,7 @@ namespace MidiJack
         public NoteOnDelegate noteOnDelegate { get; set; }
         public NoteOffDelegate noteOffDelegate { get; set; }
         public KnobDelegate knobDelegate { get; set; }
+        public ulong lastEventTimestampQpc { get; private set; }
 
         #endregion
 
@@ -238,6 +239,8 @@ namespace MidiJack
 
                 if (data == 0) break;
 
+                lastEventTimestampQpc = GetLastDequeuedTimestampQpcSafe();
+
                 // Parse the message.
                 var message = new MidiMessage(data);
 
@@ -299,15 +302,41 @@ namespace MidiJack
         [DllImport("MidiJackPlugin", EntryPoint = "MidiJackDequeueIncomingData")]
         public static extern ulong DequeueIncomingData();
 
+        [DllImport("MidiJackPlugin", EntryPoint = "MidiJackCountEndpoints")]
+        static extern int CountEndpoints();
+
+        [DllImport("MidiJackPlugin", EntryPoint = "MidiJackGetLastDequeuedTimestampQpc")]
+        static extern ulong GetLastDequeuedTimestampQpc();
+
         // Flag set after runtime check whether the native plugin is available.
         static bool _nativeAvailable = true;
+        static bool _nativeTimestampAvailable = true;
+
+        static ulong GetLastDequeuedTimestampQpcSafe()
+        {
+            if (!_nativeTimestampAvailable) return 0UL;
+            try { return GetLastDequeuedTimestampQpc(); }
+            catch (System.EntryPointNotFoundException)
+            {
+                // Older/macOS plugins still work, but use the managed midpoint fallback.
+                _nativeTimestampAvailable = false;
+                return 0UL;
+            }
+            catch
+            {
+                _nativeTimestampAvailable = false;
+                return 0UL;
+            }
+        }
 
         static MidiDriver()
         {
             // Try to call the native function once to detect missing plugin early in player builds.
             try
             {
-                DequeueIncomingData();
+                // Availability checks must not dequeue: doing so could silently
+                // discard the first note played while the driver initializes.
+                CountEndpoints();
                 _nativeAvailable = true;
             }
             catch (System.DllNotFoundException e)
@@ -330,6 +359,7 @@ namespace MidiJack
         #else
         // Fallback definition for non-supported platforms (no-op)
         public static ulong DequeueIncomingData() { return 0UL; }
+        static ulong GetLastDequeuedTimestampQpcSafe() { return 0UL; }
         static bool _nativeAvailable = false;
         #endif
 

@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -23,6 +23,25 @@ public class JudgementGlowController : MonoBehaviour
     public float peakEmission = 4f;
 
     Queue<GameObject> pool = new Queue<GameObject>();
+
+    /// <summary>
+    /// Every glow handed out, with the unscaled time by which it must be back.
+    /// </summary>
+    /// <remarks>
+    /// The animation lives entirely in a coroutine, so anything that kills the
+    /// coroutine — the controller being disabled, a scene change, a paused
+    /// <c>WaitForSeconds</c> that never resumes — strands the object at peak
+    /// emission with its Light at full intensity, permanently. On a flat surface
+    /// just above the keyboard that reads as a huge pool of light across the
+    /// judgment line, which is exactly the reported symptom, and nothing in the
+    /// original design could ever recover from it.
+    ///
+    /// So the pool is no longer trusted to be returned to. Anything still out
+    /// past the time its own animation needed is put back by
+    /// <see cref="Update"/>, whatever went wrong.
+    /// </remarks>
+    readonly Dictionary<GameObject, float> liveGlows = new Dictionary<GameObject, float>();
+    readonly List<GameObject> strandedGlows = new List<GameObject>();
 
     void Awake()
     {
@@ -50,8 +69,60 @@ public class JudgementGlowController : MonoBehaviour
     void ReturnToPool(GameObject go)
     {
         if (go == null) return;
+        liveGlows.Remove(go);
+        Darken(go);
         go.SetActive(false);
         pool.Enqueue(go);
+    }
+
+    /// <summary>Puts a glow back to black, independently of its coroutine.</summary>
+    static void Darken(GameObject go)
+    {
+        if (go == null) return;
+        var rend = go.GetComponentInChildren<Renderer>();
+        if (rend != null)
+        {
+            var mat = rend.material;
+            if (mat != null && mat.HasProperty("_EmissionColor"))
+                mat.SetColor("_EmissionColor", Color.black);
+        }
+        var light = go.GetComponentInChildren<Light>();
+        if (light != null) light.intensity = 0f;
+    }
+
+    void Update()
+    {
+        if (liveGlows.Count == 0) return;
+        float now = Time.unscaledTime;
+        strandedGlows.Clear();
+        foreach (var pair in liveGlows)
+        {
+            if (pair.Key == null || now > pair.Value) strandedGlows.Add(pair.Key);
+        }
+        for (int i = 0; i < strandedGlows.Count; i++)
+        {
+            var go = strandedGlows[i];
+            liveGlows.Remove(go);
+            if (go == null) continue;
+            Debug.LogWarning("[JudgementGlow] A glow outlived its animation and was " +
+                "left lit; returning it to the pool.");
+            ReturnToPool(go);
+        }
+    }
+
+    /// <summary>
+    /// Nothing may stay lit across a disable — the coroutines do not survive it.
+    /// </summary>
+    void OnDisable()
+    {
+        foreach (var pair in liveGlows)
+        {
+            if (pair.Key == null) continue;
+            Darken(pair.Key);
+            pair.Key.SetActive(false);
+            pool.Enqueue(pair.Key);
+        }
+        liveGlows.Clear();
     }
 
     // Play at world position; optional followX makes the quad follow x while animating Y/Z stable.
@@ -65,6 +136,10 @@ public class JudgementGlowController : MonoBehaviour
         var go = GetFromPool();
         if (go == null) yield break;
         go.SetActive(true);
+        // Unscaled, and with slack: the animation itself runs on scaled time, so
+        // a paused game must not be mistaken for a stranded glow.
+        liveGlows[go] = Time.unscaledTime +
+            (riseDuration + sustain + fadeDuration) * 2f + 1f;
 
         var light = go.GetComponentInChildren<Light>();
         var rend = go.GetComponentInChildren<Renderer>();

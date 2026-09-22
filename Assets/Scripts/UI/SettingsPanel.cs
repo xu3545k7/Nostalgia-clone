@@ -37,6 +37,21 @@ public class SettingsPanel : MonoBehaviour
 
     private SettingsManager settingsManager;
 
+    private void OnEnable()
+    {
+        SettingsManager.LanguageChanged += HandleLanguageChanged;
+    }
+
+    private void OnDisable()
+    {
+        SettingsManager.LanguageChanged -= HandleLanguageChanged;
+    }
+
+    private void HandleLanguageChanged(AppLanguage _)
+    {
+        RefreshLocalization();
+    }
+
     void Awake()
     {
     //Debug.Log("SettingsPanel Awake() called");
@@ -49,6 +64,7 @@ public class SettingsPanel : MonoBehaviour
         // Initialize UI
         SetupUI();
         LoadSettingsToUI();
+        RefreshLocalization();
         
         // Hide panel initially
         if (settingsPanel != null)
@@ -122,9 +138,8 @@ public class SettingsPanel : MonoBehaviour
 
         if (judgePopupZSlider != null)
         {
-            // reasonable default range; user can change in Inspector
-            judgePopupZSlider.minValue = -5f;
-            judgePopupZSlider.maxValue = 5f;
+            judgePopupZSlider.minValue = 30f;
+            judgePopupZSlider.maxValue = 100f;
             judgePopupZSlider.onValueChanged.AddListener(OnJudgePopupZChanged);
         }
 
@@ -177,7 +192,7 @@ public class SettingsPanel : MonoBehaviour
 
         if (judgePopupZSlider != null)
         {
-            judgePopupZSlider.value = settingsManager != null ? settingsManager.JudgePopupZOffset : 0f;
+            judgePopupZSlider.value = settingsManager != null ? settingsManager.JudgePopupHeight : 30f;
             UpdateJudgePopupZText(judgePopupZSlider.value);
         }
 
@@ -288,10 +303,8 @@ public class SettingsPanel : MonoBehaviour
     {
         if (settingsManager != null)
         {
-            settingsManager.SetJudgePopupZOffset(value);
+            settingsManager.SetJudgePopupHeight(value);
             UpdateJudgePopupZText(value);
-            // Apply immediately so popup manager receives the update
-            settingsManager.ApplySettings();
         }
     }
 
@@ -324,7 +337,9 @@ public class SettingsPanel : MonoBehaviour
     {
         if (hitSoundVolumeText != null)
         {
-            hitSoundVolumeText.text = $"打擊聲音量: {value:P0}";
+            hitSoundVolumeText.text = Localize.T(
+                $"打擊聲音量：{value:P0}", $"打击声音量：{value:P0}", $"Hit Sound Volume: {value:P0}");
+            ClassicalBookUITheme.ApplyLocalizedFont(hitSoundVolumeText);
         }
     }
 
@@ -332,7 +347,9 @@ public class SettingsPanel : MonoBehaviour
     {
         if (musicVolumeText != null)
         {
-            musicVolumeText.text = $"音樂音量: {value:P0}";
+            musicVolumeText.text = Localize.T(
+                $"音樂音量：{value:P0}", $"音乐音量：{value:P0}", $"Music Volume: {value:P0}");
+            ClassicalBookUITheme.ApplyLocalizedFont(musicVolumeText);
         }
     }
 
@@ -340,7 +357,9 @@ public class SettingsPanel : MonoBehaviour
     {
         if (speedText != null)
         {
-            speedText.text = $"預設速度: {value:F0}";
+            speedText.text = Localize.T(
+                $"預設速度：{value:F0}", $"默认速度：{value:F0}", $"Default Speed: {value:F0}");
+            ClassicalBookUITheme.ApplyLocalizedFont(speedText);
         }
     }
 
@@ -348,7 +367,9 @@ public class SettingsPanel : MonoBehaviour
     {
         if (delayText != null)
         {
-            delayText.text = $"遊戲延遲: {value:F1}秒";
+            delayText.text = Localize.T(
+                $"遊戲延遲：{value:F1} 秒", $"游戏延迟：{value:F1} 秒", $"Start Delay: {value:F1} s");
+            ClassicalBookUITheme.ApplyLocalizedFont(delayText);
         }
     }
 
@@ -356,7 +377,9 @@ public class SettingsPanel : MonoBehaviour
     {
         if (judgePopupZText != null)
         {
-            judgePopupZText.text = $"判定 popup Z 偏移: {value:F2}";
+            judgePopupZText.text = Localize.T(
+                $"判定顯示高度：{value:F0}", $"判定显示高度：{value:F0}", $"Judgment Display Height: {value:F0}");
+            ClassicalBookUITheme.ApplyLocalizedFont(judgePopupZText);
         }
     }
 
@@ -364,7 +387,9 @@ public class SettingsPanel : MonoBehaviour
     {
         if (judgmentOffsetText != null)
         {
-            judgmentOffsetText.text = $"判定補償: {value:F0} ms";
+            judgmentOffsetText.text = Localize.T(
+                $"判定補償：{value:F0} ms", $"判定补偿：{value:F0} ms", $"Judgment Offset: {value:F0} ms");
+            ClassicalBookUITheme.ApplyLocalizedFont(judgmentOffsetText);
         }
     }
 
@@ -372,7 +397,27 @@ public class SettingsPanel : MonoBehaviour
     {
         if (trackVideoDimmerText != null)
         {
-            trackVideoDimmerText.text = $"影片時 Track 遮罩: {value:F2}";
+            trackVideoDimmerText.text = Localize.T(
+                $"影片軌道遮罩：{value:F2}", $"视频轨道遮罩：{value:F2}", $"Video Track Dimmer: {value:F2}");
+            ClassicalBookUITheme.ApplyLocalizedFont(trackVideoDimmerText);
         }
+    }
+
+    private void RefreshLocalization()
+    {
+        if (settingsManager != null) LoadSettingsToUI();
+        SetButtonCaption(settingsButton, Localize.T("設定", "设置", "Settings"));
+        SetButtonCaption(closeButton, Localize.T("關閉", "关闭", "Close"));
+        SetButtonCaption(saveButton, Localize.T("儲存", "保存", "Save"));
+        SetButtonCaption(resetButton, Localize.T("重設", "重置", "Reset"));
+    }
+
+    private static void SetButtonCaption(Button button, string caption)
+    {
+        if (button == null) return;
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (label == null) return;
+        label.text = caption;
+        ClassicalBookUITheme.ApplyLocalizedFont(label);
     }
 }

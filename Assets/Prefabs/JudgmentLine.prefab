@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 5281235712163767068}
   - component: {fileID: 2145643992661124599}
   - component: {fileID: 4750466611779251988}
+  - component: {fileID: 6841193755428019341}
   m_Layer: 0
   m_Name: JudgmentLine
   m_TagString: Untagged
@@ -111,3 +112,25 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &6841193755428019341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2917135608118083595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfcd487828cf908409016998a9634021, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  targetRenderer: {fileID: 2145643992661124599}
+  emissionColorProperty: _EmissionColor
+  glowColor: {r: 1, g: 0.97, b: 0.82, a: 1}
+  intensityCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  defaultDuration: 0.16

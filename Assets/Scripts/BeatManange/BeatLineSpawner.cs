@@ -14,6 +14,8 @@ public class BeatLineSpawner : MonoBehaviour
     public float travelTimeSeconds = 3f;
     [Tooltip("Multiply lookahead distance for a longer visible runway during pre-roll.")]
     public float runwayFactor = 1.0f;
+    [Tooltip("Maximum beat lines spawned in one frame after seeking.")]
+    public int maxCatchUpSpawnsPerFrame = 128;
     public float Speed { get; set; } = 30f; // Public property for speed control
     [Header("Visual Scale")]
     [Tooltip("Default local scale applied to spawned 2D beat line instances (use to correct oversized prefabs).")]
@@ -168,7 +170,14 @@ public class BeatLineSpawner : MonoBehaviour
             // instances are under the correct container (avoids stale pool children staying elsewhere).
             if (beatLinePool == null || beatLinePool.Container != parentForPool)
             {
-                beatLinePool = new BeatLinePool(beatLinePrefab2D, parentForPool, 128);
+                // Only a short moving time window is visible. Creating 128 renderers
+                // synchronously here caused a noticeable hitch before every song.
+                //
+                // 24 曾經在遊玩中差一個（log: "[Beat Pool] Runtime miss; capacity=25"）。
+                // 上次只改了 EstimateVisibleBeatLineCapacity 的下限，但那條路要
+                // PreloadAllBeatLines 有拿到 beat_timings 才會走到——沒走到的時候
+                // 真正生效的就是這裡這個數字，所以兩邊要一起改。
+                beatLinePool = new BeatLinePool(beatLinePrefab2D, parentForPool, 48);
             }
             else
             {
@@ -228,8 +237,7 @@ public class BeatLineSpawner : MonoBehaviour
         );
         cachedScaleValid = true;
 
-        int required = (chart.beat_timings != null) ? chart.beat_timings.Count : 0;
-        required = Mathf.CeilToInt(required * 1.05f) + 8;
+        int required = EstimateVisibleBeatLineCapacity(chart);
         if (beatLinePool != null)
         {
             beatLinePool.EnsureCapacity(required);
@@ -237,7 +245,7 @@ public class BeatLineSpawner : MonoBehaviour
         else
         {
             // Create disabled instances to warm-up the engine if no pool system exists
-            for (int i = 0; i < Mathf.Min(256, required); i++)
+            for (int i = 0; i < required; i++)
             {
                 var go = Instantiate(beatLinePrefab2D, parent);
                 global::RuntimeDiagnostics.RegisterInstantiate();
@@ -246,6 +254,34 @@ public class BeatLineSpawner : MonoBehaviour
             }
         }
     //Debug.Log($"BeatLineSpawner PreloadAllBeatLines created {Mathf.Min(256, required)} warmed beat line instances.");
+    }
+
+    private int EstimateVisibleBeatLineCapacity(Chart sourceChart)
+    {
+        if (sourceChart == null || sourceChart.beat_timings == null || sourceChart.beat_timings.Count == 0)
+            return 24;
+
+        // A beat line is alive only from its spawn time until it crosses the
+        // judgment line. Find the densest such window instead of allocating one
+        // GameObject for every beat in the entire song.
+        float travelMs = travelTimeSeconds > 0f ? travelTimeSeconds * 1000f : spawnLookahead;
+        float windowMs = Mathf.Max(250f, travelMs * Mathf.Max(0.01f, runwayFactor));
+        var beats = sourceChart.beat_timings;
+        int peak = 0;
+        int left = 0;
+        for (int right = 0; right < beats.Count; right++)
+        {
+            while (left < right && beats[right] - beats[left] > windowMs)
+                left++;
+            peak = Mathf.Max(peak, right - left + 1);
+        }
+
+        // Include negative pre-roll lines and a small reserve for seeks/catch-up.
+        // 下限是 48 而不是 24：實測有譜面估到 24、實際要 25，於是遊玩中補
+        // Instantiate 了一條（log 裡的 "[Beat Pool] Runtime miss; capacity=25"）。
+        // 這個下限也是譜面還沒完整解析、estimate 拿不到 beat_timings 時的值，
+        // 多幾個停用的 prefab 不值一提，遊玩中生成才值。
+        return Mathf.Clamp(peak + Mathf.Max(8, peak / 3), 48, 128);
     }
 
     void Update()
@@ -339,7 +375,10 @@ public class BeatLineSpawner : MonoBehaviour
             }
         }
 
-        if (chart.beat_timings != null && nextBeatIndex < chart.beat_timings.Count)
+        int spawnedBeatsThisFrame = 0;
+        int beatCatchUpBudget = Mathf.Max(1, maxCatchUpSpawnsPerFrame);
+        while (chart.beat_timings != null && nextBeatIndex < chart.beat_timings.Count &&
+               spawnedBeatsThisFrame < beatCatchUpBudget)
         {
             float nextBeatTime = chart.beat_timings[nextBeatIndex];
             float timeToBeat = nextBeatTime - conductor.effectiveSongPosition;
@@ -417,7 +456,11 @@ public class BeatLineSpawner : MonoBehaviour
                     //Debug.LogError("Beat Line Prefab is missing the BeatLineController script!");
                 }
                 nextBeatIndex++;
+                spawnedBeatsThisFrame++;
+                continue;
             }
+
+            break;
         }
     }
 
@@ -452,17 +495,16 @@ public class BeatLineSpawner : MonoBehaviour
 #if false
                 //Debug.Log($"BeatLineSpawner.ClearAllSpawned: activeParent='{activeParent.name}' childCountBefore={activeParent.childCount}");
 #endif
-                    // Iterate by index to avoid allocating a temporary List when clearing children
-                    for (int i = activeParent.childCount - 1; i >= 0; --i)
+                    var activeBeatLines = new System.Collections.Generic.List<GameObject>();
+                    for (int i = 0; i < activeParent.childCount; i++)
                     {
                         Transform child = activeParent.GetChild(i);
                         if (child == null || child.gameObject == null) continue;
                         GameObject go = child.gameObject;
-                        if (beatLinePool != null)
-                            beatLinePool.Despawn(go);
-                        else
-                            Object.Destroy(go);
+                        if (go.activeSelf && go.GetComponent<BeatLineController>() != null)
+                            activeBeatLines.Add(go);
                     }
+                    for (int i = 0; i < activeBeatLines.Count; i++) beatLinePool.Despawn(activeBeatLines[i]);
 #if false
                 //Debug.Log($"BeatLineSpawner.ClearAllSpawned: activeParent='{activeParent.name}' childCountAfter={activeParent.childCount}");
 #endif
@@ -494,7 +536,9 @@ public class BeatLineSpawner : MonoBehaviour
         int idx = 0;
         while (idx < chart.beat_timings.Count)
         {
-            if (chart.beat_timings[idx] > ms) break;
+            // A measure line exactly at the destination belongs to the new
+            // position and must not be discarded by the seek.
+            if (chart.beat_timings[idx] >= ms) break;
             idx++;
         }
         nextBeatIndex = Mathf.Clamp(idx, 0, chart.beat_timings.Count);

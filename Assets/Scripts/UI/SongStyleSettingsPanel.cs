@@ -106,8 +106,26 @@ public class SongStyleSettingsPanel : MonoBehaviour
     private int currentIndex = 0;
     private bool carouselInitialized = false;
 
+    private void OnEnable()
+    {
+        SettingsManager.LanguageChanged += HandleLanguageChanged;
+        RefreshLocalization();
+    }
+
+    private void OnDisable()
+    {
+        SettingsManager.LanguageChanged -= HandleLanguageChanged;
+    }
+
+    private void HandleLanguageChanged(AppLanguage _)
+    {
+        RefreshLocalization();
+        UpdateCarouselVisuals();
+    }
+
     private void Start()
     {
+        RefreshLocalization();
         LoadSettings();
         ConfigureCarouselControls();
         UpdateCarouselVisuals();
@@ -116,6 +134,24 @@ public class SongStyleSettingsPanel : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(false);
+        }
+    }
+
+    private void RefreshLocalization()
+    {
+        for (int i = 0; i < settingsItems.Length; i++)
+        {
+            SettingItem item = settingsItems[i];
+            switch (item.title)
+            {
+                case "HitSoundVolume": item.displayName = Localize.T("打擊聲音量", "打击声音量", "Hit Sound Volume"); break;
+                case "MusicVolume": item.displayName = Localize.T("音樂音量", "音乐音量", "Music Volume"); break;
+                case "DefaultSpeed": item.displayName = Localize.T("預設速度", "默认速度", "Default Speed"); break;
+                case "StartDelay":
+                    item.displayName = Localize.T("開始延遲", "开始延迟", "Start Delay");
+                    item.unit = Localize.T("秒", "秒", " s");
+                    break;
+            }
         }
     }
 
@@ -257,7 +293,8 @@ public class SongStyleSettingsPanel : MonoBehaviour
             UpdatePreviewSlot(rightSlot, null, false);
             if (currentSettingLabel != null)
             {
-                currentSettingLabel.text = "No Settings";
+                currentSettingLabel.text = Localize.T("沒有設定項目", "没有设置项目", "No Settings");
+                ClassicalBookUITheme.ApplyLocalizedFont(currentSettingLabel);
             }
             return;
         }

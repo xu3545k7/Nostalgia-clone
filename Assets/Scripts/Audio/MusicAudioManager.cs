@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Audio;
 
 [DisallowMultipleComponent]
@@ -61,6 +61,10 @@ public class MusicAudioManager : MonoBehaviour
     {
         if (musicSource == null) return;
         if (speed <= 0f) speed = 1f;
+        // 練習模式把譜面拉長了，音檔沒有 —— 所以音源要慢下來才對得上。這個
+        // watcher 每幀都會重寫 pitch，漏掉的話上一步設好的值立刻被蓋回去。
+        var settings = SettingsManager.Instance;
+        if (settings != null) speed *= settings.PracticeSpeed;
         musicSource.pitch = speed;
         ApplyPitchCompensation(speed);
     }
@@ -79,11 +83,13 @@ public class MusicAudioManager : MonoBehaviour
         TrySetMixerPitch(mixer, mixerPitchParam, mixerPitchParamIsSemitone, targetLinear);
     }
 
+    private static readonly string[] MixerPitchCandidates = new[] { null, "Pitch", "MusicPitch" };
+
     private bool TrySetMixerPitch(AudioMixer mixer, string primaryParam, bool isSemitone, float targetLinear)
     {
         if (mixer == null) return false;
-        string[] candidates = new[] { primaryParam, "Pitch", "MusicPitch" };
-        foreach (var name in candidates)
+        MixerPitchCandidates[0] = primaryParam;
+        foreach (var name in MixerPitchCandidates)
         {
             if (string.IsNullOrWhiteSpace(name)) continue;
             try

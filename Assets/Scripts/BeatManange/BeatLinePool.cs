@@ -7,10 +7,13 @@ public class BeatLinePool : ISpawnPool
     private Transform container;
     private bool ownsContainer = false;
     private Stack<GameObject> pool = new Stack<GameObject>();
+    private readonly HashSet<GameObject> pooledObjects = new HashSet<GameObject>();
     private int totalSpawnCalls = 0;
     private int totalDespawnCalls = 0;
     private int poolHits = 0;
     private int poolMisses = 0;
+    private int totalCapacity = 0;
+    private bool reportedRuntimeMiss = false;
 
     public BeatLinePool(GameObject prefab, Transform container, int initialSize = 64)
     {
@@ -36,6 +39,8 @@ public class BeatLinePool : ISpawnPool
                 ctrl.SetOwningPool(this);
             }
             pool.Push(go);
+            pooledObjects.Add(go);
+            totalCapacity++;
         }
         //Debug.Log($"BeatLinePool: created for prefab '{prefab.name}' with initialSize={initialSize}, poolCount={pool.Count}");
     }
@@ -46,7 +51,10 @@ public class BeatLinePool : ISpawnPool
     public void EnsureCapacity(int targetCapacity)
     {
         if (targetCapacity <= 0) return;
-        int missing = targetCapacity - pool.Count;
+        // Capacity means all objects owned by the pool, including objects that
+        // are currently active. Using pool.Count here caused every preload after
+        // spawning to create duplicates and made long charts progressively heavier.
+        int missing = targetCapacity - totalCapacity;
         if (missing <= 0) return;
         for (int i = 0; i < missing; i++)
         {
@@ -59,6 +67,8 @@ public class BeatLinePool : ISpawnPool
                 ctrl.SetOwningPool(this);
             }
             pool.Push(go);
+            pooledObjects.Add(go);
+            totalCapacity++;
         }
         //Debug.Log($"BeatLinePool: EnsureCapacity created {missing} instances; new poolSize={pool.Count}");
     }
@@ -76,6 +86,8 @@ public class BeatLinePool : ISpawnPool
                 try { Object.Destroy(go); } catch { }
             }
         }
+        pooledObjects.Clear();
+        totalCapacity = 0;
 
         if (ownsContainer && container != null)
         {
@@ -91,6 +103,7 @@ public class BeatLinePool : ISpawnPool
         if (pool.Count > 0)
         {
             go = pool.Pop();
+            pooledObjects.Remove(go);
             poolHits++;
             go.SetActive(true);
         }
@@ -101,6 +114,13 @@ public class BeatLinePool : ISpawnPool
             var ctrl = go.GetComponent<BeatLineController>();
             if (ctrl != null) ctrl.SetOwningPool(this);
             poolMisses++;
+            totalCapacity++;
+            if (!reportedRuntimeMiss)
+            {
+                reportedRuntimeMiss = true;
+                Debug.LogWarning($"[Beat Pool] Runtime miss; capacity={totalCapacity}. " +
+                    "A beat line had to be instantiated during gameplay.");
+            }
         }
         if (parent != null) go.transform.SetParent(parent, false);
         return go;
@@ -109,6 +129,7 @@ public class BeatLinePool : ISpawnPool
     public void Despawn(GameObject go)
     {
         if (go == null) return;
+        if (!pooledObjects.Add(go)) return;
         totalDespawnCalls++;
         var ctrl = go.GetComponent<BeatLineController>();
         if (ctrl != null)

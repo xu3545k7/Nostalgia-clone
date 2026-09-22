@@ -21,6 +21,7 @@ public class KeyboardInputAdapter : MonoBehaviour
     public bool debug = false;
 
     private bool[] pressedState = new bool[LaneCount];
+    private static long inputEventSequence;
 
     void OnValidate()
     {
@@ -41,15 +42,12 @@ public class KeyboardInputAdapter : MonoBehaviour
         _instance = this;
 
         // Try to load mapping from Resources/botton_setting.json (preferred)
-        if (TryLoadMappingFromResources("botton_setting"))
-        {
-            return;
-        }
+        bool loadedFromResources = TryLoadMappingFromResources("botton_setting");
 
         // If no mapping provided from resources, create a conservative default for first lanes
         bool anyAssigned = false;
         for (int i = 0; i < laneKeys.Length; i++) if (laneKeys[i] != Key.None) { anyAssigned = true; break; }
-        if (!anyAssigned)
+        if (!loadedFromResources && !anyAssigned)
         {
             // default: map a..z, then 9, 0 (matches botton_setting.json ordering)
             Key[] defaults = new Key[] {
@@ -59,6 +57,16 @@ public class KeyboardInputAdapter : MonoBehaviour
             };
             for (int i = 0; i < LaneCount && i < defaults.Length; i++) laneKeys[i] = defaults[i];
         }
+
+        SyncRealtimeBindings();
+    }
+
+    private void OnEnable()
+    {
+        // The realtime buffer is persistent while gameplay panels can be
+        // disabled. Never replay menu/settings key edges as fresh note hits
+        // when this adapter becomes active again.
+        RealtimeInputBuffer.Instance?.ClearGameplayEvents();
     }
 
     public bool IsLanePressed(int lane)
@@ -172,7 +180,19 @@ public class KeyboardInputAdapter : MonoBehaviour
         return false;
     }
 
-    void Update()
+    private void SyncRealtimeBindings()
+    {
+        var rtBuffer = RealtimeInputBuffer.Instance ?? RealtimeInputBuffer.EnsureCreated();
+        if (rtBuffer == null) return;
+
+        for (int lane = 0; lane < LaneCount; lane++)
+        {
+            var key = laneKeys[lane];
+            rtBuffer.SetBinding(lane, false, KeyCode.None, key != Key.None, key);
+        }
+    }
+
+    private void LegacyFrameCollapsedUpdate()
     {
         var kb = Keyboard.current;
         if (kb == null || Judgment.JudgmentManager.Instance == null)
@@ -182,7 +202,25 @@ public class KeyboardInputAdapter : MonoBehaviour
 
         var jm = Judgment.JudgmentManager.Instance;
         float songPos = 0f;
-        try { songPos = GameManager.Instance != null && GameManager.Instance.Conductor != null ? GameManager.Instance.Conductor.effectiveSongPosition : 0f; } catch { songPos = 0f; }
+        Conductor conductor = null;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.Conductor != null)
+        {
+            conductor = gm.Conductor;
+            songPos = conductor.effectiveSongPosition;
+        }
+
+        // Judgment offset: every timestamp handed to JudgmentManager must live on the same clock as
+        // GetSongPositionMs() (effectiveSongPosition + offset). songPos above is the raw audio clock
+        // used for sub-frame back-dating; the offset is added only to the FINAL value we forward, so
+        // input judgment, auto-miss and hold finalize all share one time base.
+        float judgmentOffset = SettingsManager.Instance != null ? SettingsManager.Instance.JudgmentOffsetMs : 0f;
+
+        // RealtimeInputBuffer provides sub-frame hardware timestamps (realtimeSinceStartup).
+        // By computing how long ago the key was ACTUALLY pressed relative to now, we can
+        // back-date songPos for more accurate judgment timing (avoids up to 16ms frame jitter).
+        var rtBuffer = RealtimeInputBuffer.Instance;
+        double nowRealtime = Time.realtimeSinceStartupAsDouble;
 
         for (int lane = 0; lane < LaneCount; lane++)
         {
@@ -192,40 +230,185 @@ public class KeyboardInputAdapter : MonoBehaviour
             var control = kb[key];
             if (control == null) continue;
 
-            bool wasPressed = control.wasPressedThisFrame;
-            bool isPressed = control.isPressed;
-            bool wasReleased = control.wasReleasedThisFrame;
+            bool wasPressed = rtBuffer != null ? rtBuffer.WasPressedThisFrame(lane) : control.wasPressedThisFrame;
+            bool isPressed = rtBuffer != null ? rtBuffer.IsPressed(lane) : control.isPressed;
+            bool wasReleased = rtBuffer != null ? rtBuffer.WasReleasedThisFrame(lane) : control.wasReleasedThisFrame;
 
             if (wasPressed && !pressedState[lane])
             {
                 pressedState[lane] = true;
-                try
+                // Compute sub-frame songPos using hardware timestamp
+                float preciseSongPos = float.NaN;
+                if (rtBuffer != null && conductor != null)
                 {
-                    jm.ProcessButtonPress(lane);
-                    // Trigger key hit visual (persistent while held)
-                    try { KeyHitEffectManager.Instance.ShowPersistentMeshForKeyId(lane); } catch { }
-                    if (debug) Debug.Log($"[KeyAdapter] Press lane={lane} key={key}");
+                    preciseSongPos = TimingMath.ProjectSongPosToEvent(
+                        songPos, conductor.TimingSampleRealtime,
+                        rtBuffer.GetLastPressTime(lane), maxDeltaMs: 500.0,
+                        fallback: float.NaN);
                 }
-                catch { }
+                // Add offset only when we produced a real sub-frame value. When SubFrameSongPos
+                // returned the -1 sentinel, ProcessButtonPress falls back to GetSongPositionMs(),
+                // which already applies the offset — adding it here too would double-count.
+                if (!float.IsNaN(preciseSongPos)) preciseSongPos += judgmentOffset;
+                // A computer key reports neither pitch nor force; recording that
+                // explicitly stops a previous MIDI press on this lane from being
+                // mistaken for this one.
+                try { PianoKeysound.RecordInput(lane, -1, -1f); } catch { }
+                // 和 MIDI 走同一個輸入幀入口：類原型要把同一幀的鍵一起分派，否則電腦
+                // 鍵盤會繞過本家的幀規則。逐鍵模式下它直接轉呼叫 ProcessButtonPress。
+                jm.EnqueueInputFramePress(lane, preciseSongPos, NextInputEventId());
+                IvoryLaneKeyboard.SetLanePressed(lane, true);
+                try { KeyHitEffectManager.Instance.ShowPersistentMeshForKeyId(lane); } catch { }
+                if (debug) Debug.Log($"[KeyAdapter] Press lane={lane} key={key}");
             }
 
             if (wasReleased && pressedState[lane])
             {
                 pressedState[lane] = false;
-                try
+                // Compute sub-frame release songPos using hardware timestamp
+                float releaseSongPos = songPos;
+                if (rtBuffer != null && conductor != null)
                 {
-                    jm.HandleHeldKeyRelease(lane, songPos);
-                    try { KeyHitEffectManager.Instance.HidePersistentMeshForKeyId(lane); } catch { }
-                    if (debug) Debug.Log($"[KeyAdapter] Release lane={lane} key={key} songPos={songPos}");
+                    float sub = TimingMath.ProjectSongPosToEvent(
+                        songPos, conductor.TimingSampleRealtime,
+                        rtBuffer.GetLastReleaseTime(lane), maxDeltaMs: 500.0);
+                    if (sub >= 0f) releaseSongPos = sub;
                 }
-                catch { }
+                // releaseSongPos is always a concrete value here, so apply the offset unconditionally
+                // to match the judgment clock (hold tail / staccato release finalize compare against it).
+                jm.HandleHeldKeyRelease(lane, releaseSongPos + judgmentOffset);
+                IvoryLaneKeyboard.SetLanePressed(lane, false);
+                try { KeyHitEffectManager.Instance.HidePersistentMeshForKeyId(lane); } catch { }
+                // Hardcore mode damps on the player's key-up. Without this the
+                // computer keyboard has no release at all and every note rings
+                // until it times out, which fills the voice pool in seconds.
+                try { PianoKeysound.ReleaseLane(lane); } catch { }
+                if (debug) Debug.Log($"[KeyAdapter] Release lane={lane} key={key} songPos={releaseSongPos}");
             }
 
-            // While key is held, allow soft notes to auto-judge when they enter the window (no new press edge needed).
+            // While key is held, allow soft notes to auto-judge when they enter the window
             if (pressedState[lane] && isPressed)
             {
-                try { jm.TryAutoSoftOnHold(lane, songPos); } catch { }
+                jm.TryAutoSoftOnHold(lane, songPos + judgmentOffset);
             }
         }
+    }
+
+    void Update()
+    {
+        var kb = Keyboard.current;
+        if (kb == null || Judgment.JudgmentManager.Instance == null) return;
+
+        var jm = Judgment.JudgmentManager.Instance;
+        float songPos = 0f;
+        Conductor conductor = null;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.Conductor != null)
+        {
+            conductor = gm.Conductor;
+            songPos = conductor.effectiveSongPosition;
+        }
+
+        float judgmentOffset = SettingsManager.Instance != null
+            ? SettingsManager.Instance.JudgmentOffsetMs
+            : 0f;
+        var rtBuffer = RealtimeInputBuffer.Instance;
+        double nowRealtime = Time.realtimeSinceStartupAsDouble;
+
+        if (rtBuffer != null)
+        {
+            // Preserve every timestamped edge. A frame can contain more than
+            // one press/release pair after a hitch; reducing it to one bool
+            // loses valid Trill contacts.
+            while (rtBuffer.TryDequeueGameplayEvent(
+                out int lane, out bool isPress, out double eventTimestamp))
+            {
+                if ((uint)lane >= LaneCount || laneKeys[lane] == Key.None) continue;
+                if (isPress)
+                    ProcessPress(jm, lane, songPos, judgmentOffset,
+                        eventTimestamp, conductor);
+                else
+                    ProcessRelease(jm, lane, songPos, judgmentOffset,
+                        eventTimestamp, conductor);
+            }
+
+            for (int lane = 0; lane < LaneCount; lane++)
+            {
+                if (laneKeys[lane] == Key.None) continue;
+                if (pressedState[lane] && rtBuffer.IsPressed(lane))
+                    jm.TryAutoSoftOnHold(lane, songPos + judgmentOffset);
+            }
+            return;
+        }
+
+        // Fallback for platforms where the realtime event buffer is absent.
+        for (int lane = 0; lane < LaneCount; lane++)
+        {
+            var key = laneKeys[lane];
+            if (key == Key.None) continue;
+            var control = kb[key];
+            if (control == null) continue;
+
+            if (control.wasPressedThisFrame && !pressedState[lane])
+                ProcessPress(jm, lane, songPos, judgmentOffset,
+                    nowRealtime, null);
+            if (control.wasReleasedThisFrame && pressedState[lane])
+                ProcessRelease(jm, lane, songPos, judgmentOffset,
+                    nowRealtime, null);
+            if (pressedState[lane] && control.isPressed)
+                jm.TryAutoSoftOnHold(lane, songPos + judgmentOffset);
+        }
+    }
+
+    private void ProcessPress(Judgment.JudgmentManager jm, int lane,
+        float songPos, float judgmentOffset, double eventTimestamp,
+        Conductor conductor)
+    {
+        pressedState[lane] = true;
+        float preciseSongPos = float.NaN;
+        if (conductor != null)
+            preciseSongPos = TimingMath.ProjectSongPosToEvent(
+                songPos, conductor.TimingSampleRealtime,
+                eventTimestamp, maxDeltaMs: 500.0, fallback: float.NaN);
+
+        if (!float.IsNaN(preciseSongPos)) preciseSongPos += judgmentOffset;
+        try { PianoKeysound.RecordInput(lane, -1, -1f); } catch { }
+        // 和 MIDI 走同一個輸入幀入口（見上面那一處）。
+        jm.EnqueueInputFramePress(lane, preciseSongPos, NextInputEventId());
+        IvoryLaneKeyboard.SetLanePressed(lane, true);
+        try { KeyHitEffectManager.Instance.ShowPersistentMeshForKeyId(lane); } catch { }
+        if (debug)
+            Debug.Log($"[KeyAdapter] Press lane={lane} key={laneKeys[lane]} songPos={preciseSongPos}");
+    }
+
+    private void ProcessRelease(Judgment.JudgmentManager jm, int lane,
+        float songPos, float judgmentOffset, double eventTimestamp,
+        Conductor conductor)
+    {
+        pressedState[lane] = false;
+        float releaseSongPos = songPos;
+        if (conductor != null)
+        {
+            float sub = TimingMath.ProjectSongPosToEvent(
+                songPos, conductor.TimingSampleRealtime,
+                eventTimestamp, maxDeltaMs: 500.0);
+            if (sub >= 0f) releaseSongPos = sub;
+        }
+
+        jm.HandleHeldKeyRelease(lane, releaseSongPos + judgmentOffset);
+        IvoryLaneKeyboard.SetLanePressed(lane, false);
+        try { KeyHitEffectManager.Instance.HidePersistentMeshForKeyId(lane); } catch { }
+        try { PianoKeysound.ReleaseLane(lane); } catch { }
+        if (debug)
+            Debug.Log($"[KeyAdapter] Release lane={lane} key={laneKeys[lane]} songPos={releaseSongPos}");
+    }
+
+    private long NextInputEventId()
+    {
+        inputEventSequence++;
+        if (inputEventSequence <= 0 || inputEventSequence > (long.MaxValue >> 1))
+            inputEventSequence = 1;
+        // Odd ids are reserved for keyboard; MIDI uses even ids.
+        return (inputEventSequence << 1) | 1L;
     }
 }

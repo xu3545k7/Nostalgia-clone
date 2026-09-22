@@ -1,11 +1,19 @@
-using UnityEngine;
+﻿using UnityEngine;
 
+[DefaultExecutionOrder(-300)]
 public class Conductor : MonoBehaviour
 {
     public float bpm = 120.0f;
     public float songPosition { get; private set; } // The current position of the song in milliseconds
     // Visual pre-roll clock (active before audio starts)
     public float visualSongPosition { get; private set; } // Negative to 0 ms during pre-roll
+
+    /// <summary>
+    /// The pre-roll position as the chart should see it: frozen a lead-in out
+    /// until the count-in has that much left. See StartVisualPreRoll.
+    /// </summary>
+    private float HeldVisualPosition =>
+        visualSongPosition < -VisualLeadInMs ? -VisualLeadInMs : visualSongPosition;
     #if UNITY_EDITOR || DEVELOPMENT_BUILD
     [Header("Debugging")]
     public bool showDebugOverlay = false;
@@ -23,7 +31,55 @@ public class Conductor : MonoBehaviour
     // Monotonic cached effective position (ms)
     private float _effectiveSongPositionCached = 0f;
     private bool _effectiveInitialized = false;
-    public float effectiveSongPosition => _effectiveSongPositionCached;
+    // Per-frame cache of MusicPlaybackOffsetMs to avoid singleton+property access on every read
+    private float _cachedPlaybackOffsetMs = 0f;
+    // Per-frame cache of AudioSettings.dspTime to avoid repeated P/Invoke
+    private double _cachedDspTime;
+    private int _dspTimeCachedFrame = -1;
+    private double _timingSampleRealtime;
+    public double TimingSampleRealtime => _timingSampleRealtime;
+    // PlayScheduled and AudioSettings.dspTime already use the same absolute
+    // audio timeline. Do not subtract the complete DSP ring-buffer duration:
+    // that double compensation makes the judgment clock systematically late
+    // and turns correctly played notes into FAST judgments.
+    private float _audioOutputLatencyMs = 0f;
+    public float AudioOutputLatencyMs => _audioOutputLatencyMs;
+    public float effectiveSongPosition => _effectiveSongPositionCached + _cachedPlaybackOffsetMs;
+
+    // Rendering uses a frame-clock interpolated timeline. Judgment continues
+    // to use effectiveSongPosition, so smoothing never changes scoring.
+    private float _renderSongPositionCached;
+    private double _renderClockLastRealtime;
+    // Low-passed (songMs - realtimeMs). The render clock is rebuilt from this
+    // every frame, so its rate is realtime's rate and only the offset drifts.
+    private double _renderClockOffsetMs;
+    private bool _renderClockInitialized;
+    private bool _renderClockWasActive;
+    [SerializeField, Range(30f, 600f), Tooltip("Time constant for reconciling the smooth render clock with the quantised DSP clock. Larger is smoother but slower to follow real drift.")]
+    private float renderClockSmoothingMs = 180f;
+    // How far the smooth clock may sit from the DSP sample before it is snapped.
+    // Derived from the real DSP buffer in Awake — a scene-serialized value could
+    // not know the device's buffer size and would pin the clock to the staircase.
+    private float _renderClockToleranceMs = 12f;
+    // Gap beyond which the render clock is rebuilt instead of advanced (loads, alt-tab).
+    private const double MaxRenderClockGapSeconds = 0.25;
+    public float renderSongPosition => _renderSongPositionCached + _cachedPlaybackOffsetMs;
+    public float RenderJudgmentDeltaMs => _renderSongPositionCached - _effectiveSongPositionCached;
+
+    /// <summary>Returns the current-frame cached AudioSettings.dspTime (avoids repeated P/Invoke).</summary>
+    public double CachedDspTime
+    {
+        get
+        {
+            int f = Time.frameCount;
+            if (f != _dspTimeCachedFrame)
+            {
+                _cachedDspTime = AudioSettings.dspTime;
+                _dspTimeCachedFrame = f;
+            }
+            return _cachedDspTime;
+        }
+    }
     private float _lastPreRollDurationMs = 0f;
     public float LastPreRollDurationMs => _lastPreRollDurationMs;
     // Scheduled start support to align audio precisely without stutter
@@ -49,7 +105,7 @@ public class Conductor : MonoBehaviour
                 if (s > 0.0) scheduled = s;
             }
             if (!hasScheduledStart || scheduled < 0.0) return 0f;
-            double now = AudioSettings.dspTime;
+            double now = CachedDspTime;
             double remain = scheduled - now;
             if (remain <= 0.0) return 0f;
             return (float)(remain * 1000.0);
@@ -62,60 +118,53 @@ public class Conductor : MonoBehaviour
     /// </summary>
     public float GetDspSongPositionMs()
     {
-        try
+        // Prefer AudioSync when present – it exposes an audio DSP timeline.
+        if (audioSync != null)
         {
-            // Prefer AudioSync when present – it exposes an audio DSP timeline.
-            if (audioSync != null)
+            double audioTime = audioSync.GetAudioTime();
+            if (audioTime > 0.0 || isPlaying)
             {
-                double audioTime = audioSync.GetAudioTime();
-                if (audioTime > 0.0 || isPlaying)
-                {
-                    return (float)(audioTime * 1000.0);
-                }
-
-                double scheduled = audioSync.GetScheduledDspTime();
-                if (scheduled > 0.0)
-                {
-                    double now = AudioSettings.dspTime;
-                    return (float)((now - scheduled) * 1000.0);
-                }
+                return (float)(audioTime * 1000.0) - _audioOutputLatencyMs;
             }
 
-            // Fall back to our AudioSource when AudioSync is not available.
-            if (audioSource != null && audioSource.clip != null)
+            double scheduled = audioSync.GetScheduledDspTime();
+            if (scheduled > 0.0)
             {
-                // Use DSP delta from the captured start time so pitch changes never affect timing.
-                double baseline = audioStartDspTime;
-                if (baseline > 0.0)
-                {
-                    double now = AudioSettings.dspTime;
-                    return (float)((now - baseline) * 1000.0);
-                }
-
-                if (hasScheduledStart && scheduledDspTime > 0.0)
-                {
-                    double now = AudioSettings.dspTime;
-                    return (float)((now - scheduledDspTime) * 1000.0);
-                }
+                return (float)((CachedDspTime - scheduled) * 1000.0) - _audioOutputLatencyMs;
             }
-
-            // During visual pre-roll use the visual clock so callers still see negative time.
-            if (isVisualPlaying)
-            {
-                return visualSongPosition;
-            }
-
-            // As a final fallback, return the last known songPosition which is kept in milliseconds.
-            return songPosition;
         }
-        catch
+
+        // Fall back to our AudioSource when AudioSync is not available.
+        if (audioSource != null && audioSource.clip != null)
         {
-            return songPosition;
+            double baseline = audioStartDspTime;
+            if (baseline > 0.0)
+            {
+                return (float)((CachedDspTime - baseline) * 1000.0) - _audioOutputLatencyMs;
+            }
+
+            if (hasScheduledStart && scheduledDspTime > 0.0)
+            {
+                return (float)((CachedDspTime - scheduledDspTime) * 1000.0) - _audioOutputLatencyMs;
+            }
         }
+
+        // During visual pre-roll use the visual clock so callers still see negative time.
+        if (isVisualPlaying)
+        {
+            return HeldVisualPosition;
+        }
+
+        // As a final fallback, return the last known songPosition which is kept in milliseconds.
+        return songPosition;
     }
 
     void Awake()
     {
+        _audioOutputLatencyMs = 0f;
+        RefreshRenderClockTolerance();
+        AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+
         // Try to bind an AudioSource and an AudioSync if available. Prefer AudioSync.audioSource
         // when present so Conductor and visuals share the same DSP-referenced source.
         audioSource = GetComponent<AudioSource>();
@@ -140,26 +189,47 @@ public class Conductor : MonoBehaviour
         // Initialize music volume from SettingsManager if available
         if (SettingsManager.Instance != null)
         {
-            SetMusicVolume(SettingsManager.Instance.MusicVolume);
+            SetMusicVolume(SettingsManager.Instance.GameplayMusicVolume);
         }
+    }
+
+    void OnDestroy()
+    {
+        AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+    }
+
+    private void OnAudioConfigurationChanged(bool deviceWasChanged)
+    {
+        RefreshRenderClockTolerance();
+        // The new device restarts the DSP staircase at a different phase.
+        // Rebuild the filter instead of letting it chase the jump.
+        ResetRenderClock(_effectiveSongPositionCached);
     }
 
     void Update()
     {
+        // Cache dspTime and settings offset once per frame for all consumers
+        _cachedDspTime = AudioSettings.dspTime;
+        _dspTimeCachedFrame = Time.frameCount;
+        _timingSampleRealtime = Time.realtimeSinceStartupAsDouble;
+        var sm = SettingsManager.Instance;
+        _cachedPlaybackOffsetMs = (sm != null) ? sm.MusicPlaybackOffsetMs : 0f;
+
         if (isPlaying)
         {
+            // 這條時間軸**不**乘練習速度。譜面在載入時就已經被改寫成新的時間，
+            // 再把時鐘放慢一次就是慢兩次 —— 音符會用倍率的平方在爬。
             // Update song position: prefer AudioSync's DSP-based time when available
             if (audioSync != null)
             {
-                songPosition = (float)(audioSync.GetAudioTime() * 1000.0);
+                songPosition = (float)(audioSync.GetAudioTime() * 1000.0) - _audioOutputLatencyMs;
             }
             else if (audioSource != null && audioSource.clip != null)
             {
                 // Derive time from DSP start to ignore AudioSource pitch scaling
                 if (audioStartDspTime > 0.0)
                 {
-                    double now = AudioSettings.dspTime;
-                    songPosition = (float)((now - audioStartDspTime) * 1000.0);
+                    songPosition = (float)((_cachedDspTime - audioStartDspTime) * 1000.0) - _audioOutputLatencyMs;
                 }
                 else
                 {
@@ -169,13 +239,10 @@ public class Conductor : MonoBehaviour
             }
             else
             {
-                // If there's no clip assigned on the AudioSource, attempting to read time
-                // can return 0 or be meaningless. Emit a single editor-only warning to
-                // help track misconfigured inspector assignments.
                 if (!_warnedAudioSourceNoClip)
                 {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    try { Debug.LogWarning("Conductor: audioSource.clip is null or not an AudioClip; audio time unavailable. Check assigned AudioSource or provided AudioClip."); } catch { }
+                    Debug.LogWarning("Conductor: audioSource.clip is null or not an AudioClip; audio time unavailable.");
 #endif
                     _warnedAudioSourceNoClip = true;
                 }
@@ -194,20 +261,19 @@ public class Conductor : MonoBehaviour
         // When scheduled start time arrives, switch from visual pre-roll to audio time
         if (hasScheduledStart)
         {
-            double now = AudioSettings.dspTime;
-            if (now >= scheduledDspTime)
+            if (_cachedDspTime >= scheduledDspTime)
             {
                 double scheduled = scheduledDspTime;
-                double offsetMs = (now - scheduled) * 1000.0;
-                try { BuildLogger.Log($"Conductor: Scheduled audio started at dsp={now:F3}, scheduled={scheduled:F3}, offset={offsetMs:+0.0;-0.0;0.0}ms"); }
-                catch { }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                double offsetMs = (_cachedDspTime - scheduled) * 1000.0;
+                BuildLogger.Log($"Conductor: Scheduled audio started at dsp={_cachedDspTime:F3}, scheduled={scheduled:F3}, offset={offsetMs:+0.0;-0.0;0.0}ms");
+#endif
                 isPlaying = true;
                 audioStartDspTime = scheduled;
                 StopVisualPreRoll();
                 hasScheduledStart = false;
                 scheduledDspTime = -1.0;
                 songPosition = 0f;
-                //Debug.Log("Conductor: Scheduled audio started. Switched to audio clock.");
             }
         }
 
@@ -219,7 +285,7 @@ public class Conductor : MonoBehaviour
         }
         else if (isVisualPlaying)
         {
-            effNow = visualSongPosition;
+            effNow = HeldVisualPosition;
         }
         else if (hasScheduledStart)
         {
@@ -238,12 +304,106 @@ public class Conductor : MonoBehaviour
         }
         else
         {
-            // Avoid backward jumps due to jitter; allow tiny negative epsilon
-            if (effNow >= _effectiveSongPositionCached - 0.5f)
-            {
-                _effectiveSongPositionCached = effNow;
-            }
+            _effectiveSongPositionCached = TimingMath.MonotonicClamp(effNow, _effectiveSongPositionCached);
         }
+
+        UpdateRenderClock(_effectiveSongPositionCached);
+    }
+
+    /// <summary>
+    /// Advances a continuous render-only clock and gently reconciles it with
+    /// the authoritative DSP clock. AudioSettings.dspTime only moves when the
+    /// audio thread finishes a buffer, so it is a staircase (one DSP block per
+    /// step). Writing those steps straight into transforms makes notes, TRACK
+    /// and beat lines shake together even at a perfectly stable frame rate,
+    /// because the frame period and the DSP block period are not integer
+    /// multiples: some frames the position does not move at all and the next
+    /// one jumps two blocks.
+    /// </summary>
+    private void UpdateRenderClock(float authoritativeMs)
+    {
+        double now = Time.realtimeSinceStartupAsDouble;
+        bool active = isActive;
+        if (!_renderClockInitialized || active != _renderClockWasActive)
+        {
+            ResetRenderClock(authoritativeMs, now, active);
+            return;
+        }
+
+        if (!active)
+        {
+            ResetRenderClock(authoritativeMs, now, active);
+            return;
+        }
+
+        double dt = now - _renderClockLastRealtime;
+        _renderClockLastRealtime = now;
+        if (dt <= 0.0 || dt > MaxRenderClockGapSeconds)
+        {
+            ResetRenderClock(authoritativeMs, now, active);
+            return;
+        }
+
+        // Track only the OFFSET between the DSP staircase and the continuous
+        // realtime clock, and low-pass it. The rendered position is then
+        // rebuilt as realtime + offset, so its rate is exactly realtime's rate
+        // — there is no per-frame speed alternation to see — while the slowly
+        // moving offset still keeps it locked to the audio over the long run.
+        // A previous attempt corrected the *position* every frame instead,
+        // which is what made visual speed oscillate.
+        double targetOffsetMs = authoritativeMs - now * 1000.0;
+        double timeConstant = Mathf.Max(1f, renderClockSmoothingMs) / 1000.0;
+        double alpha = 1.0 - System.Math.Exp(-dt / timeConstant);
+        _renderClockOffsetMs += (targetOffsetMs - _renderClockOffsetMs) * alpha;
+
+        double renderedMs = now * 1000.0 + _renderClockOffsetMs;
+        // Seeks, pauses and audio-device changes move the authoritative clock
+        // faster than the filter can follow. Bound the disagreement so a real
+        // discontinuity resyncs immediately instead of drifting for a second.
+        double delta = renderedMs - authoritativeMs;
+        if (delta > _renderClockToleranceMs || delta < -_renderClockToleranceMs)
+        {
+            renderedMs = authoritativeMs + Mathf.Clamp((float)delta,
+                -_renderClockToleranceMs, _renderClockToleranceMs);
+            _renderClockOffsetMs = renderedMs - now * 1000.0;
+        }
+
+        _renderSongPositionCached = (float)renderedMs;
+        _renderClockWasActive = active;
+    }
+
+    /// <summary>
+    /// Recomputes how far the smooth render clock is allowed to sit from the
+    /// DSP sample. The staircase alone accounts for one full block of
+    /// disagreement, so the tolerance must be derived from the device's actual
+    /// buffer rather than hard-coded.
+    /// </summary>
+    private void RefreshRenderClockTolerance()
+    {
+        try
+        {
+            AudioSettings.GetDSPBufferSize(out int bufferLength, out _);
+            float blockMs = AudioOutputLatency.ComputeMs(bufferLength, 1, AudioSettings.outputSampleRate);
+            _renderClockToleranceMs = Mathf.Clamp(blockMs * 2f + 2f, 6f, 40f);
+        }
+        catch
+        {
+            _renderClockToleranceMs = 12f;
+        }
+    }
+
+    private void ResetRenderClock(float positionMs)
+    {
+        ResetRenderClock(positionMs, Time.realtimeSinceStartupAsDouble, isActive);
+    }
+
+    private void ResetRenderClock(float positionMs, double realtime, bool active)
+    {
+        _renderSongPositionCached = positionMs;
+        _renderClockOffsetMs = positionMs - realtime * 1000.0;
+        _renderClockLastRealtime = realtime;
+        _renderClockInitialized = true;
+        _renderClockWasActive = active;
     }
 
     /// <summary>
@@ -304,6 +464,28 @@ public class Conductor : MonoBehaviour
     /// <summary>
     /// Schedule playback at a future DSP time. Keeps visual pre-roll running until the scheduled time.
     /// </summary>
+    /// <summary>
+    /// 把預捲的時鐘對回真正的開始時間。
+    /// </summary>
+    /// <remarks>
+    /// 預捲是在載入**之前**就開始跑的，排程卻是在解析、解碼、預熱都做完之後才算
+    /// 出來的 —— 兩者相差多少，就是載入花了多久。不對回去的話譜面會提早滾到零、
+    /// 停在那裡等音訊，那段停頓正是「滾完了卻還沒開始」的來源。
+    ///
+    /// **只在還停著的時候對。** 進場那一段已經在動的時候把時鐘往回撥，譜面會倒
+    /// 退一下 —— 那比一小段停頓難看得多。停著的區間裡 HeldVisualPosition 是夾住
+    /// 的常數，怎麼撥都不會有人看見。
+    /// </remarks>
+    private void SyncVisualPreRollTo(double dspStart)
+    {
+        if (!isVisualPlaying) return;
+        double remainMs = (dspStart - AudioSettings.dspTime) * 1000.0;
+        if (remainMs <= VisualLeadInMs) return;              // 已經在滾了，別碰
+        if (visualSongPosition > -VisualLeadInMs) return;    // 同上，保險
+        visualSongPosition = (float)(-remainMs);
+        ResetRenderClock(HeldVisualPosition);
+    }
+
     public void PlayScheduled(AudioClip clip, double dspStart)
     {
         if (clip == null)
@@ -336,6 +518,7 @@ public class Conductor : MonoBehaviour
             audioStartDspTime = dspStart;
             isPlaying = false; // will flip true at dspStart
             songPosition = 0f;
+            SyncVisualPreRollTo(dspStart);
             _effectiveSongPositionCached = -RemainingPreRollMs; // initialize cache for pre-roll
             _effectiveInitialized = true;
             return;
@@ -372,6 +555,7 @@ public class Conductor : MonoBehaviour
         audioStartDspTime = dspStart;
         isPlaying = false; // will flip true at dspStart
         songPosition = 0f;
+        SyncVisualPreRollTo(dspStart);
         _effectiveSongPositionCached = -RemainingPreRollMs; // initialize cache for pre-roll
         _effectiveInitialized = true;
         //Debug.Log($"Conductor: Scheduled clip '{clip.name}' at dsp={dspStart:F3}");
@@ -398,6 +582,7 @@ public class Conductor : MonoBehaviour
         songPosition = 0f;
         _effectiveSongPositionCached = 0f;
         _effectiveInitialized = false;
+        ResetRenderClock(0f);
         //Debug.Log("Conductor stopped playback.");
     }
 
@@ -422,9 +607,10 @@ public class Conductor : MonoBehaviour
                 try { src.time = (float)targetSec; } catch { }
                 try { audioSync.Resume(); } catch { }
                 // Ensure Conductor songPosition baseline matches AudioSync after resume
-                songPosition = (float)(audioSync.GetAudioTime() * 1000.0);
+                songPosition = (float)(audioSync.GetAudioTime() * 1000.0) - _audioOutputLatencyMs;
                 _effectiveSongPositionCached = songPosition;
                 _effectiveInitialized = true;
+                ResetRenderClock(songPosition);
                 isPlaying = wasPlaying || isPlaying;
             }
             catch { }
@@ -445,9 +631,10 @@ public class Conductor : MonoBehaviour
                 audioSource.time = (float)targetSec;
                 // Update DSP baseline to keep Conductor timing consistent
                 audioStartDspTime = AudioSettings.dspTime - targetSec;
-                songPosition = targetMs;
+                songPosition = targetMs - _audioOutputLatencyMs;
                 _effectiveSongPositionCached = songPosition;
                 _effectiveInitialized = true;
+                ResetRenderClock(songPosition);
                 isPlaying = wasPlaying || isPlaying;
                 if (wasPlaying)
                 {
@@ -462,6 +649,7 @@ public class Conductor : MonoBehaviour
         songPosition = targetMs;
         _effectiveSongPositionCached = songPosition;
         _effectiveInitialized = true;
+        ResetRenderClock(songPosition);
     }
 
     /// <summary>
@@ -495,9 +683,10 @@ public class Conductor : MonoBehaviour
             {
                 audioSync.Resume();
                 // Align songPosition to audioSync's time
-                songPosition = (float)(audioSync.GetAudioTime() * 1000.0);
+                songPosition = (float)(audioSync.GetAudioTime() * 1000.0) - _audioOutputLatencyMs;
                 _effectiveSongPositionCached = songPosition;
                 _effectiveInitialized = true;
+                ResetRenderClock(songPosition);
             }
             else if (audioSource != null)
             {
@@ -505,9 +694,10 @@ public class Conductor : MonoBehaviour
                 double clipTime = audioSource.time; // seconds into clip
                 audioStartDspTime = now - clipTime;
                 try { audioSource.UnPause(); } catch { }
-                songPosition = (float)(clipTime * 1000.0);
+                songPosition = (float)(clipTime * 1000.0) - _audioOutputLatencyMs;
                 _effectiveSongPositionCached = songPosition;
                 _effectiveInitialized = true;
+                ResetRenderClock(songPosition);
             }
         }
         catch { }
@@ -533,12 +723,47 @@ public class Conductor : MonoBehaviour
             }
         }
         audioSource.volume = Mathf.Clamp01(volume);
-        //Debug.Log($"Conductor: Music volume set to {audioSource.volume:F2}");
     }
 
     /// <summary>
     /// Starts a visual pre-roll where effectiveSongPosition advances from -delay to 0 before audio starts.
     /// </summary>
+    /// <summary>
+    /// Holds the chart still through the count-in and lets it in for the last
+    /// second.
+    /// </summary>
+    /// <remarks>
+    /// The pre-roll used to start the visual clock at minus the whole delay, so
+    /// the notes slid in for the entire count-in -- and since the count-in is a
+    /// player setting between two and five seconds, the approach the player had
+    /// to read was a different length every time they changed it.
+    ///
+    /// The clock still spans the whole delay, because it has to arrive at zero
+    /// exactly when the audio does. What is clamped is the position it reports:
+    /// the chart sits one second out until there is one second left, then moves.
+    /// The lead-in is therefore the same on every setting, and the count-in
+    /// length only decides how long the player waits before it starts.
+    /// </remarks>
+    public const float DefaultVisualLeadInMs = 1000f;
+
+    /// <summary>
+    /// 進場滾多久。預設一秒，拿得到拍格的譜面改成三拍。
+    /// </summary>
+    /// <remarks>
+    /// 固定一秒的進場在每一首歌底下都是不同的音樂長度：180 BPM 的一秒是三拍，
+    /// 60 BPM 的一秒是一拍。玩家在那一秒裡要讀的是「這首歌多快」，而固定秒數
+    /// 正好不講這件事。三拍就是指揮起拍 —— 滾完的那一刻是第一小節。
+    /// </remarks>
+    public float VisualLeadInMs { get; private set; } = DefaultVisualLeadInMs;
+
+    /// <summary>
+    /// 設定進場長度。<paramref name="ms"/> 不大於零就回到預設的一秒。
+    /// </summary>
+    public void SetVisualLeadIn(float ms)
+    {
+        VisualLeadInMs = ms > 0f ? ms : DefaultVisualLeadInMs;
+    }
+
     public void StartVisualPreRoll(float delaySeconds)
     {
         float delayMs = Mathf.Max(0f, delaySeconds) * 1000f;
@@ -550,6 +775,7 @@ public class Conductor : MonoBehaviour
         visualSongPosition = -delayMs;
         _effectiveSongPositionCached = visualSongPosition;
         _effectiveInitialized = true;
+        ResetRenderClock(HeldVisualPosition);
     _lastPreRollDurationMs = delayMs;
     //Debug.Log($"Conductor: Visual pre-roll started for {delaySeconds:F2}s (from {visualSongPosition} ms to 0 ms)");
     }
@@ -580,6 +806,7 @@ public class Conductor : MonoBehaviour
         songPosition = 0f;
         _effectiveSongPositionCached = 0f;
         _effectiveInitialized = true;
+        ResetRenderClock(0f);
         hasScheduledStart = false;
         scheduledDspTime = -1.0;
         //Debug.Log("Conductor: Entered playing state without audio.");

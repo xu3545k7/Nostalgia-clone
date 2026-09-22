@@ -1,0 +1,29 @@
+Scan report
+Found 18 image files under Assets/Resources/graphic
+Non-sprite or unknown textureType count: 0
+
+Found 15 Resources.Load/LoadAll calls.
+- Assets\Scripts\GameManage\HitSoundManager.cs: Resources.Load<AudioClip>("Sound/Tap" -> 'Sound/Tap'
+- Assets\Scripts\GameManage\HitSoundManager.cs: Resources.Load<AudioClip>("Sound/Tap" -> 'Sound/Tap'
+- Assets\Scripts\GameManage\HitSoundManager.cs: Resources.Load<AudioClip>("Sound/Tap" -> 'Sound/Tap'
+- Assets\Scripts\Note\NoteController.cs: Resources.Load<AudioClip>("Sound/Tap" -> 'Sound/Tap'
+- Assets\Scripts\Note\NoteController.cs: Resources.Load<AudioClip>("Sound/Tap" -> 'Sound/Tap'
+- Assets\Scripts\NoteTypes\StaccatoNoteHandler.cs: Resources.Load<AudioClip>("Sound/Tap" -> 'Sound/Tap'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.LoadAll<Sprite>("graphic/judge" -> 'graphic/judge'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/Just" -> 'graphic/judge/Just'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/just" -> 'graphic/judge/just'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/Great" -> 'graphic/judge/Great'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/great" -> 'graphic/judge/great'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/Good" -> 'graphic/judge/Good'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/good" -> 'graphic/judge/good'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/Miss" -> 'graphic/judge/Miss'
+- Assets\Scripts\UI\SimpleJudgePopupManager.cs: Resources.Load<Sprite>("graphic/judge/miss" -> 'graphic/judge/miss'
+
+Missing: 6
+- Missing: 'Sound/Tap'  (call: Resources.Load<AudioClip>("Sound/Tap" in Assets\Scripts\GameManage\HitSoundManager.cs)
+- Missing: 'Sound/Tap'  (call: Resources.Load<AudioClip>("Sound/Tap" in Assets\Scripts\GameManage\HitSoundManager.cs)
+- Missing: 'Sound/Tap'  (call: Resources.Load<AudioClip>("Sound/Tap" in Assets\Scripts\GameManage\HitSoundManager.cs)
+- Missing: 'Sound/Tap'  (call: Resources.Load<AudioClip>("Sound/Tap" in Assets\Scripts\Note\NoteController.cs)
+- Missing: 'Sound/Tap'  (call: Resources.Load<AudioClip>("Sound/Tap" in Assets\Scripts\Note\NoteController.cs)
+- Missing: 'Sound/Tap'  (call: Resources.Load<AudioClip>("Sound/Tap" in Assets\Scripts\NoteTypes\StaccatoNoteHandler.cs)
+Case-insensitive only: 0

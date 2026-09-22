@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using System.Text;
@@ -39,6 +39,8 @@ public class BpmDisplay : MonoBehaviour
     private int lastBeatIndex = -1;
     private int lastDisplayedBpm = int.MinValue;
     private string lastDisplayedTs = null;
+    private int lastSpeedDirection;
+    private bool lastSpeedWarning;
     // reusable temporary list to avoid per-call allocations when computing deltas
     private List<int> reusableIntList = new List<int>(16);
     // reusable StringBuilder for debug output to avoid allocations when debug enabled
@@ -49,13 +51,108 @@ public class BpmDisplay : MonoBehaviour
     private int detectedSubdivision = 1;
     private int timeSigNumerator = 0;
     private int timeSigDenominator = 0;
+    private int currentTimeSigDenominator = 0;
     // effective subdivision actually used for BPM computation (set after detection)
     private int effectiveBeatSubdivision = 1;
+    // beat_timings has no single unit across all charts. Anchor its opening
+    // median interval to first_bpm, then measure later tempo changes relatively.
+    private float referenceBeatIntervalMs;
+    private sealed class DetectedTempoChange
+    {
+        public int timeMs;
+        public float beforeBpm;
+        public float afterBpm;
+    }
+    private readonly List<DetectedTempoChange> detectedTempoChanges =
+        new List<DetectedTempoChange>();
+    private int detectedTimeSignatureChangeCount = -1;
+    private int detectedBeatTimingCount = -1;
+    private const float UiRefreshInterval = 0.05f;
+    private float nextUiRefreshTime;
     // remove median-based BPM; compute instantaneous BPM per detection
 
     void Start()
     {
         // We'll initialize lazily in Update so this script is safe regardless of load order
+        ConfigureClassicalPresentation();
+    }
+
+    private void ConfigureClassicalPresentation()
+    {
+        if (bpmText == null) return;
+        bool insideUnifiedPanel = bpmText.transform.parent != null &&
+                                  bpmText.transform.parent.name == "ClassicalSongInfoPanel";
+        Canvas frontCanvas = bpmText.GetComponent<Canvas>();
+        if (insideUnifiedPanel)
+        {
+            if (frontCanvas != null) Destroy(frontCanvas);
+        }
+        else
+        {
+            if (frontCanvas == null) frontCanvas = bpmText.gameObject.AddComponent<Canvas>();
+            frontCanvas.overrideSorting = true;
+            frontCanvas.sortingOrder = 23988;
+        }
+
+        float targetSize = insideUnifiedPanel ? 18f : 27f;
+        ClassicalBookUITheme.StyleText(bpmText, new Color(0.96f, 0.91f, 0.79f, 1f), targetSize, FontStyles.Bold);
+        bpmText.richText = true;
+        bpmText.overrideColorTags = false;
+        bpmText.textWrappingMode = TextWrappingModes.NoWrap;
+        bpmText.overflowMode = TextOverflowModes.Masking;
+        bpmText.maskable = true;
+        bpmText.raycastTarget = false;
+        bpmText.alignment = TextAlignmentOptions.MidlineLeft;
+        bpmText.outlineWidth = 0.11f;
+        bpmText.outlineColor = new Color(0.10f, 0.045f, 0.025f, 0.88f);
+        bpmText.enableAutoSizing = true;
+        bpmText.fontSizeMin = insideUnifiedPanel ? 12f : 16f;
+        bpmText.fontSizeMax = targetSize;
+        bpmText.characterSpacing = 0f;
+        bpmText.wordSpacing = 0f;
+        if (!insideUnifiedPanel)
+        {
+            bpmText.rectTransform.sizeDelta = new Vector2(
+                Mathf.Max(400f, bpmText.rectTransform.sizeDelta.x),
+                Mathf.Max(82f, bpmText.rectTransform.sizeDelta.y));
+        }
+    }
+
+    public void ConfigureFloatingPresentation()
+    {
+        if (bpmText == null) return;
+        ClassicalBookUITheme.StyleText(bpmText, new Color(0.96f, 0.91f, 0.79f, 1f),
+            64f, FontStyles.Bold);
+        bpmText.richText = true;
+        bpmText.overrideColorTags = false;
+        bpmText.textWrappingMode = TextWrappingModes.NoWrap;
+        bpmText.overflowMode = TextOverflowModes.Overflow;
+        bpmText.maskable = false;
+        bpmText.raycastTarget = false;
+        bpmText.alignment = TextAlignmentOptions.MidlineLeft;
+        bpmText.outlineWidth = 0.14f;
+        bpmText.outlineColor = new Color(0.04f, 0.02f, 0.01f, 0.96f);
+        bpmText.enableAutoSizing = true;
+        bpmText.fontSizeMin = 28f;
+        bpmText.fontSizeMax = 64f;
+    }
+
+    private static string FormatBpmText(string timeSignature, int bpm, int speedDirection = 0,
+        bool showArrow = false)
+    {
+        string ts = string.IsNullOrWhiteSpace(timeSignature) ? "-" : timeSignature;
+        string bpmValue = bpm > 0 ? bpm.ToString() : "-";
+        string valueColor = speedDirection > 0 ? "#55B9FF" :
+            speedDirection < 0 ? "#FF5B5B" : "#F5E8C9";
+        string arrow = !showArrow ? string.Empty :
+            speedDirection > 0 ? "  <size=52>↑</size>" :
+            speedDirection < 0 ? "  <size=52>↓</size>" : string.Empty;
+        // Direction arrows are drawn as UI geometry on both sides of the BPM
+        // block, so the text no longer depends on font glyph availability.
+        arrow = string.Empty;
+        return $"<size=20><color=#D9BC76>TIME SIGNATURE</color>  {ts}</size>\n" +
+               $"<size=25><color=#D9BC76>BPM</color></size>  " +
+               $"<size=58><color={valueColor}>{bpmValue}{arrow}</color></size>";
     }
 
     // compute median delta (ms) of first few beat timings; returns 0 if unavailable
@@ -81,6 +178,7 @@ public class BpmDisplay : MonoBehaviour
     {
         // Ensure we have a reference to GameManager and detect chart changes so
         // the BPM display reinitializes when a new song is selected.
+        bool chartChanged = false;
         if (gm == null) gm = GameManager.Instance;
         if (gm != null && gm.CurrentChart != lastChartRef)
         {
@@ -90,7 +188,44 @@ public class BpmDisplay : MonoBehaviour
             chart = null;
             conductor = null;
             chartHeader = gm.CurrentChartHeader;
+            lastSpeedDirection = 0;
+            lastSpeedWarning = false;
+            referenceBeatIntervalMs = 0f;
+            detectedTimeSignatureChangeCount = -1;
+            detectedBeatTimingCount = -1;
+            detectedTempoChanges.Clear();
+            chartChanged = true;
         }
+
+        // GameManager can assign/recreate the Conductor after the chart has
+        // already initialized. Keep the playback clock reference live or the
+        // warning window can never advance.
+        if (gm != null && conductor != gm.Conductor)
+        {
+            conductor = gm.Conductor;
+            chartChanged = true;
+        }
+
+        // A chart instance may be published before its beat list has finished
+        // loading. Its reference then stays the same, so retry initialization
+        // when the timing data becomes available.
+        int availableBeatCount = gm != null && gm.CurrentChart != null &&
+                                 gm.CurrentChart.beat_timings != null
+            ? gm.CurrentChart.beat_timings.Count
+            : 0;
+        if (initialized && availableBeatCount > 1 &&
+            (referenceBeatIntervalMs <= 0f ||
+             availableBeatCount != detectedBeatTimingCount))
+        {
+            initialized = false;
+            chartChanged = true;
+        }
+
+        // BPM/time-signature text is informational and cannot change meaningfully
+        // 120 times per second. Throttling its string work avoids steady GC/TMP cost.
+        float now = Time.unscaledTime;
+        if (!chartChanged && now < nextUiRefreshTime) return;
+        nextUiRefreshTime = now + UiRefreshInterval;
 
         if (!initialized)
         {
@@ -118,6 +253,7 @@ public class BpmDisplay : MonoBehaviour
                 newText = "BPM：\n(—)：-";
             }
 
+            newText = FormatBpmText(headerTs, headerBpm > 0f ? Mathf.RoundToInt(headerBpm) : 0);
             if (lastDisplayedText != newText)
             {
                 bpmText.SetText(newText);
@@ -140,7 +276,8 @@ public class BpmDisplay : MonoBehaviour
         // Time Signature：N/D\nBPM：value
         string tsText = timeSigNumerator > 0 && timeSigDenominator > 0 ? $"{timeSigNumerator}/{timeSigDenominator}" : (chart != null && !string.IsNullOrEmpty(GetChartTimeSignature(chart)) ? GetChartTimeSignature(chart) : "-");
         // display BPM as integer (rounded) to reduce updates and allocations
-        int displayBpm = Mathf.RoundToInt(primaryBpm);
+        float speedFactor = gm != null ? gm.CurrentAudioSpeedFactor : 1f;
+        int displayBpm = Mathf.RoundToInt(primaryBpm * speedFactor);
         string secondLine = $"BPM：{displayBpm}";
 
         // If playing, try to compute an instantaneous BPM from beat timings first.
@@ -161,7 +298,9 @@ public class BpmDisplay : MonoBehaviour
                     else break;
                 }
                 if (curNum > 0 && curDen > 0) tsText = $"{curNum}/{curDen}";
+                currentTimeSigDenominator = curDen;
             }
+            else currentTimeSigDenominator = timeSigDenominator;
             int beatIndex = FindBeatIndexForSongPos(songPos);
             // Determine required minimum beats before allowing measured BPM
             int requiredBeats = minBeatsBeforeUseMeasuredBpm;
@@ -175,7 +314,7 @@ public class BpmDisplay : MonoBehaviour
                 float instBpm = ComputeInstantBpmAtSongPos(songPos);
                 if (instBpm > 0f)
                 {
-                    displayBpm = Mathf.RoundToInt(instBpm);
+                    displayBpm = Mathf.RoundToInt(instBpm * speedFactor);
                     secondLine = $"BPM：{displayBpm}";
                     wroteBpm = true;
                 }
@@ -185,7 +324,7 @@ public class BpmDisplay : MonoBehaviour
                     if (measureIndex < measureBpms.Count)
                     {
                         float currentMeasureBpm = measureBpms[measureIndex];
-                        displayBpm = Mathf.RoundToInt(currentMeasureBpm);
+                        displayBpm = Mathf.RoundToInt(currentMeasureBpm * speedFactor);
                         secondLine = $"BPM：{displayBpm}";
                         wroteBpm = true;
                     }
@@ -196,23 +335,46 @@ public class BpmDisplay : MonoBehaviour
         // If we didn't write a BPM from measurements, optionally use the chart's first_bpm as a fallback.
         if (!wroteBpm && preferChartFirstBpm)
         {
-            displayBpm = Mathf.RoundToInt(primaryBpm);
+            displayBpm = Mathf.RoundToInt(primaryBpm * speedFactor);
             secondLine = $"BPM：{displayBpm}";
             wroteBpm = true;
         }
         // Build the display text once and only update TMP when it changed to avoid allocations
         // Only update visible text when either time signature or rounded BPM changed
-        if (displayBpm != lastDisplayedBpm || tsText != lastDisplayedTs)
+        int speedDirection = 0;
+        bool speedWarning = false;
+        if (conductor != null)
+            ResolveSpeedVisual(conductor.effectiveSongPosition, out speedDirection,
+                out speedWarning);
+        if (displayBpm != lastDisplayedBpm || tsText != lastDisplayedTs ||
+            speedDirection != lastSpeedDirection || speedWarning != lastSpeedWarning)
         {
+            if (enableDebug &&
+                (speedDirection != lastSpeedDirection ||
+                 speedWarning != lastSpeedWarning))
+            {
+                Debug.Log($"[BpmDisplay] warning={speedWarning} direction={speedDirection} " +
+                          $"songMs={(conductor != null ? conductor.effectiveSongPosition : -1f):F0}");
+            }
             string newText = "Time Signature：" + tsText + "\n" + secondLine;
                 try
                 {
+                    // Only the BPM number carries the speed colour, via its own
+                    // <color> tag. overrideColorTags would paint the whole block
+                    // — the TIME SIGNATURE and BPM labels included — in one
+                    // colour, which is what made a tempo change repaint the
+                    // entire panel instead of just the number.
+                    bpmText.overrideColorTags = false;
+                    bpmText.color = new Color(0.96f, 0.91f, 0.79f, 1f);
+                    newText = FormatBpmText(tsText, displayBpm, speedDirection, speedWarning);
                     bpmText.SetText(newText);
                     bpmText.ForceMeshUpdate();
                     if (enableDebug) try { BuildLogger.Log($"[BpmDisplay] UI set to: {newText}"); } catch { }
                     lastDisplayedText = newText;
                     lastDisplayedBpm = displayBpm;
                     lastDisplayedTs = tsText;
+                    lastSpeedDirection = speedDirection;
+                    lastSpeedWarning = speedWarning;
                 }
             catch (System.Exception ex)
             {
@@ -222,7 +384,367 @@ public class BpmDisplay : MonoBehaviour
         return;
     }
 
-    
+    private void ResolveSpeedVisual(float songPositionMs, out int direction, out bool warning)
+    {
+        direction = 0;
+        warning = false;
+        int currentChangeCount = chart != null && chart.time_signature_changes != null
+            ? chart.time_signature_changes.Count
+            : 0;
+        int currentBeatCount = chart != null && chart.beat_timings != null
+            ? chart.beat_timings.Count
+            : 0;
+        if (currentChangeCount != detectedTimeSignatureChangeCount ||
+            currentBeatCount != detectedBeatTimingCount)
+            BuildDetectedTempoChanges();
+
+        SongSelectionManager.SongOption selected = SongSelectionManager.Instance?.GetSelectedSong();
+        float previousFactor = selected != null && selected.audioSpeedFactor > 0f
+            ? selected.audioSpeedFactor
+            : 1f;
+        int nextTime = int.MaxValue;
+        int nextDirection = 0;
+        int latestPastTime = int.MinValue;
+        int latestPastDirection = 0;
+
+        if (gm != null && gm.CurrentAudioSpeedEvents != null)
+        {
+            float factorBeforeEvent = previousFactor;
+            for (int i = 0; i < gm.CurrentAudioSpeedEvents.Count; i++)
+            {
+                SongSelectionManager.AudioSpeedEvent speedEvent = gm.CurrentAudioSpeedEvents[i];
+                if (speedEvent == null) continue;
+                float factor = speedEvent.factor > 0f ? speedEvent.factor : 1f;
+                int eventDirection = CompareFactor(factor, factorBeforeEvent);
+                if (speedEvent.audiochangeTimeMs <= songPositionMs)
+                {
+                    previousFactor = factor;
+                    if (eventDirection != 0 &&
+                        speedEvent.audiochangeTimeMs >= latestPastTime)
+                    {
+                        latestPastTime = speedEvent.audiochangeTimeMs;
+                        latestPastDirection = eventDirection;
+                    }
+                }
+                else if (eventDirection != 0 &&
+                         speedEvent.audiochangeTimeMs < nextTime)
+                {
+                    nextTime = speedEvent.audiochangeTimeMs;
+                    nextDirection = eventDirection;
+                }
+                factorBeforeEvent = factor;
+            }
+        }
+
+        for (int i = 0; i < detectedTempoChanges.Count; i++)
+        {
+            DetectedTempoChange tempo = detectedTempoChanges[i];
+            if (tempo.timeMs <= songPositionMs)
+            {
+                int tempoDirection = CompareFactor(tempo.afterBpm, tempo.beforeBpm);
+                if (tempoDirection != 0 && tempo.timeMs >= latestPastTime)
+                {
+                    latestPastTime = tempo.timeMs;
+                    latestPastDirection = tempoDirection;
+                }
+                continue;
+            }
+            if (tempo.timeMs < nextTime)
+            {
+                nextTime = tempo.timeMs;
+                nextDirection = CompareFactor(tempo.afterBpm, tempo.beforeBpm);
+            }
+            break;
+        }
+
+        // An upcoming change owns the colour throughout its four-measure
+        // warning window. Consecutive events therefore join without a white
+        // frame between them.
+        if (nextTime != int.MaxValue)
+        {
+            float warningStart = GetMeasureWarningStart(nextTime, previousFactor);
+            if (songPositionMs >= warningStart && songPositionMs < nextTime)
+            {
+                direction = nextDirection;
+                warning = direction != 0;
+                return;
+            }
+        }
+
+        // Do not turn white on the exact frame a change is crossed. Keep its
+        // colour until one complete stable measure has elapsed with no newer
+        // tempo event.
+        if (latestPastTime != int.MinValue && latestPastDirection != 0)
+        {
+            float stableDurationMs =
+                GetMeasureDurationMs(latestPastTime, previousFactor, true);
+            if (songPositionMs < latestPastTime + stableDurationMs)
+            {
+                direction = latestPastDirection;
+                warning = true;
+            }
+        }
+    }
+
+    private void BuildDetectedTempoChanges()
+    {
+        detectedTempoChanges.Clear();
+        detectedTimeSignatureChangeCount =
+            chart != null && chart.time_signature_changes != null
+                ? chart.time_signature_changes.Count
+                : 0;
+        detectedBeatTimingCount =
+            chart != null && chart.beat_timings != null
+                ? chart.beat_timings.Count
+                : 0;
+        if (chart == null || chart.beat_timings == null ||
+            chart.beat_timings.Count < 3)
+            return;
+        if (referenceBeatIntervalMs <= 0f)
+            referenceBeatIntervalMs = MedianDelta(chart.beat_timings);
+
+        if (chart.time_signature_changes != null)
+        {
+            for (int i = 0; i < chart.time_signature_changes.Count; i++)
+            {
+                TimeSigChange change = chart.time_signature_changes[i];
+                if (change == null || change.time_ms <= 0) continue;
+                float beforeSpan = MedianIntervalAround(change.time_ms, false);
+                float afterSpan = MedianIntervalAround(change.time_ms, true);
+                float beforeBpm = CalculateAnchoredBpm(
+                    beforeSpan, GetDenominatorAt(change.time_ms - 1));
+                float afterBpm = CalculateAnchoredBpm(
+                    afterSpan, GetDenominatorAt(change.time_ms));
+                AddDetectedTempoChange(change.time_ms, beforeBpm, afterBpm, 0);
+            }
+        }
+
+        // A tempo change does not require a time-signature change. Scan every
+        // chart's timing grid for two stable neighbouring interval regions.
+        // This also supports imported charts that only contain beat_timings.
+        const int window = 4;
+        List<int> beats = chart.beat_timings;
+        for (int boundary = window; boundary + window < beats.Count; boundary++)
+        {
+            float beforeSpan = MedianIntervalRange(boundary - window, window);
+            float afterSpan = MedianIntervalRange(boundary, window);
+            if (beforeSpan <= 0f || afterSpan <= 0f) continue;
+            if (!IsStableIntervalRange(boundary - window, window, beforeSpan) ||
+                !IsStableIntervalRange(boundary, window, afterSpan)) continue;
+
+            int transitionInterval = boundary;
+            int searchEnd = Mathf.Min(boundary + window, beats.Count - 1);
+            for (int interval = boundary; interval < searchEnd; interval++)
+            {
+                int span = beats[interval + 1] - beats[interval];
+                if (span > 0 &&
+                    Mathf.Abs(span - afterSpan) / afterSpan <= 0.006f)
+                {
+                    transitionInterval = interval;
+                    break;
+                }
+            }
+            int eventTime = beats[transitionInterval];
+            float beforeBpm = CalculateAnchoredBpm(
+                beforeSpan, GetDenominatorAt(eventTime - 1));
+            float afterBpm = CalculateAnchoredBpm(
+                afterSpan, GetDenominatorAt(eventTime));
+            int mergeWindowMs = Mathf.RoundToInt(
+                Mathf.Max(beforeSpan, afterSpan) * 2.25f);
+            AddDetectedTempoChange(
+                eventTime, beforeBpm, afterBpm, mergeWindowMs);
+        }
+
+        detectedTempoChanges.Sort((a, b) => a.timeMs.CompareTo(b.timeMs));
+        if (enableDebug)
+        {
+            debugBuilder.Clear();
+            for (int i = 0; i < detectedTempoChanges.Count; i++)
+            {
+                DetectedTempoChange tempo = detectedTempoChanges[i];
+                if (i > 0) debugBuilder.Append(", ");
+                debugBuilder.Append(tempo.timeMs)
+                    .Append("ms ")
+                    .Append(Mathf.RoundToInt(tempo.beforeBpm))
+                    .Append("->")
+                    .Append(Mathf.RoundToInt(tempo.afterBpm));
+            }
+            Debug.Log($"[BpmDisplay] detected {detectedTempoChanges.Count} tempo changes: " +
+                      debugBuilder);
+        }
+    }
+
+    private void AddDetectedTempoChange(
+        int timeMs, float beforeBpm, float afterBpm, int mergeWindowMs)
+    {
+        if (beforeBpm <= 0f || afterBpm <= 0f) return;
+        float relativeChange = Mathf.Abs(afterBpm - beforeBpm) /
+                               Mathf.Max(beforeBpm, afterBpm);
+        // Imported tempo maps commonly use small staged changes (for example
+        // Melodiniq starts 193 -> 196 BPM, only about 1.6%). A 5% threshold
+        // missed those entirely. One percent still rejects normal 1 ms JSON
+        // rounding noise while retaining intentional gradual acceleration.
+        if (relativeChange < 0.01f) return;
+
+        int direction = CompareFactor(afterBpm, beforeBpm);
+        for (int i = 0; i < detectedTempoChanges.Count; i++)
+        {
+            DetectedTempoChange existing = detectedTempoChanges[i];
+            if (CompareFactor(existing.afterBpm, existing.beforeBpm) != direction)
+                continue;
+            int timeDistance = Mathf.Abs(existing.timeMs - timeMs);
+            bool sameTempoLevels =
+                Mathf.Abs(existing.beforeBpm - beforeBpm) /
+                    Mathf.Max(existing.beforeBpm, beforeBpm) < 0.005f &&
+                Mathf.Abs(existing.afterBpm - afterBpm) /
+                    Mathf.Max(existing.afterBpm, afterBpm) < 0.005f;
+            if (timeDistance <= mergeWindowMs ||
+                (sameTempoLevels && timeDistance <= mergeWindowMs * 2))
+                return;
+        }
+
+        detectedTempoChanges.Add(new DetectedTempoChange
+        {
+            timeMs = timeMs,
+            beforeBpm = beforeBpm,
+            afterBpm = afterBpm
+        });
+    }
+
+    // startInterval is the index of beat[startInterval] -> beat[startInterval + 1].
+    private float MedianIntervalRange(int startInterval, int count)
+    {
+        reusableIntList.Clear();
+        List<int> beats = chart.beat_timings;
+        int end = Mathf.Min(startInterval + count, beats.Count - 1);
+        for (int i = Mathf.Max(0, startInterval); i < end; i++)
+        {
+            int span = beats[i + 1] - beats[i];
+            if (span > 0) reusableIntList.Add(span);
+        }
+        if (reusableIntList.Count == 0) return 0f;
+        reusableIntList.Sort();
+        return reusableIntList[reusableIntList.Count / 2];
+    }
+
+    private bool IsStableIntervalRange(int startInterval, int count, float median)
+    {
+        if (median <= 0f) return false;
+        List<int> beats = chart.beat_timings;
+        int end = Mathf.Min(startInterval + count, beats.Count - 1);
+        int valid = 0;
+        int nearMedian = 0;
+        for (int i = Mathf.Max(0, startInterval); i < end; i++)
+        {
+            int span = beats[i + 1] - beats[i];
+            if (span <= 0) continue;
+            valid++;
+            if (Mathf.Abs(span - median) / median <= 0.10f)
+                nearMedian++;
+        }
+        return valid >= count && nearMedian >= count - 1;
+    }
+
+    private float MedianIntervalAround(int timeMs, bool after)
+    {
+        reusableIntList.Clear();
+        List<int> beats = chart.beat_timings;
+        if (after)
+        {
+            for (int i = 1; i < beats.Count && reusableIntList.Count < 8; i++)
+            {
+                if (beats[i - 1] < timeMs) continue;
+                int span = beats[i] - beats[i - 1];
+                if (span > 0) reusableIntList.Add(span);
+            }
+        }
+        else
+        {
+            for (int i = beats.Count - 1; i >= 1 && reusableIntList.Count < 8; i--)
+            {
+                if (beats[i] > timeMs) continue;
+                int span = beats[i] - beats[i - 1];
+                if (span > 0) reusableIntList.Add(span);
+            }
+        }
+        if (reusableIntList.Count == 0) return 0f;
+        reusableIntList.Sort();
+        return reusableIntList[reusableIntList.Count / 2];
+    }
+
+    private int GetDenominatorAt(int timeMs)
+    {
+        int denominator = timeSigDenominator > 0 ? timeSigDenominator : 4;
+        if (chart != null && chart.time_signature_changes != null)
+        {
+            for (int i = 0; i < chart.time_signature_changes.Count; i++)
+            {
+                TimeSigChange change = chart.time_signature_changes[i];
+                if (change == null || change.time_ms > timeMs) break;
+                if (change.denominator > 0) denominator = change.denominator;
+            }
+        }
+        return denominator;
+    }
+
+    private float CalculateAnchoredBpm(float intervalMs, int denominator)
+    {
+        if (intervalMs <= 0f || chart == null || chart.first_bpm <= 0f ||
+            referenceBeatIntervalMs <= 0f) return 0f;
+        float denominatorScale = timeSigDenominator > 0 && denominator > 0
+            ? (float)timeSigDenominator / denominator
+            : 1f;
+        return chart.first_bpm * referenceBeatIntervalMs / intervalMs *
+            denominatorScale;
+    }
+
+    private float GetMeasureWarningStart(int changeTimeMs, float currentFactor)
+    {
+        float measureDurationMs =
+            GetMeasureDurationMs(changeTimeMs, currentFactor, false);
+        return Mathf.Max(0f, changeTimeMs - measureDurationMs * 4f);
+    }
+
+    private float GetMeasureDurationMs(
+        int changeTimeMs, float currentFactor, bool afterChange)
+    {
+        int signatureTime = afterChange ? changeTimeMs : changeTimeMs - 1;
+        GetTimeSignatureAt(signatureTime, out int numerator, out int denominator);
+        float localInterval = MedianIntervalAround(changeTimeMs, afterChange);
+        float bpm = CalculateAnchoredBpm(localInterval, denominator);
+        if (bpm <= 0f)
+            bpm = chart != null && chart.first_bpm > 0f ? chart.first_bpm : 120f;
+        bpm *= Mathf.Max(0.01f, currentFactor);
+
+        // beat_timings is not uniform across imported charts: some charts store
+        // subdivisions, while others store one timestamp per whole measure.
+        // Calculate four musical measures from BPM and time signature instead
+        // of subtracting a fixed number of timing entries.
+        float beatsInMeasure = Mathf.Max(1, numerator) * 4f /
+                               Mathf.Max(1, denominator);
+        return 60000f * beatsInMeasure / bpm;
+    }
+
+    private void GetTimeSignatureAt(int timeMs, out int numerator, out int denominator)
+    {
+        numerator = timeSigNumerator > 0 ? timeSigNumerator : 4;
+        denominator = timeSigDenominator > 0 ? timeSigDenominator : 4;
+        if (chart == null || chart.time_signature_changes == null) return;
+        for (int i = 0; i < chart.time_signature_changes.Count; i++)
+        {
+            TimeSigChange change = chart.time_signature_changes[i];
+            if (change == null || change.time_ms > timeMs) break;
+            if (change.numerator > 0) numerator = change.numerator;
+            if (change.denominator > 0) denominator = change.denominator;
+        }
+    }
+
+    private static int CompareFactor(float next, float previous)
+    {
+        if (next > previous + 0.0001f) return 1;
+        if (next < previous - 0.0001f) return -1;
+        return 0;
+    }
 
     private void TryInitialize()
     {
@@ -313,6 +835,7 @@ public class BpmDisplay : MonoBehaviour
 
         // Auto-detect subdivision: compare median beat delta to expected duration from chart.first_bpm
         detectedSubdivision = 1;
+        referenceBeatIntervalMs = MedianDelta(chart.beat_timings);
         try
         {
             if (chart.first_bpm > 0f && chart.beat_timings.Count >= 2)
@@ -323,8 +846,9 @@ public class BpmDisplay : MonoBehaviour
                 deltas.Sort();
                 int median = deltas[deltas.Count / 2];
                 float expected = 60000f / Mathf.Max(1f, chart.first_bpm);
-                // how many expected-beats fit into median delta
-                float approx = median / expected;
+                // Number of timing-grid entries per BPM beat. This is metadata
+                // only; BPM calculation below uses the relative interval.
+                float approx = expected / Mathf.Max(1f, median);
                 int r = Mathf.Clamp(Mathf.RoundToInt(approx), 1, 16);
                 detectedSubdivision = r;
             }
@@ -335,6 +859,7 @@ public class BpmDisplay : MonoBehaviour
         int effectiveSubdivision = beatUnitSubdivision > 1 ? beatUnitSubdivision : detectedSubdivision;
         if (effectiveSubdivision <= 0) effectiveSubdivision = 1;
         effectiveBeatSubdivision = effectiveSubdivision;
+        BuildDetectedTempoChanges();
         ComputeMeasureBpms(chart.beat_timings, beatsPerMeasure, effectiveSubdivision);
         initialized = true;
     }
@@ -358,7 +883,9 @@ public class BpmDisplay : MonoBehaviour
             int span = t1 - t0;
             if (span <= 0) continue;
             float conventionalBeatsPerMeasure = (float)beatsPerMeasure / (float)beatUnitSubdivision;
-            float bpm = 60000f * conventionalBeatsPerMeasure / (float)span;
+            float bpm = chart != null && chart.first_bpm > 0f && referenceBeatIntervalMs > 0f
+                ? chart.first_bpm * (referenceBeatIntervalMs * beatsPerMeasure) / span
+                : 60000f * conventionalBeatsPerMeasure / (float)span;
             measureBpms.Add(bpm);
             if (enableDebug && debugBuilder.Length < 20000)
             {
@@ -378,8 +905,9 @@ public class BpmDisplay : MonoBehaviour
             if (cnt > 0)
             {
                 avgDelta /= cnt;
-                // avgDelta represents subdivision interval; convert to conventional beat using beatUnitSubdivision
-                float bpm = 60000f * (float)beatUnitSubdivision / avgDelta;
+                float bpm = chart != null && chart.first_bpm > 0f && referenceBeatIntervalMs > 0f
+                    ? chart.first_bpm * referenceBeatIntervalMs / avgDelta
+                    : 60000f / (avgDelta * beatUnitSubdivision);
                 measureBpms.Add(bpm);
                 if (enableDebug)
                 {
@@ -427,7 +955,12 @@ public class BpmDisplay : MonoBehaviour
         int span = beats[i1] - beats[i0];
         if (span <= 0) return 0f;
         int sub = Mathf.Max(1, effectiveBeatSubdivision);
-        float bpm = 60000f * (float)sub / (float)span;
+        float denominatorScale = timeSigDenominator > 0 && currentTimeSigDenominator > 0
+            ? (float)timeSigDenominator / currentTimeSigDenominator
+            : 1f;
+        float bpm = chart.first_bpm > 0f && referenceBeatIntervalMs > 0f
+            ? chart.first_bpm * referenceBeatIntervalMs / span * denominatorScale
+            : 60000f / (span * sub);
         if (enableDebug)
         {
             try { BuildLogger.Log($"[BpmDisplay] instant: idx={idx} use={i0}-{i1} spanMs={span} sub={sub} -> bpm={bpm:F2}"); } catch { }

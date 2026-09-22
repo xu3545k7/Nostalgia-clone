@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -8,6 +8,8 @@ using UnityEngine;
 /// </summary>
 public class JudgePopupManager : MonoBehaviour
 {
+    private const int ForegroundRenderQueue = 4500;
+    private const int ForegroundSortingOrder = 32767;
     private static JudgePopupManager _instance;
 
     public static JudgePopupManager Instance
@@ -16,7 +18,9 @@ public class JudgePopupManager : MonoBehaviour
         {
             if (_instance == null)
             {
-                _instance = FindFirstObjectByType<JudgePopupManager>();
+                // 連未啟用的場景實例一起找，否則會在 gameplay root 還關著的時候
+                // 建出替身，把設定好的那個擠掉（見 SceneSingleton）。
+                _instance = SceneSingleton.Find<JudgePopupManager>();
                 if (_instance == null)
                 {
                     var go = new GameObject(nameof(JudgePopupManager));
@@ -29,10 +33,12 @@ public class JudgePopupManager : MonoBehaviour
 
     [Header("Toggle")]
     [Tooltip("Enable or disable the particle-based judge popup.")]
-    public bool enablePopup = true;
+    public bool enablePopup = false;
 
     [Header("Placement")]
-    [Tooltip("Optional reference to the judgment line. When assigned, popups snap to this Y height.")]
+    [Tooltip("When true, popup spawns at the note's actual world position. When false, snaps Y/Z to the JudgmentLine.")]
+    public bool useNotePosition = true;
+    [Tooltip("Optional reference to the judgment line. When assigned and useNotePosition is false, popups snap to this Y height.")]
     public Transform judgmentLine;
     [Tooltip("Vertical offset above the judgment line or note position (world units).")]
     public float worldYOffset = 0.6f;
@@ -84,6 +90,8 @@ public class JudgePopupManager : MonoBehaviour
     public Sprite greatSprite;
     public Sprite goodSprite;
     public Sprite missSprite;
+    [Tooltip("演奏會模式：打在音符正中央那一格的 JUST。")]
+    public Sprite preciseSprite;
     [Tooltip("Automatically load result sprites from a Resources folder when inspector slots are empty.")]
     public bool autoLoadSpritesFromResources = true;
     [Tooltip("Resources folder that contains the result sprites (relative to Assets/Resources).")]
@@ -96,6 +104,7 @@ public class JudgePopupManager : MonoBehaviour
     public string goodSpriteResourceName = "good";
     [Tooltip("Resource name used for the Miss result.")]
     public string missSpriteResourceName = "Miss";
+    public string preciseSpriteResourceName = "Precise";
 
     [Header("Result Colors")]
     public Color perfectColor = Color.cyan;
@@ -134,15 +143,20 @@ public class JudgePopupManager : MonoBehaviour
         EnsureJudgmentLineReference();
         EnsureResultSprites();
         SyncDebugFlag();
-        // Pre-warm pool so first burst of simultaneous judgments doesn't Instantiate
-        if (particlePrefab != null)
+        // Pre-warm pool so first burst of simultaneous judgments doesn't Instantiate.
+        //
+        // 不再看 particlePrefab 有沒有指派。場景裡它是空的，而空的那條路以前
+        // 完全沒有池子：每一顆音符都 new 一個 GameObject + AddComponent<ParticleSystem>
+        // 再設十來個模組屬性，播完又 Destroy 掉。一秒十幾二十顆音符就是一秒
+        // 十幾二十次——AddComponent<ParticleSystem> 是 Unity 裡最貴的 AddComponent
+        // 之一，而且這是**整首歌持續**的成本，不是開頭一次。
+        // （Hierarchy 裡那一長串叫 JudgePopupParticle 的物件就是這樣來的。）
+        for (int i = 0; i < PrewarmCount; i++)
         {
-            for (int i = 0; i < 8; i++)
-            {
-                var warm = Instantiate(particlePrefab);
-                warm.gameObject.SetActive(false);
-                _psPool.Enqueue(warm);
-            }
+            var warm = BuildParticleInstance();
+            if (warm == null) break;
+            warm.gameObject.SetActive(false);
+            _psPool.Enqueue(warm);
         }
     }
 
@@ -206,7 +220,7 @@ public class JudgePopupManager : MonoBehaviour
         }
     }
 
-    public void ShowPopupAtRectTransform(RectTransform target, JudgmentResult result)
+    public void ShowPopupAtRectTransform(RectTransform target, JudgmentResult result, bool precise = false)
     {
         DebugLog("ShowPopupAtRectTransform target=" + (target != null ? target.name : "(null)") + " result=" + result + " enablePopup=" + enablePopup);
         if (!enablePopup || target == null) return;
@@ -218,14 +232,19 @@ public class JudgePopupManager : MonoBehaviour
         ShowPopupAtWorldPosition(worldCenter, result);
     }
 
-    public void ShowPopupAtWorldPosition(Vector3 worldPos, JudgmentResult result, float noteWorldWidth = 0f, Vector3? rotationEuler = null)
+    public void ShowPopupAtWorldPosition(Vector3 worldPos, JudgmentResult result, float noteWorldWidth = 0f, Vector3? rotationEuler = null, bool precise = false)
     {
         if (!enablePopup) return;
 
         DebugLog("ShowPopupAtWorldPosition pos=" + worldPos + " result=" + result + " noteWidth=" + noteWorldWidth + " rotationOverride=" + (rotationEuler.HasValue ? rotationEuler.Value.ToString() : "(auto)"));
 
         Vector3 spawnPos = worldPos;
-        if (judgmentLine != null)
+        if (useNotePosition)
+        {
+            // Use the note's actual world position (plus vertical offset only)
+            spawnPos.y += worldYOffset;
+        }
+        else if (judgmentLine != null)
         {
             spawnPos.y = judgmentLine.position.y + worldYOffset;
             if (snapZToJudgmentLine)
@@ -281,7 +300,7 @@ public class JudgePopupManager : MonoBehaviour
         SpawnParticle(spawnPos, finalRotation, targetWidth, result);
     }
 
-    private void SpawnParticle(Vector3 position, Quaternion rotation, float width, JudgmentResult result)
+    private void SpawnParticle(Vector3 position, Quaternion rotation, float width, JudgmentResult result, bool precise = false)
     {
         ParticleSystem ps = CreateParticleInstance();
         GameObject go = ps.gameObject;
@@ -290,7 +309,7 @@ public class JudgePopupManager : MonoBehaviour
 
         DebugLog("SpawnParticle instance=" + go.name + " position=" + position + " rotationEuler=" + rotation.eulerAngles + " width=" + width + " result=" + result);
 
-        Sprite sprite = SpriteForResult(result);
+        Sprite sprite = SpriteForResult(result, precise);
         if (sprite == null)
         {
             DebugLogWarning("No sprite assigned for result " + result + ", using fallback material.");
@@ -353,24 +372,41 @@ public class JudgePopupManager : MonoBehaviour
         if (ps == null) yield break;
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         ps.gameObject.SetActive(false);
-        if (particlePrefab != null) _psPool.Enqueue(ps);
+        // 一律入池。以前 prefab 是空的時候會走 Destroy，於是「每顆音符建一個、
+        // 再毀一個」變成常態成本。上限只是防呆：正常情況下同時存在的彈出數量
+        // 由 lifetime 決定，遠低於這個數。
+        if (_psPool.Count < MaxPooled) _psPool.Enqueue(ps);
         else Destroy(ps.gameObject);
     }
 
+    /// <summary>Prewarmed popups. Dense play needs a few at once, not dozens.</summary>
+    private const int PrewarmCount = 12;
+
+    /// <summary>Ceiling on the pool, purely as a leak guard.</summary>
+    private const int MaxPooled = 64;
+
     private ParticleSystem CreateParticleInstance()
     {
-        if (particlePrefab != null)
+        // 池子優先，兩條路都一樣——差別只在「池子空的時候怎麼生一個新的」，
+        // 那是 BuildParticleInstance 的事。
+        while (_psPool.Count > 0)
         {
-            // Try pool first
-            while (_psPool.Count > 0)
-            {
-                var pooled = _psPool.Dequeue();
-                if (pooled != null) { pooled.gameObject.SetActive(true); return pooled; }
-            }
-            var inst = Instantiate(particlePrefab);
-            DebugLog("CreateParticleInstance: pool miss; instantiated prefab " + particlePrefab.name + " -> " + inst.name);
-            return inst;
+            var pooled = _psPool.Dequeue();
+            if (pooled != null) { pooled.gameObject.SetActive(true); return pooled; }
         }
+
+        ParticleSystem built = BuildParticleInstance();
+        DebugLog("CreateParticleInstance: pool miss; built " +
+                 (built != null ? built.name : "(null)"));
+        return built;
+    }
+
+    /// <summary>
+    /// 生一個新的彈出實例。貴，所以只有池子空的時候才會走到。
+    /// </summary>
+    private ParticleSystem BuildParticleInstance()
+    {
+        if (particlePrefab != null) return Instantiate(particlePrefab);
 
         var go = new GameObject("JudgePopupParticle");
         var ps = go.AddComponent<ParticleSystem>();
@@ -406,9 +442,13 @@ public class JudgePopupManager : MonoBehaviour
         return ps;
     }
 
-    private Sprite SpriteForResult(JudgmentResult result)
+    private Sprite SpriteForResult(JudgmentResult result, bool precise)
     {
         EnsureResultSprites();
+        // 打在正中央的 JUST 有自己的字。它不是另一種判定結果 —— 分數、連段、
+        // 統計全部照 Perfect 走 —— 差別只在它值得被叫出名字。
+        if (precise && result == JudgmentResult.Perfect && preciseSprite != null)
+            return preciseSprite;
         return result switch
         {
             JudgmentResult.Perfect => perfectSprite,
@@ -467,6 +507,9 @@ public class JudgePopupManager : MonoBehaviour
                 if (greatSprite == null && map.TryGetValue(greatSpriteResourceName.Trim().ToLowerInvariant(), out var gs)) greatSprite = gs;
                 if (goodSprite == null && map.TryGetValue(goodSpriteResourceName.Trim().ToLowerInvariant(), out var gos)) goodSprite = gos;
                 if (missSprite == null && map.TryGetValue(missSpriteResourceName.Trim().ToLowerInvariant(), out var ms)) missSprite = ms;
+                // 這一張漏掉的話不會有任何錯誤，只會安靜地退回 Just —— 而畫面上
+                // 的光已經變成紫的了，看起來就像「只有字沒換」。
+                if (preciseSprite == null && map.TryGetValue(preciseSpriteResourceName.Trim().ToLowerInvariant(), out var prs)) preciseSprite = prs;
             }
         }
         catch { }
@@ -510,7 +553,9 @@ public class JudgePopupManager : MonoBehaviour
         renderer.mesh = SharedQuadMesh;
         renderer.alignment = ParticleSystemRenderSpace.View;
         renderer.sortingFudge = Mathf.Max(renderer.sortingFudge, 2f);
-        renderer.sortingOrder = Mathf.Max(renderer.sortingOrder, 20);
+        // Note judgment beams and Hold overlays deliberately use late transparent
+        // queues.  The result word must remain legible above both of them.
+        renderer.sortingOrder = ForegroundSortingOrder;
 
         Material mat = GetOrCreateMaterialForSprite(sprite);
 
@@ -594,6 +639,9 @@ public class JudgePopupManager : MonoBehaviour
         {
             string[] shaderCandidates =
             {
+                // Keep judgment sprites out of the Hold magic-circle shader:
+                // its per-renderer HDR palette changes the artwork colour.
+                "Nostalgia/JudgePopupOverlay",
                 "Sprites/Default",
                 "UI/Default",
                 "Universal Render Pipeline/Particles/Unlit",
@@ -627,7 +675,7 @@ public class JudgePopupManager : MonoBehaviour
             if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
             mat.mainTexture = texture;
         }
-        mat.renderQueue = 3000;
+        mat.renderQueue = ForegroundRenderQueue;
         return mat;
     }
 
@@ -690,12 +738,19 @@ public class JudgePopupManager : MonoBehaviour
         Vector3 destination = origin + worldDir * Mathf.Max(0f, flyOutDistance);
         var particleBuffer = _sharedParticleBuffer;
 
+        // 丟出去再被阻力拖停，不是等速滑過去。SmoothStep 是「慢-快-慢」，
+        // 起手的那一段慢正好抵消了打擊該有的力道；粒子只有「快-慢」。
+        const float Drag = 6.5f;
+        float launch = 1f / Mathf.Max(0.001f, 1f - Mathf.Exp(-Drag * duration));
+
         float elapsed = 0f;
+        float progress = 0f;
         while (elapsed < duration && ps != null)
         {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            float eased = Mathf.SmoothStep(0f, 1f, t);
+            float dt = Time.deltaTime;
+            elapsed += dt;
+            progress += launch * Drag * Mathf.Exp(-Drag * elapsed) * dt;
+            float eased = Mathf.Clamp01(progress);
 
             int count = ps.GetParticles(particleBuffer);
             if (count > 0)

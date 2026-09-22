@@ -9,7 +9,7 @@ namespace Judgment
             if (note == null) return;
             // 這裡可以根據 result 播放不同特效
             NoteJudgementMeshManager.EnsureCreated().ShowEffect(note, result, false);
-            HitParticleManager.Instance?.PlayHitEffect(note, note.NoteData?.startLane ?? -1, result);
+            HitEffectRouter.Play(note, note.NoteData?.startLane ?? -1, result);
         }
     }
 }

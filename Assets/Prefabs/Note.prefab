@@ -90,6 +90,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!65 &949644356261181867
 BoxCollider:
@@ -126,28 +127,50 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NoteController
   rightHandMaterial: {fileID: 2100000, guid: 93da6d773e6ac444a88dd6e037a19caa, type: 2}
   leftHandMaterial: {fileID: 2100000, guid: 47cd3ff38a26b014b8f3cec77d184da7, type: 2}
-  rightHandSprite: {fileID: 21300000, guid: daa5920e0d58f404b8d771eb3b726e01, type: 3}
-  leftHandSprite: {fileID: 21300000, guid: db8fa6de58b130840aa3b6f42c0acd64, type: 3}
+  rightHandSprite: {fileID: 21300000, guid: 62d4b5f2dbec410da568a280329915cd, type: 3}
+  leftHandSprite: {fileID: 21300000, guid: f1c279a7c9b04ed1bc6c7e0dd6828c22, type: 3}
   staccatoRightSprite: {fileID: 21300000, guid: cf4e1efa465233f4798c3e2147762f1f, type: 3}
   staccatoLeftSprite: {fileID: 21300000, guid: d34aad4c4310c4240a1b3cfcf8c5cb0d, type: 3}
-  softSprite: {fileID: 21300000, guid: d87aa03a629c45945824ba42d363c858, type: 3}
+  softSprite: {fileID: 21300000, guid: baea59e7a0174bf58b7d5564a13775f1, type: 3}
   softTexture: {fileID: 0}
   rightHandTexture: {fileID: 0}
   leftHandTexture: {fileID: 0}
-  rightStaccatoIndicatorSprite: {fileID: 21300000, guid: e1d4610629e7b59438b3d23bceb3dab7, type: 3}
-  leftStaccatoIndicatorSprite: {fileID: 21300000, guid: 5e1937ee2bb0c6642acd1b4f5a5d4ca7, type: 3}
-  staccatoIndicatorOffset: {x: 0, y: 5, z: 0}
-  staccatoIndicatorScale: 1
-  staccatoIndicatorHeight: 5
+  glassThemeShaderOverride: {fileID: 4800000, guid: db46ea9cb58842adb0249a84b7051ec9, type: 3}
+  rightThemeColor: {r: 1, g: 0.1764706, b: 0.1764706, a: 1}
+  leftThemeColor: {r: 0.2745098, g: 0.6392157, b: 1, a: 1}
+  softThemeColor: {r: 1, g: 0.72, b: 0.22, a: 1}
+  noteEmission: 2.74
+  noteRimGlow: 2.23
+  noteShimmerStrength: 0.455
+  tapGlassColor: {r: 1, g: 1, b: 1, a: 1}
+  tapGlassOpacity: 0.42
+  tapGlassRimGlow: 1.45
+  tapGlassInsetX: 0.4
+  tapGlassInsetY: 0.27
+  tapGlassBorder: 0.035
+  tapGlassChamfer: 0.055
+  enableNoteFanParticles: 1
+  noteFanParticleTexture: {fileID: 0}
+  noteFanBurstCount: 48
+  noteFanEmissionRate: 56.5
+  noteFanSpeed: 8.66
+  noteFanHalfAngle: 36
+  noteFanLifetime: 0.828
+  noteFanParticleSize: 0.858
+  rightStaccatoIndicatorSprite: {fileID: 21300000, guid: e42bf5ea56c74bf19b9764e82002b5e5, type: 3}
+  leftStaccatoIndicatorSprite: {fileID: 21300000, guid: 4cd2705d3c09499281c0857a632846e9, type: 3}
+  staccatoIndicatorOffset: {x: 0, y: 0.04, z: 0}
+  staccatoIndicatorScale: 0.9
   staccatoIndicatorUpright: 1
   staccatoIndicatorOffsetRelativeToWidth: 1
   startTime: 0
   endTime: 0
-  rightHoldTailTexture: {fileID: 2800000, guid: 37b26247578101d4eb9d1bba6709a68c, type: 3}
-  leftHoldTailTexture: {fileID: 2800000, guid: e12d7b78581d3914d8462e8d58beacd8, type: 3}
-  holdTailShaderOverride: {fileID: 0}
-  rightTailTint: {r: 1, g: 1, b: 1, a: 1}
-  leftTailTint: {r: 1, g: 1, b: 1, a: 1}
+  rightHoldTailTexture: {fileID: 2800000, guid: cde7cec44ff54e53aee209e22b879509, type: 3}
+  leftHoldTailTexture: {fileID: 2800000, guid: 11041bbb32574704a8dbfe905cc5290b, type: 3}
+  holdTailShaderOverride: {fileID: 4800000, guid: 5a2f7d28eeed49bbace037c5bc810967, type: 3}
+  rightTailTint: {r: 1, g: 0.1764706, b: 0.1764706, a: 0.94}
+  leftTailTint: {r: 0.2745098, g: 0.6392157, b: 1, a: 0.94}
+  fixedNoteWorldHeight: 2
   releaseZThreshold: 0.05
   holdTailYOffset: 0
   holdTailShrinkSpeed: 1
@@ -155,3 +178,5 @@ MonoBehaviour:
   tailEndOffsetMs: 40
   minimumHoldTailVisualLength: 0
   tailLengthUpdateThreshold: 0.001
+  alignToJudgmentLineY: 1
+  judgmentYOffset: 0.1

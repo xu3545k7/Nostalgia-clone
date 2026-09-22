@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Audio;
 using System.Collections.Generic;
 
@@ -32,9 +32,19 @@ public class SFXManager : MonoBehaviour
             var src = go.AddComponent<AudioSource>();
             src.playOnAwake = false;
             src.spatialBlend = 0f; // default to 2D
+            // Hit clicks are the least important thing on the bus. Left at the
+            // default they outrank the piano voices, and Unity then virtualises
+            // the instrument to keep the clicks — the piano audibly drops out
+            // exactly when the playing gets dense.
+            src.priority = PianoVoiceManager.EffectPriority;
             if (sfxMixerGroup != null) src.outputAudioMixerGroup = sfxMixerGroup;
             pool.Add(src);
         }
+
+        // DontDestroyOnLoad 只認根物件。這顆在場景裡掛在 GameplayRoot 底下，
+        // 不先脫離的話這一行不只噴警告，而且完全沒作用 —— 換場景時它會跟著整
+        // 棵 GameplayRoot 一起被銷毀，打擊音就沒了。
+        if (transform.parent != null) transform.SetParent(null);
         DontDestroyOnLoad(gameObject);
     }
 

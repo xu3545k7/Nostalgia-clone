@@ -221,6 +221,8 @@ public enum JudgmentResult { Perfect, Great, Good, Miss, Fail }
         if (note == null) return;
         if (res != JudgmentResult.Perfect && res != JudgmentResult.Great && res != JudgmentResult.Good) return;
 
+        // The column carries the pedal itself now: struck under the pedal it stretches
+        // out instead of returning to the line. See NoteJudgementMeshManager.
         try
         {
             NoteJudgementMeshManager.EnsureCreated().ShowEffect(note, res, persistent);
@@ -231,7 +233,7 @@ public enum JudgmentResult { Perfect, Great, Good, Miss, Fail }
         {
             var nd = note.NoteData;
             int laneId = nd != null ? nd.startLane : -1;
-            HitParticleManager.Instance?.PlayHitEffect(note, laneId, res);
+            HitEffectRouter.Play(note, laneId, res);
         }
         catch { }
     }
@@ -365,7 +367,7 @@ public enum JudgmentResult { Perfect, Great, Good, Miss, Fail }
             HideNoteMeshEffect(n);
             try { n.OnJudged(res); } catch { }
             try { var simple = SimpleJudgePopupManager.Instance; if (simple != null) simple.ShowAtPosition(n.transform.position, res); } catch { }
-            try { var popup = JudgePopupManager.Instance; if (popup != null) { /* best-effort: cannot find keyRect here */ } } catch { }
+            try { var popup = JudgePopupManager.Instance; if (popup != null && popup.enablePopup) popup.ShowPopupAtWorldPosition(n.transform.position, res); } catch { }
             return;
         }
         catch
@@ -374,7 +376,7 @@ public enum JudgmentResult { Perfect, Great, Good, Miss, Fail }
             HideNoteMeshEffect(n);
             try { n.OnJudged(JudgmentResult.Miss); } catch { }
             try { var simple = SimpleJudgePopupManager.Instance; if (simple != null) simple.ShowAtPosition(n.transform.position, JudgmentResult.Miss); } catch { }
-            try { var popup = JudgePopupManager.Instance; if (popup != null) { /* best-effort: cannot find keyRect here */ } } catch { }
+            try { var popup = JudgePopupManager.Instance; if (popup != null && popup.enablePopup) popup.ShowPopupAtWorldPosition(n.transform.position, JudgmentResult.Miss); } catch { }
             return;
         }
     }
@@ -935,11 +937,13 @@ public enum JudgmentResult { Perfect, Great, Good, Miss, Fail }
             if (payload.isHoldTail)
             {
                 if (!payload.hasHeadTiming) return;
-                StatsManager.Instance.RecordTimingOffset(payload.headInputSongPosMs - payload.headTargetTimeMs);
+                StatsManager.Instance.RecordTimingOffset(
+                    payload.headInputSongPosMs - payload.headTargetTimeMs, payload.result);
             }
             else
             {
-                StatsManager.Instance.RecordTimingOffset(payload.inputSongPosMs - payload.targetTimeMs);
+                StatsManager.Instance.RecordTimingOffset(
+                    payload.inputSongPosMs - payload.targetTimeMs, payload.result);
             }
         }
         catch { }

@@ -51,5 +51,19 @@ Library/PlayerDataCache/
 dist/
 build/
 
+# Runtime portable song library (kept beside the game executable/project).
+UserSongs/
+
 # Keep meta files tracked
 !**/*.meta
+
+# 曲庫與歌曲資產（不進版控；曲庫另外以 ZIP 發行）
+UserSongs*/
+Assets/Resources/songs.zip
+Assets/Resources/songs.zip.meta
+
+# Unity 自動回復的場景、工具產生的備份與紀錄
+Assets/_Recovery/
+Assets/_Recovery.meta
+tools/corrupt_image_backups/
+*.log

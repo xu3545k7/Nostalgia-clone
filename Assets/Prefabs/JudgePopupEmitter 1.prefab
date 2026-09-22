@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 3264913519416623373}
   - component: {fileID: 581067059524076248}
   - component: {fileID: 4127283652483568078}
-  - component: {fileID: 6704775658957041545}
   m_Layer: 5
   m_Name: JudgePopupEmitter 1
   m_TagString: Untagged
@@ -4841,22 +4840,3 @@ ParticleSystemRenderer:
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
   m_MaskInteraction: 0
---- !u!114 &6704775658957041545
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8150291992261579527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f873f1d3146bfee49be8b1fa9af2a6bb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::JudgePopupEmitter
-  rectAnchor: {fileID: 0}
-  worldAnchor: {fileID: 0}
-  overrideNoteWorldWidth: 0
-  noteWorldWidth: 0.35
-  overrideRotation: 0
-  rotationEuler: {x: 90, y: 0, z: 0}
-  useSelfAsFallbackAnchor: 1

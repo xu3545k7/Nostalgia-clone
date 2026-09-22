@@ -1,0 +1,230 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!200 &20000000
+ShaderVariantCollection:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ShaderVariantCollection
+  m_Shaders:
+  - first: {fileID: 7, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: DIRECTIONAL
+        passType: 4
+      - keywords: POINT
+        passType: 5
+  - first: {fileID: 10770, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 66, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 106, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: _SUNDISK_SIMPLE
+        passType: 0
+  - first: {fileID: 9000, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9001, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9002, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9003, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9004, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9007, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9100, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: _UIE_FORCE_GAMMA
+        passType: 0
+  - first: {fileID: 9101, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 19011, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 0f854b35a0cf61a429bd5dcfea30eddd, type: 3}
+    second:
+      variants:
+      - keywords: _MAIN_LIGHT_SHADOWS
+        passType: 0
+  - first: {fileID: 4800000, guid: 65df88701913c224d95fc554db28381a, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: e7857e9d0c934dc4f83f270f8447b006, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: _BLOOM_HQ _TONEMAP_NEUTRAL
+        passType: 0
+  - first: {fileID: 4800000, guid: 63eaba0ebfb82cc43bde059b4a8c65f6, type: 3}
+    second:
+      variants:
+      - keywords: _SMAA_PRESET_LOW
+        passType: 0
+  - first: {fileID: 4800000, guid: a15b78cf8ca26ca4fb2090293153c62c, type: 3}
+    second:
+      variants:
+      - keywords: _GENERIC
+        passType: 0
+  - first: {fileID: 4800000, guid: 5f1864addb451f54bae8c86d230f736e, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: _BLOOM_HQ
+        passType: 0
+  - first: {fileID: 4800000, guid: 0f4122b9a743b744abe2fb6a0a88868b, type: 3}
+    second:
+      variants:
+      - keywords: GEOM_TYPE_BRANCH
+        passType: 8
+      - keywords: GEOM_TYPE_BRANCH LOD_FADE_PERCENTAGE
+        passType: 8
+      - keywords: GEOM_TYPE_BRANCH
+        passType: 13
+      - keywords: GEOM_TYPE_BRANCH LOD_FADE_PERCENTAGE
+        passType: 13
+  - first: {fileID: 4800000, guid: e9155b26e1bc55942a41e518703fe304, type: 3}
+    second:
+      variants:
+      - keywords: _POINT
+        passType: 0
+  - first: {fileID: 4800000, guid: f056d8bd2a1c7e44e9729144b4c70395, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: _DBUFFER_MRT1
+        passType: 0
+  - first: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+      - keywords: _INTERLEAVED_GRADIENT _SAMPLE_COUNT_LOW _SOURCE_DEPTH_LOW
+        passType: 0
+  - first: {fileID: 4800000, guid: b7839dad95683814aa64166edc107ae2, type: 3}
+    second:
+      variants:
+      - keywords: _CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS
+        passType: 13
+      - keywords: _CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS _NORMALMAP
+        passType: 13
+  - first: {fileID: 4800000, guid: ace59f7f124432f4f923bd3bfa93e0ad, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL
+        passType: 4
+      - keywords: POINT
+        passType: 5
+  - first: {fileID: 4800000, guid: a176945d0e562084691bce8e11084c6a, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL
+        passType: 4
+      - keywords: POINT
+        passType: 5
+  - first: {fileID: 4800000, guid: 68e6db2ebdc24f95958faec2be5558d6, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 8516d7a69675844a7a0b7095af7c46af, type: 3}
+    second:
+      variants:
+      - keywords: _CLUSTER_LIGHT_LOOP _MAIN_LIGHT_SHADOWS
+        passType: 13
+  - first: {fileID: 4800000, guid: 99134b1f0c27d54469a840832a28fadf, type: 3}
+    second:
+      variants:
+      - keywords: LOD_FADE_PERCENTAGE
+        passType: 13
+      - keywords: LOD_FADE_PERCENTAGE _WINDQUALITY_NONE
+        passType: 13
+  - first: {fileID: 4800000, guid: 74b1585886a85614aa34e2c8e303c77a, type: 3}
+    second:
+      variants:
+      - keywords: DOTS_INSTANCING_ON
+        passType: 13
+  - first: {fileID: 4800000, guid: f7ada0af4f174f0694ca6a487b8f543d, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL
+        passType: 4
+      - keywords: POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: 85187c2149c549c5b33f0cdb02836b17, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL
+        passType: 4
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: 5a2f7d28eeed49bbace037c5bc810967, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: db46ea9cb58842adb0249a84b7051ec9, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 2f9ef49a02ec43f495a9cd1f1857ee85, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 1769b9da509465c49969d75ac8d03e8b, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: c8e00b52c0d64dfba2b2c4bf7d201a47, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 6a1c29329024dda40ac1d97396d7b01c, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0

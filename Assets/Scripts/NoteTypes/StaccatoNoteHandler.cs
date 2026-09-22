@@ -8,28 +8,37 @@ public class StaccatoNoteHandler : DefaultNoteHandler
     private bool headSoundAvailable = false;
     private bool headSoundConsumed = false;
 
+    /// <summary>
+    /// 斷奏的逐顆除錯紀錄。這些原本是無條件的 Debug.Log，每判定一顆斷奏就在判定路徑上
+    /// 印兩三行（player build 每行都要抓呼叫堆疊、寫檔），密集段會直接吃掉幀時間。
+    /// 要看的時候在 Player Settings 加上 NOSTALGIA_TRACE_STACCATO；沒加時整個呼叫連同
+    /// 字串組裝都會被編譯器拿掉。
+    /// </summary>
+    [System.Diagnostics.Conditional("NOSTALGIA_TRACE_STACCATO")]
+    private static void Trace(string message) => Debug.Log(message);
+
     public StaccatoNoteHandler() : base() { }
     public StaccatoNoteHandler(NoteController note) : base(note) { }
     public override JudgmentResult EvaluateHead(NoteController note, float songPos, float delta, int buttonId)
     {
         var res = base.EvaluateHead(note, songPos, delta, buttonId);
         headSoundAvailable = !headSoundConsumed && res != JudgmentResult.Miss;
-        Debug.Log($"[StaccatoNoteHandler] EvaluateHead note={DescribeNote(note)} songPos={songPos:F3} delta={delta:F3} buttonId={buttonId} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
+        Trace($"[StaccatoNoteHandler] EvaluateHead note={DescribeNote(note)} songPos={songPos:F3} delta={delta:F3} buttonId={buttonId} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
         return res;
     }
 
     public override void PlayHeadSound(NoteController note, float songPos, JudgmentResult res)
     {
-        Debug.Log($"[StaccatoNoteHandler] PlayHeadSound note={DescribeNote(note)} songPos={songPos:F3} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
+        Trace($"[StaccatoNoteHandler] PlayHeadSound note={DescribeNote(note)} songPos={songPos:F3} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
         if (!headSoundAvailable || res == JudgmentResult.Miss)
         {
-            Debug.Log($"[StaccatoNoteHandler] PlayHeadSound skipped for note={DescribeNote(note)} reason={(res == JudgmentResult.Miss ? "ResultMiss" : "FlagFalse")} consumed={headSoundConsumed}");
+            Trace($"[StaccatoNoteHandler] PlayHeadSound skipped for note={DescribeNote(note)} reason={(res == JudgmentResult.Miss ? "ResultMiss" : "FlagFalse")} consumed={headSoundConsumed}");
             return;
         }
         headSoundAvailable = false;
         if (!PlayStaccatoHeadSound())
         {
-            Debug.Log($"[StaccatoNoteHandler] PlayHeadSound fallback defaultHitSound note={DescribeNote(note)}");
+            Trace($"[StaccatoNoteHandler] PlayHeadSound fallback defaultHitSound note={DescribeNote(note)}");
             base.PlayHeadSound(note, songPos, res);
             headSoundConsumed = true;
             return;
@@ -41,7 +50,7 @@ public class StaccatoNoteHandler : DefaultNoteHandler
     {
         var res = base.EvaluateAutoJudgeTap(note, songPos);
         headSoundAvailable = !headSoundConsumed && res != JudgmentResult.Miss;
-        Debug.Log($"[StaccatoNoteHandler] EvaluateAutoJudgeTap note={DescribeNote(note)} songPos={songPos:F3} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
+        Trace($"[StaccatoNoteHandler] EvaluateAutoJudgeTap note={DescribeNote(note)} songPos={songPos:F3} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
         return res;
     }
 
@@ -49,7 +58,7 @@ public class StaccatoNoteHandler : DefaultNoteHandler
     {
         var res = base.EvaluateAutoStartHold(note, pressSongPos);
         headSoundAvailable = !headSoundConsumed && res != JudgmentResult.Miss;
-        Debug.Log($"[StaccatoNoteHandler] EvaluateAutoStartHold note={DescribeNote(note)} pressSongPos={pressSongPos:F3} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
+        Trace($"[StaccatoNoteHandler] EvaluateAutoStartHold note={DescribeNote(note)} pressSongPos={pressSongPos:F3} result={res} headSoundAvailable={headSoundAvailable} headSoundConsumed={headSoundConsumed}");
         return res;
     }
 
@@ -77,13 +86,13 @@ public class StaccatoNoteHandler : DefaultNoteHandler
             result = JudgmentResult.Good;
         }
 
-        Debug.Log($"[StaccatoNoteHandler] EvaluateHoldEnd note={DescribeNote(note)} releaseSongPos={releaseSongPos:F3} targetEnd={endTime:F3} delta={delta:F3} result={result}");
+        Trace($"[StaccatoNoteHandler] EvaluateHoldEnd note={DescribeNote(note)} releaseSongPos={releaseSongPos:F3} targetEnd={endTime:F3} delta={delta:F3} result={result}");
         return result;
     }
 
     public override JudgmentResult EvaluateUnhandled(NoteController note, float songPos, bool anyKeyDown)
     {
-        Debug.Log($"[StaccatoNoteHandler] EvaluateUnhandled note={DescribeNote(note)} songPos={songPos:F3} anyKeyDown={anyKeyDown} (flag reset) consumedBefore={headSoundConsumed}");
+        Trace($"[StaccatoNoteHandler] EvaluateUnhandled note={DescribeNote(note)} songPos={songPos:F3} anyKeyDown={anyKeyDown} (flag reset) consumedBefore={headSoundConsumed}");
         headSoundAvailable = false;
         headSoundConsumed = true;
         return base.EvaluateUnhandled(note, songPos, anyKeyDown);
@@ -108,7 +117,7 @@ public class StaccatoNoteHandler : DefaultNoteHandler
                 if (clip.loadState == AudioDataLoadState.Unloaded) { clip.LoadAudioData(); }
             }
             catch { }
-            Debug.Log($"[StaccatoNoteHandler] PlayStaccatoHeadSound playClip name={clip.name} loadState={clip.loadState} volume={volume}");
+            Trace($"[StaccatoNoteHandler] PlayStaccatoHeadSound playClip name={clip.name} loadState={clip.loadState} volume={volume}");
             mgr.PlayClip(clip, Mathf.Clamp01(volume), 1f);
             return true;
         }

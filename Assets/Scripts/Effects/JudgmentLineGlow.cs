@@ -29,6 +29,16 @@ public class JudgmentLineGlow : MonoBehaviour
     private MaterialPropertyBlock propertyBlock;
     private int emissionColorPropertyId = -1;
 
+    public static JudgmentLineGlow GetOrCreate()
+    {
+        if (Instance != null) return Instance;
+        GameObject line = GameObject.Find("JudgmentLine");
+        if (line == null) return null;
+        var glow = line.GetComponent<JudgmentLineGlow>();
+        if (glow == null) glow = line.AddComponent<JudgmentLineGlow>();
+        return glow;
+    }
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -100,6 +110,34 @@ public class JudgmentLineGlow : MonoBehaviour
         glowRoutine = StartCoroutine(GlowRoutine(resolvedDuration));
     }
 
+    /// <summary>Small white pulse used when a beat guide reaches the line.</summary>
+    public void TriggerBeatPulse(float duration = 0.09f)
+    {
+        if (!isActiveAndEnabled || targetRenderer == null) return;
+        if (glowRoutine != null) StopCoroutine(glowRoutine);
+        glowRoutine = StartCoroutine(BeatPulseRoutine(Mathf.Max(0.03f, duration)));
+    }
+
+    private IEnumerator BeatPulseRoutine(float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            float t = Mathf.Clamp01(elapsed / duration);
+            // One-frame-fast attack followed by a very short quadratic fade.
+            float attack = Mathf.Clamp01(t / 0.12f);
+            float fade = 1f - Mathf.Clamp01((t - 0.12f) / 0.88f);
+            // A measure/beat line should produce a clearly visible platinum-white sweep,
+            // even over bright notes. The shader shapes this into its edge and centre core.
+            float intensity = attack * fade * fade * 1.35f;
+            ApplyColor(new Color(0.92f, 1f, 1f, 1f), intensity);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        ApplyIntensity(0f);
+        glowRoutine = null;
+    }
+
     private IEnumerator GlowRoutine(float duration)
     {
         if (duration <= 0f)
@@ -111,8 +149,10 @@ public class JudgmentLineGlow : MonoBehaviour
         while (t < duration)
         {
             float normalized = t / duration;
-            float intensity = intensityCurve != null ? Mathf.Max(0f, intensityCurve.Evaluate(normalized)) : 1f;
-            ApplyIntensity(intensity);
+            float attack = Mathf.Clamp01(normalized / 0.1f);
+            float fade = 1f - Mathf.Clamp01((normalized - 0.1f) / 0.9f);
+            float intensity = attack * fade * fade;
+            ApplyColor(new Color(1f, 0.97f, 0.82f, 1f), intensity);
             t += Time.deltaTime;
             yield return null;
         }
@@ -123,11 +163,17 @@ public class JudgmentLineGlow : MonoBehaviour
 
     private void ApplyIntensity(float intensity)
     {
+        ApplyColor(glowColor, intensity);
+    }
+
+    private void ApplyColor(Color color, float intensity)
+    {
         EnsurePropertyBlock();
         if (targetRenderer == null) return;
+        if (emissionColorPropertyId < 0) CachePropertyId();
 
         targetRenderer.GetPropertyBlock(propertyBlock);
-        propertyBlock.SetColor(emissionColorPropertyId, glowColor * intensity);
+        propertyBlock.SetColor(emissionColorPropertyId, color * intensity);
         targetRenderer.SetPropertyBlock(propertyBlock);
     }
 

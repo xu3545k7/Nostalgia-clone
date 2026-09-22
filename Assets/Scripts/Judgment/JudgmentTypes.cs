@@ -20,6 +20,15 @@ namespace Judgment
         public bool isHoldHead = false;
         public bool isHoldTail = false;
         public bool isHoldExtra = false;
+        /// <summary>
+        /// This judgment is a length-driven continuation of a long note (a hold's
+        /// per-beat tick, or a Trill slot after its head) rather than something the
+        /// player aimed at. It still counts for combo and judgment tallies; only its
+        /// SCORE share is reduced, so long notes stop being worth dozens of taps.
+        /// Distinct from isHoldExtra, which also covers the Trill head and controls
+        /// mesh/marking behaviour rather than scoring.
+        /// </summary>
+        public bool isSustainTick = false;
         public bool usePersistentMesh = false;
         public float headInputSongPosMs;
         public float headTargetTimeMs;
@@ -43,6 +52,7 @@ namespace Judgment
             isHoldHead           = false;
             isHoldTail           = false;
             isHoldExtra          = false;
+            isSustainTick        = false;
             usePersistentMesh    = false;
             headInputSongPosMs   = 0f;
             headTargetTimeMs     = 0f;

@@ -1,0 +1,33 @@
+﻿BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Abiogenesis\Abiogenesis.png	524946461EE80300	256038
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Chronomia\Chronomia.png	5249464604A80000	43020
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Entrance\entrance.png	FFD8FFE000104A46	62559
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Evans\Evans.png	524946468CE80000	59540
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\feng-yanno135miao\feng-yanno135miao.png	188006
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Grievous_Lady\Grievous_Lady_Real_16.png	52494646D2740200	160986
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Latent_Kingdom\Latent_Kingdom.png	1153789
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\LaVI_Bavellabion\LaVI_Bavellabion.png	1765305
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Longinus\Longinus.png	52494646A0320400	275112
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Lost in the Nowhere\Lost in the Nowhere.png	52494646B22E0100	77498
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\MarbleBlue\MarbleBlue.png	5249464654E40000	58460
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Marigold\Marigold.png	52494646568C0100	101470
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Ocean's_Wish\Ocean's_Wish.png	FFD8FFE000104A46	138513
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Oceanus\Oceanus.png	5249464678820100	98944
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Parodia Sonatina -Grande-\Parodia Sonatina -Grande-.png	52494646C6170200	137166
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\PRAGMATISM -RESURRECTION-\Pragmatism_resurrection.png	52494646426E0200	159306
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Recollect Lines\recollect_lines.png	52494646C4A70200	174028
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Reflection (Mirror Night)\Reflection (Mirror Night).png	52494646FCC50100	116228
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Rrhar'il\Rrhar'il.png	393127
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scherzo_pain_in_rain\Scherzo_pain_in_rain.png	52494646F4C00000	49404
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Scorpion_fire\Scorpion_fire.png	52494646BE330000	13254
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Sheriruth\Sheriruth.png	964687
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\Testify\testify.png	524946469A100100	69794
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\ulti_force\ulti_force.png	FFD8FFE000104A46	93705
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\wings_of_piano\Wings_of_Piano.png	5249464612C30000	49946
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\[ ]DENTITY\[ ]DENTITY.png	FFD8FFE000104A46	243094
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\エンドマークに希望と涙を添えて\endomakuni-xi-wangto-leiwo-tianete.png	52494646FA630300	222210
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\グラウンドスライダー協奏曲第一番「風唄」\グラウンドスライダー協奏曲第一番「風唄」.png	FFD8FFE000104A46	267442
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\其のエメラルドを見よ\其のエメラルドを見よ.png	526734
+OK	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\夜の向日葵\夜の向日葵.png	3244185
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\氷滅の135小節\氷滅の135小節 _ 大国奏音_Real_16.png	524946465AE60000	58978
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\系ぎて\xigite.png	524946463EAE0000	44614
+BAD_SIG	D:\Nostalgia\Nostalgia-clone\Assets\Resources\songs\華麗なる大犬円舞曲\華麗なる大犬円舞曲.png	52494646FC7D0000	32260

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -29,6 +29,9 @@ public class GameBackgroundManager : MonoBehaviour
     [SerializeField] private Color overlayColor = new Color(0f, 0f, 0f, 0.5f);
     [Tooltip("Opacity applied to the video overlay to dim the video (0=transparent, 1=fully black).")]
     [Range(0f, 1f)] [SerializeField] private float videoOverlayOpacity = 0.65f;
+    private Color _backgroundImageBaseColor = Color.white;
+    private bool _backgroundImageBaseColorCached;
+    private bool _backgroundDimApplied;
     private static Texture2D sBlackTexture;
     [Header("Track Dimmer")]
     [SerializeField]
@@ -38,6 +41,45 @@ public class GameBackgroundManager : MonoBehaviour
     [SerializeField] private bool maskSongImageGraphic = false;
     [SerializeField] private bool maskSongTextGraphics = false;
     [SerializeField] private bool maskGameplayDifficultyGraphic = false;
+
+    [Header("Song Title Marquee")]
+    [SerializeField, Min(1f)] private float songTitleMarqueeSpeed = 58f;
+    [SerializeField, Min(0f)] private float songTitleMarqueeStartDelay = 0.8f;
+
+    private RectTransform _songTitleViewport;
+    private RectTransform _songTitleRect;
+    private Canvas _songTitleFrontCanvas;
+    private Vector2 _songTitleOriginalSize;
+    private TextAlignmentOptions _songTitleOriginalAlignment;
+    private string _songTitleSource = string.Empty;
+    private bool _songTitleMarqueeActive;
+    private float _songTitleMarqueeOffset;
+    private float _songTitleMarqueeLoopWidth;
+    private float _songTitleMarqueeElapsed;
+    private RectTransform _songAuthorViewport;
+    private RectTransform _songAuthorRect;
+    private Canvas _songAuthorFrontCanvas;
+    private Vector2 _songAuthorOriginalSize;
+    private TextAlignmentOptions _songAuthorOriginalAlignment;
+    private string _songAuthorSource = string.Empty;
+    private bool _songAuthorMarqueeActive;
+    private float _songAuthorMarqueeOffset;
+    private float _songAuthorMarqueeLoopWidth;
+    private float _songAuthorMarqueeElapsed;
+    private RectTransform _difficultyViewport;
+    private RectTransform _difficultyRect;
+    private Canvas _difficultyFrontCanvas;
+    private DifficultyFrameGraphic _difficultyFrame;
+    private int _difficultyThemeLevel = 1;
+    private RectTransform _classicalSongInfoPanel;
+    private RectTransform _coverFrame;
+    private Canvas _classicalSongInfoOverlay;
+    private RectTransform _songProgressKnob;
+    private TextMeshProUGUI _songProgressTime;
+    private static Sprite _songProgressKnobSprite;
+    // These HUD elements are detached to the root canvas for foreground sorting.
+    // They therefore need an explicit presentation state when gameplayRoot is hidden.
+    private bool _gameplayHudPresentationVisible = true;
 
     private string coverResourcePath;
     private string videoPath;
@@ -53,6 +95,7 @@ public class GameBackgroundManager : MonoBehaviour
     private Transform _originalSongImageParent;
     private int _originalSongImageSiblingIndex;
     private RectTransform _runtimeSongImageParent;
+    private Canvas _songImageFrontCanvas;
     [Header("Song Image Rect Guard")]
     [SerializeField] private bool lockSongImageRectDuringPlay = true;
     [SerializeField] private bool logSongImageRectChanges = false;
@@ -80,6 +123,10 @@ public class GameBackgroundManager : MonoBehaviour
     // Cached per-song requested video start offset (seconds) from SongSelectionManager metadata
     private double perSongVideoStartOffsetSec = 0.0;
 
+    /// <summary>When Prepare() was asked for, so a slow decode can be named as such.</summary>
+    private float _prepareStartedRealtime = -1f;
+    private bool _prepareReported = false;
+
     // Track dimmer support when a background video is active
     private bool _videoRequestedForTrackDimmer = false;
     private float _currentTrackDimmerApplied = 0f;
@@ -94,10 +141,34 @@ public class GameBackgroundManager : MonoBehaviour
 
     // cache for DSP text to avoid redundant TMP updates
     private string _lastDspProgressText = null;
+    private long _lastDspProgressSecond = -1;
 
     void Update()
     {
         UpdateDspProgress();
+        UpdateSongTitleMarquee();
+        UpdateSongAuthorMarquee();
+        WarnIfPreparationStalled();
+    }
+
+    /// <summary>
+    /// Says so, once, when a video is still decoding long after it was asked for.
+    /// </summary>
+    /// <remarks>
+    /// A large file simply takes time, and until it lands the background is
+    /// whatever was there before — indistinguishable from a video that failed,
+    /// a path that was wrong, or a player that was never wired up. Naming it
+    /// separates "slow" from "broken" without any further investigation.
+    /// </remarks>
+    private void WarnIfPreparationStalled()
+    {
+        if (_prepareReported || _prepareStartedRealtime < 0f || videoPlayer == null) return;
+        if (Time.realtimeSinceStartup - _prepareStartedRealtime < 10f) return;
+        _prepareReported = true;
+        Debug.LogWarning($"[Background] Video still not prepared after 10s: " +
+            $"isPrepared={videoPlayer.isPrepared} url={videoPlayer.url}. " +
+            "A large or awkwardly encoded file decodes slowly; the picture will " +
+            "appear whenever preparation finishes.");
     }
 
     void Start()
@@ -178,6 +249,11 @@ public class GameBackgroundManager : MonoBehaviour
     private void Awake()
     {
         EnsureBlackTexture();
+        if (backgroundImage != null)
+        {
+            _backgroundImageBaseColor = backgroundImage.color;
+            _backgroundImageBaseColorCached = true;
+        }
         // Restore cached editor rects into runtime cache before other Start() calls run
         _songRectTransform = songImage != null ? songImage.GetComponent<RectTransform>() : null;
         if (songImage != null && detachSongImageFromLayouts)
@@ -187,6 +263,9 @@ public class GameBackgroundManager : MonoBehaviour
         EnsureSongImageLayoutIgnored();
         EnsureVideoBackdrop();
         EnsureVideoOverlay();
+        EnsureSongTitlePresentation();
+        EnsureSongAuthorPresentation();
+        EnsureDifficultyPresentation();
 
         if (serializedSongRectAvailable && songImage != null)
         {
@@ -210,14 +289,291 @@ public class GameBackgroundManager : MonoBehaviour
         // across frames to beat other layout scripts that may run in Start/Awake.
         // Ensure the cached rect is applied once up-front
         RestoreSongImageRect();
+        RebuildClassicalSongInfoPanel();
 
         ApplyMaskPreferences();
     }
 
+    private void RebuildClassicalSongInfoPanel()
+    {
+        if (_classicalSongInfoPanel != null || songImage == null) return;
+        Canvas sourceCanvas = backgroundImage != null ? backgroundImage.canvas : songImage.canvas;
+        Canvas rootCanvas = sourceCanvas != null ? sourceCanvas.rootCanvas : null;
+        if (rootCanvas == null) return;
+
+        GameObject overlayObject = new GameObject("ClassicalSongInfoOverlay", typeof(RectTransform),
+            typeof(Canvas), typeof(CanvasScaler));
+        overlayObject.layer = 5;
+        overlayObject.transform.SetParent(transform, false);
+        RectTransform overlayRect = overlayObject.GetComponent<RectTransform>();
+        overlayRect.anchorMin = Vector2.zero;
+        overlayRect.anchorMax = Vector2.one;
+        overlayRect.offsetMin = Vector2.zero;
+        overlayRect.offsetMax = Vector2.zero;
+        overlayRect.localScale = Vector3.one;
+        _classicalSongInfoOverlay = overlayObject.GetComponent<Canvas>();
+        _classicalSongInfoOverlay.renderMode = RenderMode.ScreenSpaceOverlay;
+        _classicalSongInfoOverlay.overrideSorting = true;
+        _classicalSongInfoOverlay.sortingOrder = 23980;
+        CanvasScaler overlayScaler = overlayObject.GetComponent<CanvasScaler>();
+        overlayScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        overlayScaler.referenceResolution = new Vector2(2560f, 1440f);
+        overlayScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        overlayScaler.matchWidthOrHeight = 0.5f;
+
+        GameObject panelObject = new GameObject("ClassicalSongInfoPanel", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(Image), typeof(RectMask2D));
+        panelObject.layer = 5;
+        _classicalSongInfoPanel = panelObject.GetComponent<RectTransform>();
+        _classicalSongInfoPanel.SetParent(overlayObject.transform, false);
+        _classicalSongInfoPanel.anchorMin = new Vector2(0f, 1f);
+        _classicalSongInfoPanel.anchorMax = new Vector2(0f, 1f);
+        _classicalSongInfoPanel.pivot = new Vector2(0f, 1f);
+        // Keep the complete card inside the screen safe area. The former 650 px
+        // card intruded into the track; this is exactly three quarters as wide.
+        _classicalSongInfoPanel.anchoredPosition = new Vector2(40f, -28f);
+        // BPM reaches 228 px from the top; keep only a slim 14 px paper margin.
+        _classicalSongInfoPanel.sizeDelta = new Vector2(487.5f, 242f);
+
+        Image panel = panelObject.GetComponent<Image>();
+        panel.sprite = ClassicalBookUITheme.GetPaperTextureSprite();
+        panel.type = Image.Type.Tiled;
+        panel.pixelsPerUnitMultiplier = 0.72f;
+        panel.color = new Color(0.94f, 0.90f, 0.82f, 0.98f);
+        panel.raycastTarget = false;
+        Outline border = panelObject.AddComponent<Outline>();
+        border.effectColor = new Color(0.42f, 0.27f, 0.13f, 0.82f);
+        border.effectDistance = new Vector2(2f, -2f);
+        Shadow shadow = panelObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.62f);
+        shadow.effectDistance = new Vector2(8f, -8f);
+
+        RectMask2D panelMask = panelObject.GetComponent<RectMask2D>();
+        panelMask.padding = Vector4.zero;
+        panelMask.softness = new Vector2Int(2, 2);
+
+        // 裝飾框是紙卡的**兄弟**而不是子物件：紙卡帶著 RectMask2D，掛進去的東西
+        // 會被裁在紙邊上，而那正好就是紋飾要待的地方。
+        _difficultyFrame = DifficultyFrameGraphic.Attach(_classicalSongInfoPanel, 11f);
+        ApplyDifficultyTheme(gameplayDifficultyText != null ? gameplayDifficultyText.text : null);
+
+        // The gameplay thumbnail gets the same framed treatment as the results
+        // book: a mount, a gilt edge and a drop shadow, with the frame itself
+        // taking the artwork's proportions instead of padding it out to a square.
+        GameObject frameObject = new GameObject("CoverFrame", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(Image));
+        frameObject.layer = 5;
+        _coverFrame = frameObject.GetComponent<RectTransform>();
+        _coverFrame.SetParent(_classicalSongInfoPanel, false);
+        SetPanelRect(_coverFrame, new Vector2(24f, -22f), new Vector2(CoverFrameLongEdge, CoverFrameLongEdge));
+
+        Image frameFill = frameObject.GetComponent<Image>();
+        frameFill.color = new Color(0.985f, 0.972f, 0.90f, 1f);
+        frameFill.raycastTarget = false;
+        Outline frameEdge = frameObject.AddComponent<Outline>();
+        frameEdge.effectColor = new Color(0.76f, 0.57f, 0.25f, 0.9f);
+        frameEdge.effectDistance = new Vector2(2f, -2f);
+        Shadow frameShadow = frameObject.AddComponent<Shadow>();
+        frameShadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+        frameShadow.effectDistance = new Vector2(5f, -5f);
+
+        RectTransform cover = songImage.rectTransform;
+        cover.SetParent(_coverFrame, false);
+        cover.anchorMin = Vector2.zero;
+        cover.anchorMax = Vector2.one;
+        cover.pivot = new Vector2(0.5f, 0.5f);
+        cover.offsetMin = new Vector2(CoverMount, CoverMount);
+        cover.offsetMax = new Vector2(-CoverMount, -CoverMount);
+        cover.localScale = Vector3.one;
+        cover.localRotation = Quaternion.identity;
+        songImage.transform.SetAsLastSibling();
+        ApplyCoverAspect(songImage.texture);
+
+        if (_songTitleViewport != null)
+        {
+            _songTitleViewport.SetParent(_classicalSongInfoPanel, false);
+            SetPanelRect(_songTitleViewport, new Vector2(220f, -22f), new Vector2(243f, 48f));
+            _songTitleOriginalSize = new Vector2(243f, 48f);
+            if (_songTitleFrontCanvas != null)
+            {
+                Destroy(_songTitleFrontCanvas);
+                _songTitleFrontCanvas = null;
+            }
+        }
+        if (_songAuthorViewport != null)
+        {
+            _songAuthorViewport.SetParent(_classicalSongInfoPanel, false);
+            SetPanelRect(_songAuthorViewport, new Vector2(220f, -79f), new Vector2(243f, 32f));
+            _songAuthorOriginalSize = new Vector2(243f, 32f);
+            if (_songAuthorFrontCanvas != null)
+            {
+                Destroy(_songAuthorFrontCanvas);
+                _songAuthorFrontCanvas = null;
+            }
+        }
+        if (_difficultyViewport != null)
+        {
+            _difficultyViewport.SetParent(_classicalSongInfoPanel, false);
+            SetPanelRect(_difficultyViewport, new Vector2(220f, -121f), new Vector2(243f, 32f));
+            if (_difficultyFrontCanvas != null)
+            {
+                Destroy(_difficultyFrontCanvas);
+                _difficultyFrontCanvas = null;
+            }
+        }
+
+        EnsureSongProgressBar();
+
+        BpmDisplay bpmDisplay = FindFirstObjectByType<BpmDisplay>();
+        if (bpmDisplay != null && bpmDisplay.bpmText != null)
+        {
+            RectTransform bpmRect = bpmDisplay.bpmText.rectTransform;
+            bpmRect.SetParent(overlayObject.transform, false);
+            bpmRect.anchorMin = new Vector2(0f, 0.5f);
+            bpmRect.anchorMax = new Vector2(0f, 0.5f);
+            bpmRect.pivot = new Vector2(0f, 0.5f);
+            bpmRect.anchoredPosition = new Vector2(48f, 0f);
+            bpmRect.sizeDelta = new Vector2(430f, 180f);
+            bpmRect.localScale = Vector3.one;
+            bpmRect.localRotation = Quaternion.identity;
+            Canvas bpmCanvas = bpmDisplay.bpmText.GetComponent<Canvas>();
+            if (bpmCanvas != null) Destroy(bpmCanvas);
+            bpmDisplay.ConfigureFloatingPresentation();
+            bpmRect.SetAsLastSibling();
+        }
+
+        // From this point the cover's canonical rect is panel-local; update the
+        // guard cache so legacy authored coordinates cannot pull it back out.
+        CacheSongImageRect();
+        overlayObject.SetActive(_gameplayHudPresentationVisible);
+    }
+
+    private void EnsureSongProgressBar()
+    {
+        if (_classicalSongInfoPanel == null || _songProgressKnob != null) return;
+
+        GameObject barObject = new GameObject("SongProgressBar", typeof(RectTransform));
+        barObject.layer = 5;
+        RectTransform barRect = barObject.GetComponent<RectTransform>();
+        barRect.SetParent(_classicalSongInfoPanel, false);
+        SetPanelRect(barRect, new Vector2(216f, -168f), new Vector2(247f, 48f));
+
+        GameObject timeObject = new GameObject("SongProgressTime", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        timeObject.layer = 5;
+        RectTransform timeRect = timeObject.GetComponent<RectTransform>();
+        timeRect.SetParent(barRect, false);
+        timeRect.anchorMin = new Vector2(0f, 0.48f);
+        timeRect.anchorMax = new Vector2(1f, 1f);
+        timeRect.offsetMin = timeRect.offsetMax = Vector2.zero;
+        _songProgressTime = timeObject.GetComponent<TextMeshProUGUI>();
+        _songProgressTime.text = "00:00 / 00:00";
+        _songProgressTime.alignment = TextAlignmentOptions.Center;
+        _songProgressTime.fontSize = 17f;
+        _songProgressTime.fontStyle = FontStyles.Bold;
+        _songProgressTime.color = new Color(0.20f, 0.12f, 0.075f, 1f);
+        _songProgressTime.raycastTarget = false;
+
+        GameObject lineObject = new GameObject("ProgressLine", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(Image));
+        lineObject.layer = 5;
+        RectTransform lineRect = lineObject.GetComponent<RectTransform>();
+        lineRect.SetParent(barRect, false);
+        lineRect.anchorMin = new Vector2(0.04f, 0.20f);
+        lineRect.anchorMax = new Vector2(0.96f, 0.20f);
+        lineRect.pivot = new Vector2(0.5f, 0.5f);
+        lineRect.sizeDelta = new Vector2(0f, 3f);
+        lineObject.GetComponent<Image>().color = new Color(0.82f, 0.65f, 0.31f, 0.95f);
+        lineObject.GetComponent<Image>().raycastTarget = false;
+
+        GameObject knobObject = new GameObject("ProgressKnob", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(Image));
+        knobObject.layer = 5;
+        _songProgressKnob = knobObject.GetComponent<RectTransform>();
+        _songProgressKnob.SetParent(barRect, false);
+        _songProgressKnob.anchorMin = _songProgressKnob.anchorMax = new Vector2(0.04f, 0.20f);
+        _songProgressKnob.pivot = new Vector2(0.5f, 0.5f);
+        _songProgressKnob.sizeDelta = new Vector2(15f, 15f);
+        _songProgressKnob.anchoredPosition = Vector2.zero;
+        Image knobImage = knobObject.GetComponent<Image>();
+        knobImage.sprite = GetSongProgressKnobSprite();
+        knobImage.color = new Color(0.33f, 0.72f, 1f, 1f);
+        knobImage.raycastTarget = false;
+    }
+
+    private static Sprite GetSongProgressKnobSprite()
+    {
+        if (_songProgressKnobSprite != null) return _songProgressKnobSprite;
+        const int size = 32;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+        {
+            name = "SongProgressKnobTexture",
+            hideFlags = HideFlags.HideAndDontSave,
+            filterMode = FilterMode.Bilinear
+        };
+        Color[] pixels = new Color[size * size];
+        float center = (size - 1) * 0.5f;
+        float radius = center - 1f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), new Vector2(center, center));
+                float alpha = Mathf.Clamp01(radius + 0.8f - distance);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        _songProgressKnobSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size),
+            new Vector2(0.5f, 0.5f), 100f);
+        _songProgressKnobSprite.name = "SongProgressKnobSprite";
+        return _songProgressKnobSprite;
+    }
+
+    /// <summary>Longest edge of the framed thumbnail, mount included.</summary>
+    private const float CoverFrameLongEdge = 170f;
+
+    /// <summary>Paper mount between the gilt edge and the artwork.</summary>
+    private const float CoverMount = 5f;
+
+    /// <summary>
+    /// Reshapes the thumbnail frame to the artwork's own proportions.
+    /// </summary>
+    /// <remarks>
+    /// Stretching a non-square cover into a square rect distorts it; padding it
+    /// leaves bars that read as damage rather than design. The frame follows the
+    /// picture instead — the longer edge keeps the size the square frame had, so
+    /// the card's layout never has to move, and the shorter one gives way.
+    /// </remarks>
+    private void ApplyCoverAspect(Texture texture)
+    {
+        if (_coverFrame == null) return;
+        float width = texture != null ? texture.width : 0f;
+        float height = texture != null ? texture.height : 0f;
+        float aspect = (width > 0f && height > 0f) ? width / height : 1f;
+
+        float inner = CoverFrameLongEdge - CoverMount * 2f;
+        Vector2 art = aspect >= 1f
+            ? new Vector2(inner, inner / aspect)
+            : new Vector2(inner * aspect, inner);
+        _coverFrame.sizeDelta = art + new Vector2(CoverMount * 2f, CoverMount * 2f);
+    }
+
+    private static void SetPanelRect(RectTransform rect, Vector2 position, Vector2 size)
+    {
+        if (rect == null) return;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
+    }
+
     private void UpdateDspProgress()
     {
-        if (dspProgressText == null) return;
-
         double elapsedMs = 0.0;
         double finishMs = 0.0;
 
@@ -228,14 +584,31 @@ public class GameBackgroundManager : MonoBehaviour
             {
                 if (gm.Conductor != null)
                 {
-                    // Use Conductor songPosition (ms) as elapsed time so it resets per song.
-                    elapsedMs = gm.Conductor.songPosition;
+                    AudioSource source = gm.Conductor.audioSync != null
+                        ? gm.Conductor.audioSync.audioSource
+                        : gm.Conductor.GetComponent<AudioSource>();
+                    if (source != null && source.clip != null)
+                    {
+                        // clip.length 和 source.time 都是**檔案裡的秒數**，和牆上時間
+                        // 差一個 pitch。練習模式把音源放慢、譜面拉長，實際要播的時間
+                        // 是檔案長度除以速率 —— 不除的話進度條走得比標示慢，而總長
+                        // 永遠停在原曲的長度上。譜面自己的 audioSpeedEvents 也一樣。
+                        double rate = Mathf.Abs(source.pitch) > 0.001f ? source.pitch : 1.0;
+                        finishMs = source.clip.length * 1000.0 / rate;
+                        elapsedMs = source.time * 1000.0 / rate;
+                    }
+                    else
+                    {
+                        elapsedMs = gm.Conductor.songPosition;
+                    }
                 }
-                if (gm.CurrentChart != null && gm.CurrentChart.music_finish_time_msec > 0)
+                if (finishMs <= 0.0 && gm.CurrentChart != null &&
+                    gm.CurrentChart.music_finish_time_msec > 0)
                 {
                     finishMs = gm.CurrentChart.music_finish_time_msec;
                 }
-                else if (gm.CurrentChartHeader != null && gm.CurrentChartHeader.music_finish_time_msec > 0)
+                else if (finishMs <= 0.0 && gm.CurrentChartHeader != null &&
+                    gm.CurrentChartHeader.music_finish_time_msec > 0)
                 {
                     finishMs = gm.CurrentChartHeader.music_finish_time_msec;
                 }
@@ -243,14 +616,27 @@ public class GameBackgroundManager : MonoBehaviour
             catch { }
         }
 
-        long current = (long)Math.Round(elapsedMs);
-        string text = finishMs > 0 ? $"{current}/{(long)Math.Round(finishMs)}" : $"{current}/-";
-
-        if (_lastDspProgressText != text)
+        float progress = finishMs > 0.0
+            ? Mathf.Clamp01((float)(elapsedMs / finishMs))
+            : 0f;
+        if (_songProgressKnob != null)
         {
-            dspProgressText.text = text;
-            _lastDspProgressText = text;
+            float anchorX = Mathf.Lerp(0.04f, 0.96f, progress);
+            _songProgressKnob.anchorMin = _songProgressKnob.anchorMax =
+                new Vector2(anchorX, 0.20f);
+            _songProgressKnob.anchoredPosition = Vector2.zero;
         }
+
+        string timeDisplay = $"{FormatSongTime(elapsedMs)} / {FormatSongTime(finishMs)}";
+        if (_songProgressTime != null) _songProgressTime.text = timeDisplay;
+    }
+
+    private static string FormatSongTime(double milliseconds)
+    {
+        int totalSeconds = Mathf.Max(0, Mathf.FloorToInt((float)(milliseconds / 1000.0)));
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return $"{minutes:00}:{seconds:00}";
     }
 
     private static void EnsureBlackTexture()
@@ -375,12 +761,16 @@ public class GameBackgroundManager : MonoBehaviour
 
     private void ApplyMaskPreferences()
     {
+        bool unifiedPanel = _classicalSongInfoPanel != null;
         ConfigureMaskableGraphic(backgroundImage, maskVideoGraphics);
         ConfigureMaskableGraphic(videoOverlay, maskVideoGraphics);
-        ConfigureMaskableGraphic(songImage, maskSongImageGraphic);
-        ConfigureMaskableGraphic(songTitleText, maskSongTextGraphics);
-        ConfigureMaskableGraphic(songAuthorText, maskSongTextGraphics);
-        ConfigureMaskableGraphic(gameplayDifficultyText, maskGameplayDifficultyGraphic);
+        // Every graphic inside the rebuilt card must participate in its RectMask2D.
+        // Inspector flags belong to the legacy independent HUD and must not disable
+        // clipping after the unified panel has already been constructed.
+        ConfigureMaskableGraphic(songImage, unifiedPanel || maskSongImageGraphic);
+        ConfigureMaskableGraphic(songTitleText, unifiedPanel || maskSongTextGraphics);
+        ConfigureMaskableGraphic(songAuthorText, unifiedPanel || maskSongTextGraphics);
+        ConfigureMaskableGraphic(gameplayDifficultyText, unifiedPanel || maskGameplayDifficultyGraphic);
     }
 
     private void LateUpdate()
@@ -474,6 +864,10 @@ public class GameBackgroundManager : MonoBehaviour
                     {
                         // Keep songImage visible only if it has texture
                         songImage.gameObject.SetActive(songImage.texture != null);
+                        // The frame is a sibling-level object, so it has to be
+                        // hidden with the artwork or an empty mount is left behind.
+                        if (_coverFrame != null)
+                            _coverFrame.gameObject.SetActive(songImage.texture != null);
                     }
                 }
                 catch { }
@@ -592,6 +986,12 @@ public class GameBackgroundManager : MonoBehaviour
         {
             gameplayDifficultyText.text = string.IsNullOrEmpty(difficultyText) ? string.Empty : difficultyText;
             gameplayDifficultyText.gameObject.SetActive(!string.IsNullOrEmpty(gameplayDifficultyText.text));
+            if (_difficultyViewport != null)
+            {
+                _difficultyViewport.gameObject.SetActive(
+                    _gameplayHudPresentationVisible && !string.IsNullOrEmpty(gameplayDifficultyText.text));
+            }
+            ApplyDifficultyTheme(gameplayDifficultyText.text);
             BuildLogger.Log($"GameBackgroundManager: SetSongDifficulty -> '{gameplayDifficultyText.text}'");
             // If we clear the difficulty text, clear player-set flag as well
             if (string.IsNullOrEmpty(difficultyText)) _playerSetDifficulty = false;
@@ -599,7 +999,134 @@ public class GameBackgroundManager : MonoBehaviour
         catch { }
     }
 
+    /// <summary>
+    /// Colours the difficulty caption and the card's frame for the chart shown.
+    /// </summary>
+    /// <remarks>
+    /// The level is read back out of the caption rather than plumbed through:
+    /// <see cref="SetSongDifficulty"/> is the public entry point and several
+    /// callers reach it with a string they built themselves, so a parameter
+    /// would be right only for the callers that happen to remember it.
+    /// </remarks>
+    private void ApplyDifficultyTheme(string caption)
+    {
+        int parsed = ParseDifficultyLevel(caption);
+        if (parsed <= 0) parsed = LevelFromDifficultyName(caption);
+        if (parsed > 0) _difficultyThemeLevel = parsed;
+
+        // 顏色照**難度名稱**（Normal 綠 / Hard 黃 / Expert 紅 / 其他紫），不看
+        // 等級——同一個名字在不同曲子的等級差很多，照等級上色會讓同一階難度
+        // 在不同曲子間變色。剖不出名字時（例如「Lv. 16~8」這種還沒選的區間）
+        // 才退回等級。
+        string parsedName = ParseDifficultyName(caption);
+        Color theme = string.IsNullOrEmpty(parsedName)
+            ? DifficultyVisualPalette.ForLevel(_difficultyThemeLevel)
+            : DifficultyVisualPalette.For(parsedName, _difficultyThemeLevel);
+        if (gameplayDifficultyText != null)
+        {
+            // 紙卡是米色的，飽和度全開的黃或綠在上面幾乎讀不到，所以壓暗再用。
+            gameplayDifficultyText.color = new Color(theme.r * 0.68f, theme.g * 0.68f,
+                theme.b * 0.68f, 1f);
+        }
+
+        if (_difficultyFrame != null)
+        {
+            // Level 決定外框的裝飾階數（愈難愈華麗），顏色則由 OverrideInk
+            // 帶進去，兩者刻意分開。
+            _difficultyFrame.Level = _difficultyThemeLevel;
+            _difficultyFrame.OverrideInk = theme;
+        }
+    }
+
+    /// <summary>
+    /// 從「Expert Lv. 14」這種標題裡取出難度名（"Lv." 之前那一段）。
+    /// 只有等級、沒有名字（"Lv. 16~8"）時回空字串。
+    /// </summary>
+    private static string ParseDifficultyName(string caption)
+    {
+        if (string.IsNullOrWhiteSpace(caption)) return string.Empty;
+        int marker = caption.IndexOf("Lv.", System.StringComparison.OrdinalIgnoreCase);
+        string name = marker > 0 ? caption.Substring(0, marker) : caption;
+        return name.Trim();
+    }
+
+    /// <summary>
+    /// Pulls the level out of captions like "Master Lv. 10" or "Lv. 16~13".
+    /// </summary>
+    /// <remarks>
+    /// A range shows the highest first, and the highest is the one that should
+    /// decide the colour, so the first run of digits is the right one to take.
+    /// </remarks>
+    private static int ParseDifficultyLevel(string caption)
+    {
+        if (string.IsNullOrEmpty(caption)) return 0;
+
+        int marker = caption.IndexOf("Lv.", System.StringComparison.OrdinalIgnoreCase);
+        int cursor = marker >= 0 ? marker + 3 : 0;
+        int value = 0;
+        bool found = false;
+        for (; cursor < caption.Length; cursor++)
+        {
+            char c = caption[cursor];
+            if (c >= '0' && c <= '9')
+            {
+                value = value * 10 + (c - '0');
+                found = true;
+            }
+            else if (found)
+            {
+                break;
+            }
+        }
+
+        return found ? value : 0;
+    }
+
+    /// <summary>Fallback for captions that carry a name but no number.</summary>
+    private static int LevelFromDifficultyName(string caption)
+    {
+        if (string.IsNullOrEmpty(caption)) return 0;
+        string name = caption.ToLowerInvariant();
+        if (name.Contains("real")) return 13;
+        if (name.Contains("master") || name.Contains("extreme")) return 11;
+        if (name.Contains("hard")) return 8;
+        if (name.Contains("normal") || name.Contains("easy")) return 4;
+        return 0;
+    }
+
     // Public helper: derive difficulty display from a SongSelectionManager.SongOption
+    /// <summary>
+    /// 正在遊玩的那一個難度，靠譜面檔名比對出來；沒在遊玩就回 null。
+    /// </summary>
+    private static SongSelectionManager.SongOption ResolvePlayingVariant(
+        SongSelectionManager.SongOption option)
+    {
+        if (option == null) return null;
+        string playing = null;
+        try
+        {
+            playing = GameManager.Instance != null ? GameManager.Instance.chartFileName : null;
+        }
+        catch { }
+        if (string.IsNullOrWhiteSpace(playing)) return null;
+
+        if (string.Equals(option.chartFileName, playing, System.StringComparison.OrdinalIgnoreCase)
+            && option.difficultyLevel > 0
+            && (option.difficultyVariants == null || option.difficultyVariants.Count <= 1))
+        {
+            return option;
+        }
+        if (option.difficultyVariants == null) return null;
+        foreach (var variant in option.difficultyVariants)
+        {
+            if (variant == null) continue;
+            if (string.Equals(variant.chartFileName, playing,
+                    System.StringComparison.OrdinalIgnoreCase))
+                return variant;
+        }
+        return null;
+    }
+
     public void SetSongDifficultyFromOption(SongSelectionManager.SongOption option)
     {
         if (option == null)
@@ -636,6 +1163,24 @@ public class GameBackgroundManager : MonoBehaviour
             BuildLogger.Log($"GameBackgroundManager: SetSongDifficultyFromOption called -> displayName='{option.displayName}' difficulty='{option.difficultyName}' level={option.difficultyLevel} variants={(option.difficultyVariants!=null?option.difficultyVariants.Count:0)} selectedVariant={(option.selectedVariant!=null?option.selectedVariant.displayName:"null")} forceUseVariant={forceUseVariant}");
         }
         catch { }
+
+        // 已經定下來是哪一個難度時，就顯示那一個——玩家要看的是「我現在打的是
+        // 哪個難度、幾級」，不是這首歌涵蓋的級數範圍。「Lv. 16~8」只在還沒選、
+        // 游標停在歌曲群組上時才有意義。
+        //
+        // 判斷順序：正在遊玩的譜面檔 > 選單記下的 selectedVariant。前者最可靠
+        // ——遊玩中一定只有一份譜在跑，而 selectedVariant 會被
+        // SongSelectionManager 幾處清成 null，清掉之後標籤就退回區間了。
+        SongSelectionManager.SongOption picked =
+            ResolvePlayingVariant(option) ?? option.selectedVariant;
+        if (picked != null && picked.difficultyLevel > 0)
+        {
+            SetSongDifficulty(string.IsNullOrWhiteSpace(picked.difficultyName)
+                ? $"Lv. {picked.difficultyLevel}"
+                : $"{picked.difficultyName} Lv. {picked.difficultyLevel}");
+            _playerSetDifficulty = true;
+            return;
+        }
 
         // If grouped variants exist, show range "Lv.max~min" (unless we're forcing use of a concrete variant)
         if (option.difficultyVariants != null && option.difficultyVariants.Count > 1 && !forceUseVariant)
@@ -866,6 +1411,14 @@ public class GameBackgroundManager : MonoBehaviour
 
     private void PlayBackgroundVideo(string videoPath)
     {
+        if (videoPlayer == null)
+        {
+            // Silent until now: every other report on this path is a stripped
+            // BuildLogger.Log, so a missing player looked exactly like a missing
+            // video file.
+            Debug.LogWarning($"[Background] No VideoPlayer assigned; '{videoPath}' cannot play.");
+            return;
+        }
         // Normalize path separators
         string normalizedPath = videoPath.Replace("\\", "/");
             if (videoBackdrop != null)
@@ -878,11 +1431,23 @@ public class GameBackgroundManager : MonoBehaviour
                 }
                 videoBackdrop.gameObject.SetActive(true);
             }
-        string candidate = System.IO.Path.Combine(Application.streamingAssetsPath, normalizedPath).Replace("\\", "/");
+        // Imported songs live under UserSongs, not StreamingAssets: their register
+        // paths come back from ExternalSongLibrary carrying the "external://"
+        // prefix and an absolute path.  Joining that onto streamingAssetsPath
+        // produced a path that never exists, so every imported song's video was
+        // silently skipped with only a stripped BuildLogger line to show for it.
+        string externalPath = ExternalSongLibrary.ToLocalPath(videoPath);
+        bool isExternal = !string.IsNullOrEmpty(externalPath);
+        string candidate = isExternal
+            ? externalPath.Replace("\\", "/")
+            : System.IO.Path.Combine(Application.streamingAssetsPath, normalizedPath).Replace("\\", "/");
 
-        // Prefer explicit file:// URL on Windows for the VideoPlayer
+        // Prefer explicit file:// URL on Windows for the VideoPlayer.  Imported
+        // songs are handed the bare path instead: their folders are named by the
+        // player and routinely hold non-ASCII characters and '+', which a
+        // hand-built file:/// URL does not escape and the player then mis-reads.
         string fullUrl = candidate;
-        if (System.IO.Path.IsPathRooted(candidate) && !candidate.StartsWith("file://"))
+        if (!isExternal && System.IO.Path.IsPathRooted(candidate) && !candidate.StartsWith("file://"))
         {
             fullUrl = "file:///" + candidate;
         }
@@ -902,7 +1467,9 @@ public class GameBackgroundManager : MonoBehaviour
                     if (System.IO.File.Exists(tryMp4))
                     {
                         filesystemPath = tryMp4;
-                        fullUrl = "file:///" + tryMp4.Replace("\\", "/");
+                        fullUrl = isExternal
+                            ? tryMp4.Replace("\\", "/")
+                            : "file:///" + tryMp4.Replace("\\", "/");
                         exists = true;
                     }
                 }
@@ -953,6 +1520,8 @@ public class GameBackgroundManager : MonoBehaviour
         catch { }
 
         // assign url and prepare; actual Play() will be triggered in prepare callback
+        _prepareStartedRealtime = Time.realtimeSinceStartup;
+        _prepareReported = false;
         videoPlayer.url = fullUrl;
         videoPlayer.gameObject.SetActive(true);
         if (backgroundImage != null)
@@ -975,7 +1544,7 @@ public class GameBackgroundManager : MonoBehaviour
 
     private void OnVideoErrorReceived(VideoPlayer source, string message)
     {
-        BuildLogger.LogWarning($"GameBackgroundManager: VideoPlayer errorReceived: {message} url={source.url}");
+        Debug.LogWarning($"[Background] VideoPlayer error: {message} url={source.url}");
         // On error, hide overlay and ensure player is stopped
         try
         {
@@ -990,6 +1559,16 @@ public class GameBackgroundManager : MonoBehaviour
 
     private void OnVideoPrepared(VideoPlayer source)
     {
+        // Always on. Everything else on this path logs through BuildLogger.Log,
+        // which is stripped unless NOSTALGIA_VERBOSE_LOGGING is defined — in the
+        // editor too — so how long preparation took was invisible even while
+        // watching the console.
+        float prepareSeconds = _prepareStartedRealtime >= 0f
+            ? Time.realtimeSinceStartup - _prepareStartedRealtime
+            : -1f;
+        _prepareReported = true;
+        Debug.Log($"[Background] Video prepared in {prepareSeconds:F2}s " +
+            $"({source.width}x{source.height}, {source.length:F1}s, {source.frameRate:F1}fps)");
         try
         {
             // Assign the video texture to the background RawImage so the UI shows the video.
@@ -999,6 +1578,14 @@ public class GameBackgroundManager : MonoBehaviour
                 backgroundImage.texture = source.texture;
                 backgroundImage.color = Color.black;
                 backgroundImage.raycastTarget = false;
+                // LoadBackground calls AdjustVideoPlayerSize() straight after
+                // PlayBackgroundVideo(), but that is only a Prepare() — the texture
+                // does not exist yet, so the sizing returned immediately and the
+                // RawImage kept the AspectRatioFitter the *cover* left behind.
+                // A square 500x500 cover therefore squeezed a 16:9 video into a
+                // square envelope.  Now that the texture is real, size it for the
+                // video.
+                AdjustVideoPlayerSize();
             }
 
             // Apply visual pre-roll offset from Conductor/Settings so video aligns with pre-rolled notes
@@ -1115,10 +1702,33 @@ public class GameBackgroundManager : MonoBehaviour
                             double minStart = nowDsp + 0.02;
                             if (desiredVideoStartDsp <= minStart)
                             {
-                                // If we're already between desiredVideoStartDsp and scheduledDspStart, start immediately
-                                // so the video can play through pre-roll frames naturally.
-                                // 無論是否 late，改成一律等待 desiredVideoStartDsp
-                                try { BeginWaitForDsp(source, desiredVideoStartDsp, /*seeked*/ false, /*strictDelayMode*/ false); }
+                                // Preparation finished after the moment the video
+                                // was supposed to begin — a big file, a cold disk,
+                                // a slow decoder. Playing from zero now would put
+                                // the picture exactly that far behind the music and
+                                // keep it there for the whole song, which is the
+                                // "it starts eventually but the timing is wrong"
+                                // case. Start from where the song already is.
+                                double lateBy = nowDsp - desiredVideoStartDsp;
+                                if (lateBy > 0.05 && source.canSetTime)
+                                {
+                                    try
+                                    {
+                                        double target = Math.Max(0.0, lateBy);
+                                        if (source.length > 0.0 && target < source.length)
+                                        {
+                                            source.time = target;
+                                            seeked = true;
+                                            Debug.Log($"[Background] Video prepared {lateBy:F2}s late; " +
+                                                $"seeking to {target:F2}s instead of starting from zero.");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        BuildLogger.LogWarning($"GameBackgroundManager: late-prepare seek failed: {ex}");
+                                    }
+                                }
+                                try { BeginWaitForDsp(source, desiredVideoStartDsp, seeked, /*strictDelayMode*/ false); }
                                 catch (Exception ex) { BuildLogger.LogWarning($"GameBackgroundManager: Failed to start WaitForDspThenPlay coroutine (late pre-roll): {ex}"); }
                             }
                             else
@@ -1342,11 +1952,75 @@ public class GameBackgroundManager : MonoBehaviour
         videoPlaybackRoutine = null;
     }
 
+    /// <summary>
+    /// Everything the video path switches on, so it can be checked afterwards.
+    /// </summary>
+    /// <remarks>
+    /// The glow appears once a video song has been played and then survives into
+    /// songs that have no video at all. That shape of fault is state left behind,
+    /// not something being drawn wrongly now — and every candidate here is set by
+    /// the video path and cleared somewhere else, which is exactly where a value
+    /// gets stranded.
+    /// </remarks>
+    public string DescribeVideoState()
+    {
+        string overlay = videoOverlay != null
+            ? $"active={videoOverlay.gameObject.activeInHierarchy} colour={videoOverlay.color}"
+            : "<none>";
+        string background = backgroundImage != null
+            ? $"active={backgroundImage.gameObject.activeInHierarchy} colour={backgroundImage.color} " +
+              $"tex={(backgroundImage.texture != null ? backgroundImage.texture.name : "<null>")}"
+            : "<none>";
+        string backdrop = videoBackdrop != null
+            ? $"active={videoBackdrop.gameObject.activeInHierarchy} colour={videoBackdrop.color} " +
+              $"tex={(videoBackdrop.texture != null ? videoBackdrop.texture.name : "<null>")}"
+            : "<none>";
+        string player = videoPlayer != null
+            ? $"active={videoPlayer.gameObject.activeInHierarchy} playing={videoPlayer.isPlaying} " +
+              $"prepared={videoPlayer.isPrepared}"
+            : "<none>";
+        return $"videoOverlay[{overlay}] background[{background}] backdrop[{backdrop}] " +
+            $"player[{player}] dimApplied={_backgroundDimApplied} " +
+            $"dimmerRequested={_videoRequestedForTrackDimmer} dimmer={_currentTrackDimmerApplied:F2} " +
+            $"dimmerEntries={_trackRendererEntries.Count}";
+    }
+
     private void SetVideoOverlay(bool show)
     {
         if (videoOverlay == null) return;
         try
         {
+            // Dim the background pixels themselves. A full-screen overlay Canvas is
+            // rendered after world geometry on some targets and can darken the Track.
+            // Multiplying the background keeps the exact order: background/dim -> Track -> HUD.
+            if (backgroundImage != null)
+            {
+                if (!_backgroundImageBaseColorCached)
+                {
+                    _backgroundImageBaseColor = backgroundImage.color;
+                    _backgroundImageBaseColorCached = true;
+                }
+                if (show)
+                {
+                    if (!_backgroundDimApplied)
+                        _backgroundImageBaseColor = backgroundImage.color;
+                    float brightness = 1f - Mathf.Clamp01(videoOverlayOpacity);
+                    Color baseColor = _backgroundImageBaseColor;
+                    backgroundImage.color = new Color(baseColor.r * brightness,
+                        baseColor.g * brightness, baseColor.b * brightness, baseColor.a);
+                    _backgroundDimApplied = true;
+                }
+                else
+                {
+                    backgroundImage.color = _backgroundImageBaseColor;
+                    _backgroundDimApplied = false;
+                }
+                videoOverlay.color = Color.clear;
+                videoOverlay.raycastTarget = false;
+                videoOverlay.gameObject.SetActive(false);
+                return;
+            }
+
             if (show)
             {
                 var dimColor = overlayColor;
@@ -1617,6 +2291,8 @@ public class GameBackgroundManager : MonoBehaviour
                 rt.offsetMax = Vector2.zero;
             }
 
+            // Fallback surface is switched off in LoadBackground, which runs
+            // whether or not the video has finished decoding by now.
             return;
         }
 
@@ -1634,6 +2310,45 @@ public class GameBackgroundManager : MonoBehaviour
                 vpRect.sizeDelta = new Vector2(Screen.width, Screen.width / videoAspect);
             }
         }
+    }
+
+    /// <summary>
+    /// Switches off the VideoPlayer's own RawImage, the fallback display.
+    /// </summary>
+    /// <remarks>
+    /// Only safe because backgroundImage is showing the same video; the caller
+    /// checks that. Disabling the component rather than the GameObject leaves the
+    /// VideoPlayer itself running.
+    /// </remarks>
+    private void HideFallbackVideoSurface()
+    {
+        if (videoPlayer == null || backgroundImage == null) return;
+        try
+        {
+            // The component may sit on the VideoPlayer or on a child of it, so
+            // look for both rather than assuming. Says what it found either way:
+            // "no fallback exists" and "the fallback is still on" need different
+            // fixes and are indistinguishable from silence.
+            var fallback = videoPlayer.GetComponent<RawImage>()
+                ?? videoPlayer.GetComponentInChildren<RawImage>(true);
+            if (fallback == null)
+            {
+                Debug.LogWarning("[Background] No RawImage on the VideoPlayer to disable; " +
+                    $"the fallback video surface is somewhere else (player='{videoPlayer.name}').");
+                return;
+            }
+            if (fallback == backgroundImage || fallback == videoBackdrop || fallback == songImage)
+            {
+                Debug.LogWarning($"[Background] The VideoPlayer's RawImage is '{fallback.name}', " +
+                    "which is a display we rely on; leaving it alone.");
+                return;
+            }
+            if (!fallback.enabled) return;
+            fallback.enabled = false;
+            Debug.Log($"[Background] Disabled fallback video surface '{fallback.name}'; " +
+                "backgroundImage is the display and the fallback was never positioned.");
+        }
+        catch { }
     }
 
     private void ShowSingleBackground(Texture2D texture)
@@ -1657,6 +2372,7 @@ public class GameBackgroundManager : MonoBehaviour
             img.uvRect = new Rect(0f, 0f, 1f, 1f);
             img.gameObject.SetActive(true);
             img.color = Color.white;
+            if (img == songImage) ApplyCoverAspect(texture);
             // Bring to front temporarily for diagnostics
             img.transform.SetAsLastSibling();
             var rt = img.GetComponent<RectTransform>();
@@ -1729,6 +2445,9 @@ public class GameBackgroundManager : MonoBehaviour
             }
 
             img.raycastTarget = false;
+            // The frame carries the aspect now, and the artwork simply fills it,
+            // so a fitter here would only fight the frame.
+            ApplyCoverAspect(img.texture);
             return;
         }
 
@@ -1956,7 +2675,25 @@ public class GameBackgroundManager : MonoBehaviour
                 _runtimeSongImageParent.SetParent(targetParent, false);
             }
 
+            // The cover is the topmost element of the song-info composition.
+            // Marquee text stays foreground HUD, but visually passes behind the image.
+            if (_songImageFrontCanvas == null)
+            {
+                _songImageFrontCanvas = _runtimeSongImageParent.GetComponent<Canvas>();
+                if (_songImageFrontCanvas == null)
+                    _songImageFrontCanvas = _runtimeSongImageParent.gameObject.AddComponent<Canvas>();
+            }
+            _songImageFrontCanvas.overrideSorting = true;
+            _songImageFrontCanvas.sortingLayerID = rootCanvas != null ? rootCanvas.sortingLayerID : 0;
+            _songImageFrontCanvas.sortingOrder = 23992;
+
             songImage.transform.SetParent(_runtimeSongImageParent, false);
+            songImage.raycastTarget = false;
+            Outline coverOutline = songImage.GetComponent<Outline>();
+            if (coverOutline == null) coverOutline = songImage.gameObject.AddComponent<Outline>();
+            coverOutline.effectColor = new Color(0.80f, 0.62f, 0.28f, 0.92f);
+            coverOutline.effectDistance = new Vector2(3f, -3f);
+            coverOutline.useGraphicAlpha = true;
             BuildLogger.Log("GameBackgroundManager: Detached songImage to runtime container to avoid layout interference.");
         }
             catch (System.Exception ex)
@@ -1993,15 +2730,418 @@ public class GameBackgroundManager : MonoBehaviour
     {
         if (songTitleText != null)
         {
-            songTitleText.text = string.IsNullOrEmpty(title) ? "" : title;
-            songTitleText.gameObject.SetActive(!string.IsNullOrEmpty(songTitleText.text));
+            SetSongTitle(title);
         }
 
         if (songAuthorText != null)
         {
-            songAuthorText.text = string.IsNullOrEmpty(author) ? "" : author;
-            songAuthorText.gameObject.SetActive(!string.IsNullOrEmpty(songAuthorText.text));
+            SetSongAuthor(author);
         }
+    }
+
+    /// <summary>
+    /// Controls the detached foreground HUD as one unit. Selection and difficulty
+    /// screens live outside GameplayRoot, so leaving these canvases enabled would
+    /// cover the carousel after returning from the first song.
+    /// </summary>
+    public void SetGameplayHudPresentationVisible(bool visible)
+    {
+        _gameplayHudPresentationVisible = visible;
+        try { Judgment.JudgmentManager.Instance?.SetClassicalHudVisible(visible); } catch { }
+
+        if (_classicalSongInfoOverlay != null)
+            _classicalSongInfoOverlay.gameObject.SetActive(visible);
+
+        if (_runtimeSongImageParent != null)
+            _runtimeSongImageParent.gameObject.SetActive(visible);
+
+        if (_songTitleViewport != null)
+            _songTitleViewport.gameObject.SetActive(visible && !string.IsNullOrEmpty(_songTitleSource));
+
+        if (_songAuthorViewport != null)
+            _songAuthorViewport.gameObject.SetActive(visible && !string.IsNullOrEmpty(_songAuthorSource));
+
+        if (_difficultyViewport != null)
+        {
+            bool hasDifficulty = gameplayDifficultyText != null &&
+                                 !string.IsNullOrEmpty(gameplayDifficultyText.text);
+            _difficultyViewport.gameObject.SetActive(visible && hasDifficulty);
+        }
+    }
+
+    private void EnsureSongTitlePresentation()
+    {
+        if (songTitleText == null || _songTitleViewport != null) return;
+
+        _songTitleRect = songTitleText.rectTransform;
+        Transform originalParent = _songTitleRect.parent;
+        if (originalParent == null) return;
+
+        int originalIndex = _songTitleRect.GetSiblingIndex();
+        _songTitleOriginalSize = _songTitleRect.sizeDelta;
+        _songTitleOriginalAlignment = songTitleText.alignment;
+
+        var viewportObject = new GameObject("SongTitle_ForegroundMarquee",
+            typeof(RectTransform), typeof(Canvas), typeof(RectMask2D));
+        viewportObject.layer = songTitleText.gameObject.layer;
+        _songTitleViewport = viewportObject.GetComponent<RectTransform>();
+        _songTitleViewport.SetParent(originalParent, false);
+        _songTitleViewport.anchorMin = _songTitleRect.anchorMin;
+        _songTitleViewport.anchorMax = _songTitleRect.anchorMax;
+        _songTitleViewport.pivot = _songTitleRect.pivot;
+        _songTitleViewport.anchoredPosition = _songTitleRect.anchoredPosition;
+        _songTitleViewport.sizeDelta = _songTitleRect.sizeDelta;
+        _songTitleViewport.localRotation = _songTitleRect.localRotation;
+        _songTitleViewport.localScale = _songTitleRect.localScale;
+        _songTitleViewport.SetSiblingIndex(originalIndex);
+
+        _songTitleFrontCanvas = viewportObject.GetComponent<Canvas>();
+        Canvas rootCanvas = originalParent.GetComponentInParent<Canvas>();
+        _songTitleFrontCanvas.overrideSorting = true;
+        _songTitleFrontCanvas.sortingLayerID = rootCanvas != null ? rootCanvas.sortingLayerID : 0;
+        _songTitleFrontCanvas.sortingOrder = 23991;
+
+        var mask = viewportObject.GetComponent<RectMask2D>();
+        mask.padding = new Vector4(2f, 1f, 2f, 1f);
+        mask.softness = new Vector2Int(8, 0);
+
+        _songTitleRect.SetParent(_songTitleViewport, false);
+        _songTitleRect.localRotation = Quaternion.identity;
+        _songTitleRect.localScale = Vector3.one;
+        songTitleText.maskable = true;
+        songTitleText.raycastTarget = false;
+        songTitleText.textWrappingMode = TextWrappingModes.NoWrap;
+        songTitleText.overflowMode = TextOverflowModes.Masking;
+        if (songTitleText is TextMeshProUGUI titleUi)
+        {
+            ClassicalBookUITheme.StyleText(titleUi, new Color(0.18f, 0.105f, 0.06f, 1f), 23f, FontStyles.Bold);
+            titleUi.characterSpacing = 0f;
+            titleUi.wordSpacing = 0f;
+            titleUi.enableAutoSizing = true;
+            titleUi.fontSizeMin = 15f;
+            titleUi.fontSizeMax = 23f;
+            titleUi.outlineWidth = 0.12f;
+            titleUi.outlineColor = new Color(0.10f, 0.045f, 0.025f, 0.90f);
+        }
+        _songTitleViewport.SetAsLastSibling();
+    }
+
+    private void SetSongTitle(string title)
+    {
+        EnsureSongTitlePresentation();
+        _songTitleSource = string.IsNullOrEmpty(title) ? string.Empty : title;
+        bool hasTitle = !string.IsNullOrEmpty(_songTitleSource);
+        songTitleText.gameObject.SetActive(hasTitle);
+        if (_songTitleViewport != null)
+            _songTitleViewport.gameObject.SetActive(_gameplayHudPresentationVisible && hasTitle);
+        if (!hasTitle)
+        {
+            songTitleText.text = string.Empty;
+            _songTitleMarqueeActive = false;
+            return;
+        }
+
+        _songTitleMarqueeActive = DoesSongInfoTextOverflow(
+            songTitleText,
+            _songTitleViewport,
+            _songTitleRect,
+            _songTitleOriginalSize,
+            _songTitleOriginalAlignment,
+            _songTitleSource);
+        _songTitleMarqueeOffset = 0f;
+        _songTitleMarqueeElapsed = 0f;
+
+        if (!_songTitleMarqueeActive)
+        {
+            songTitleText.text = _songTitleSource;
+            songTitleText.alignment = _songTitleOriginalAlignment;
+            _songTitleViewport.sizeDelta = _songTitleOriginalSize;
+            _songTitleRect.anchorMin = Vector2.zero;
+            _songTitleRect.anchorMax = Vector2.one;
+            _songTitleRect.pivot = new Vector2(0.5f, 0.5f);
+            _songTitleRect.anchoredPosition = new Vector2(5f, 0f);
+            _songTitleRect.sizeDelta = new Vector2(-10f, 0f);
+            return;
+        }
+
+        const string marqueeGap = "      ";
+
+        songTitleText.text = _songTitleSource + marqueeGap + _songTitleSource;
+        songTitleText.alignment = TextAlignmentOptions.MidlineLeft;
+        songTitleText.ForceMeshUpdate();
+
+        // Keep the authored HUD cell exactly as-is. RectMask2D clips all marquee
+        // content to this original rectangle, regardless of title length.
+        _songTitleViewport.sizeDelta = _songTitleOriginalSize;
+
+        float fullWidth = songTitleText.GetPreferredValues(songTitleText.text).x;
+        _songTitleMarqueeLoopWidth = Mathf.Max(1f,
+            songTitleText.GetPreferredValues(_songTitleSource + marqueeGap).x);
+        _songTitleRect.anchorMin = new Vector2(0f, 0f);
+        _songTitleRect.anchorMax = new Vector2(0f, 1f);
+        _songTitleRect.pivot = new Vector2(0f, 0.5f);
+        _songTitleRect.anchoredPosition = new Vector2(5f, 0f);
+        _songTitleRect.sizeDelta = new Vector2(fullWidth + 8f, 0f);
+    }
+
+    private void UpdateSongTitleMarquee()
+    {
+        if (!_songTitleMarqueeActive || _songTitleRect == null || !songTitleText.gameObject.activeInHierarchy) return;
+
+        _songTitleMarqueeElapsed += Time.unscaledDeltaTime;
+        if (_songTitleMarqueeElapsed < songTitleMarqueeStartDelay) return;
+
+        _songTitleMarqueeOffset += songTitleMarqueeSpeed * Time.unscaledDeltaTime;
+        if (_songTitleMarqueeOffset >= _songTitleMarqueeLoopWidth)
+        {
+            _songTitleMarqueeOffset = 0f;
+            _songTitleMarqueeElapsed = 0f;
+        }
+
+        Vector2 position = _songTitleRect.anchoredPosition;
+        position.x = 5f - _songTitleMarqueeOffset;
+        _songTitleRect.anchoredPosition = position;
+    }
+
+    private void EnsureSongAuthorPresentation()
+    {
+        if (songAuthorText == null || _songAuthorViewport != null) return;
+
+        _songAuthorRect = songAuthorText.rectTransform;
+        Transform originalParent = _songAuthorRect.parent;
+        if (originalParent == null) return;
+
+        int originalIndex = _songAuthorRect.GetSiblingIndex();
+        _songAuthorOriginalSize = _songAuthorRect.sizeDelta;
+        _songAuthorOriginalAlignment = songAuthorText.alignment;
+
+        var viewportObject = new GameObject("SongAuthor_ForegroundMarquee",
+            typeof(RectTransform), typeof(Canvas), typeof(RectMask2D));
+        viewportObject.layer = songAuthorText.gameObject.layer;
+        _songAuthorViewport = viewportObject.GetComponent<RectTransform>();
+        _songAuthorViewport.SetParent(originalParent, false);
+        _songAuthorViewport.anchorMin = _songAuthorRect.anchorMin;
+        _songAuthorViewport.anchorMax = _songAuthorRect.anchorMax;
+        _songAuthorViewport.pivot = _songAuthorRect.pivot;
+        _songAuthorViewport.anchoredPosition = _songAuthorRect.anchoredPosition;
+        _songAuthorViewport.sizeDelta = _songAuthorRect.sizeDelta;
+        _songAuthorViewport.localRotation = _songAuthorRect.localRotation;
+        _songAuthorViewport.localScale = _songAuthorRect.localScale;
+        _songAuthorViewport.SetSiblingIndex(originalIndex);
+
+        _songAuthorFrontCanvas = viewportObject.GetComponent<Canvas>();
+        Canvas rootCanvas = originalParent.GetComponentInParent<Canvas>();
+        _songAuthorFrontCanvas.overrideSorting = true;
+        _songAuthorFrontCanvas.sortingLayerID = rootCanvas != null ? rootCanvas.sortingLayerID : 0;
+        _songAuthorFrontCanvas.sortingOrder = 23990;
+
+        var mask = viewportObject.GetComponent<RectMask2D>();
+        mask.padding = new Vector4(2f, 1f, 2f, 1f);
+        mask.softness = new Vector2Int(8, 0);
+
+        _songAuthorRect.SetParent(_songAuthorViewport, false);
+        _songAuthorRect.localRotation = Quaternion.identity;
+        _songAuthorRect.localScale = Vector3.one;
+        songAuthorText.maskable = true;
+        songAuthorText.raycastTarget = false;
+        songAuthorText.textWrappingMode = TextWrappingModes.NoWrap;
+        songAuthorText.overflowMode = TextOverflowModes.Masking;
+        if (songAuthorText is TextMeshProUGUI authorUi)
+        {
+            ClassicalBookUITheme.StyleText(authorUi, new Color(0.27f, 0.17f, 0.10f, 1f), 17f, FontStyles.Italic);
+            authorUi.characterSpacing = 0f;
+            authorUi.wordSpacing = 0f;
+            authorUi.enableAutoSizing = true;
+            authorUi.fontSizeMin = 13f;
+            authorUi.fontSizeMax = 17f;
+            authorUi.outlineWidth = 0.10f;
+            authorUi.outlineColor = new Color(0.10f, 0.045f, 0.025f, 0.86f);
+        }
+        _songAuthorViewport.SetAsLastSibling();
+    }
+
+    private void SetSongAuthor(string author)
+    {
+        EnsureSongAuthorPresentation();
+        _songAuthorSource = string.IsNullOrEmpty(author) ? string.Empty : author;
+        bool hasAuthor = !string.IsNullOrEmpty(_songAuthorSource);
+        songAuthorText.gameObject.SetActive(hasAuthor);
+        if (_songAuthorViewport != null)
+            _songAuthorViewport.gameObject.SetActive(_gameplayHudPresentationVisible && hasAuthor);
+        if (!hasAuthor)
+        {
+            songAuthorText.text = string.Empty;
+            _songAuthorMarqueeActive = false;
+            return;
+        }
+
+        _songAuthorMarqueeActive = DoesSongInfoTextOverflow(
+            songAuthorText,
+            _songAuthorViewport,
+            _songAuthorRect,
+            _songAuthorOriginalSize,
+            _songAuthorOriginalAlignment,
+            _songAuthorSource);
+        _songAuthorMarqueeOffset = 0f;
+        _songAuthorMarqueeElapsed = 0f;
+
+        if (!_songAuthorMarqueeActive)
+        {
+            songAuthorText.text = _songAuthorSource;
+            songAuthorText.alignment = _songAuthorOriginalAlignment;
+            _songAuthorViewport.sizeDelta = _songAuthorOriginalSize;
+            _songAuthorRect.anchorMin = Vector2.zero;
+            _songAuthorRect.anchorMax = Vector2.one;
+            _songAuthorRect.pivot = new Vector2(0.5f, 0.5f);
+            _songAuthorRect.anchoredPosition = new Vector2(5f, 0f);
+            _songAuthorRect.sizeDelta = new Vector2(-10f, 0f);
+            return;
+        }
+
+        const string marqueeGap = "      ";
+
+        songAuthorText.text = _songAuthorSource + marqueeGap + _songAuthorSource;
+        songAuthorText.alignment = TextAlignmentOptions.MidlineLeft;
+        songAuthorText.ForceMeshUpdate();
+
+        _songAuthorViewport.sizeDelta = _songAuthorOriginalSize;
+
+        float fullWidth = songAuthorText.GetPreferredValues(songAuthorText.text).x;
+        _songAuthorMarqueeLoopWidth = Mathf.Max(1f,
+            songAuthorText.GetPreferredValues(_songAuthorSource + marqueeGap).x);
+        _songAuthorRect.anchorMin = new Vector2(0f, 0f);
+        _songAuthorRect.anchorMax = new Vector2(0f, 1f);
+        _songAuthorRect.pivot = new Vector2(0f, 0.5f);
+        _songAuthorRect.anchoredPosition = new Vector2(5f, 0f);
+        _songAuthorRect.sizeDelta = new Vector2(fullWidth + 8f, 0f);
+    }
+
+    private void UpdateSongAuthorMarquee()
+    {
+        if (!_songAuthorMarqueeActive || _songAuthorRect == null || !songAuthorText.gameObject.activeInHierarchy) return;
+
+        _songAuthorMarqueeElapsed += Time.unscaledDeltaTime;
+        if (_songAuthorMarqueeElapsed < songTitleMarqueeStartDelay) return;
+
+        _songAuthorMarqueeOffset += songTitleMarqueeSpeed * Time.unscaledDeltaTime;
+        if (_songAuthorMarqueeOffset >= _songAuthorMarqueeLoopWidth)
+        {
+            _songAuthorMarqueeOffset = 0f;
+            _songAuthorMarqueeElapsed = 0f;
+        }
+
+        Vector2 position = _songAuthorRect.anchoredPosition;
+        position.x = 5f - _songAuthorMarqueeOffset;
+        _songAuthorRect.anchoredPosition = position;
+    }
+
+    private static bool DoesSongInfoTextOverflow(
+        TMP_Text text,
+        RectTransform viewport,
+        RectTransform textRect,
+        Vector2 viewportSize,
+        TextAlignmentOptions alignment,
+        string value)
+    {
+        if (text == null || viewport == null || textRect == null || string.IsNullOrEmpty(value))
+            return false;
+
+        // A previous song may have left this RectTransform expanded for its
+        // duplicated marquee text. Measure every new value in the real HUD cell.
+        viewport.sizeDelta = viewportSize;
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.pivot = new Vector2(0.5f, 0.5f);
+        textRect.anchoredPosition = Vector2.zero;
+        textRect.sizeDelta = Vector2.zero;
+        text.alignment = alignment;
+        text.text = value;
+        text.ForceMeshUpdate(true, true);
+
+        float availableWidth = viewport.rect.width;
+        if (availableWidth <= 1f)
+            availableWidth = viewportSize.x;
+
+        // textBounds reflects the font fallback, character widths and the final
+        // auto-sized font. The small inset matches RectMask2D's horizontal padding.
+        float renderedWidth = text.textBounds.size.x;
+        return text.isTextOverflowing || renderedWidth > Mathf.Max(1f, availableWidth - 14f);
+    }
+
+    private void EnsureDifficultyPresentation()
+    {
+        if (gameplayDifficultyText == null || _difficultyViewport != null) return;
+
+        _difficultyRect = gameplayDifficultyText.rectTransform;
+        Transform originalParent = _difficultyRect.parent;
+        if (originalParent == null) return;
+
+        // Anchor against the actual HUD root. A foreground Canvas nested under an
+        // arbitrary layout/viewport inherits that parent's coordinate space and
+        // can appear on the left at other aspect ratios.
+        Canvas parentCanvas = originalParent.GetComponentInParent<Canvas>();
+        Canvas rootCanvas = parentCanvas != null ? parentCanvas.rootCanvas : null;
+        Transform presentationParent = rootCanvas != null ? rootCanvas.transform : originalParent;
+
+        var viewportObject = new GameObject("Difficulty_Foreground",
+            typeof(RectTransform), typeof(Canvas));
+        viewportObject.layer = gameplayDifficultyText.gameObject.layer;
+        _difficultyViewport = viewportObject.GetComponent<RectTransform>();
+        _difficultyViewport.SetParent(presentationParent, false);
+
+        // Place difficulty directly under the cover and align their left edges.
+        // The cover may live in its own foreground container, but both containers
+        // stretch across the same root Canvas, so its anchored rect is reusable.
+        RectTransform coverRect = _songRectTransform != null
+            ? _songRectTransform
+            : (songImage != null ? songImage.rectTransform : null);
+        Vector2 coverAnchor = coverRect != null ? coverRect.anchorMin : new Vector2(0f, 1f);
+        Vector2 coverPosition = coverRect != null ? coverRect.anchoredPosition : new Vector2(75f, -200f);
+        Vector2 coverSize = coverRect != null ? coverRect.rect.size : new Vector2(150f, 150f);
+        Vector2 coverPivot = coverRect != null ? coverRect.pivot : new Vector2(0.5f, 0.5f);
+        float coverLeft = coverPosition.x - coverSize.x * coverPivot.x;
+        float coverBottom = coverPosition.y - coverSize.y * coverPivot.y;
+
+        _difficultyViewport.anchorMin = coverAnchor;
+        _difficultyViewport.anchorMax = coverAnchor;
+        _difficultyViewport.pivot = new Vector2(0f, 1f);
+        _difficultyViewport.anchoredPosition = new Vector2(coverLeft, coverBottom - 10f);
+        _difficultyViewport.sizeDelta = new Vector2(
+            Mathf.Max(320f, _difficultyRect.sizeDelta.x),
+            Mathf.Max(50f, _difficultyRect.sizeDelta.y));
+        _difficultyViewport.localRotation = Quaternion.identity;
+        _difficultyViewport.localScale = Vector3.one;
+
+        _difficultyFrontCanvas = viewportObject.GetComponent<Canvas>();
+        _difficultyFrontCanvas.overrideSorting = true;
+        _difficultyFrontCanvas.sortingLayerID = rootCanvas != null ? rootCanvas.sortingLayerID : 0;
+        _difficultyFrontCanvas.sortingOrder = 23989;
+
+        _difficultyRect.SetParent(_difficultyViewport, false);
+        _difficultyRect.anchorMin = Vector2.zero;
+        _difficultyRect.anchorMax = Vector2.one;
+        _difficultyRect.pivot = new Vector2(0.5f, 0.5f);
+        _difficultyRect.anchoredPosition = new Vector2(5f, 0f);
+        _difficultyRect.sizeDelta = new Vector2(-10f, 0f);
+        _difficultyRect.localRotation = Quaternion.identity;
+        _difficultyRect.localScale = Vector3.one;
+        gameplayDifficultyText.alignment = TextAlignmentOptions.MidlineLeft;
+        gameplayDifficultyText.textWrappingMode = TextWrappingModes.NoWrap;
+        gameplayDifficultyText.overflowMode = TextOverflowModes.Masking;
+        gameplayDifficultyText.maskable = true;
+        gameplayDifficultyText.raycastTarget = false;
+        if (gameplayDifficultyText is TextMeshProUGUI difficultyUi)
+        {
+            ClassicalBookUITheme.StyleText(difficultyUi, new Color(0.31f, 0.18f, 0.09f, 1f), 18f, FontStyles.Bold);
+            difficultyUi.characterSpacing = 0f;
+            difficultyUi.wordSpacing = 0f;
+            difficultyUi.enableAutoSizing = true;
+            difficultyUi.fontSizeMin = 13f;
+            difficultyUi.fontSizeMax = 18f;
+            difficultyUi.outlineWidth = 0.10f;
+            difficultyUi.outlineColor = new Color(0.10f, 0.045f, 0.025f, 0.84f);
+        }
+        _difficultyViewport.SetAsLastSibling();
     }
 
     // 嘗試從單一字串中解析出 cover 路徑、曲名與作者
@@ -2099,6 +3239,11 @@ public class GameBackgroundManager : MonoBehaviour
 
         bool hasVideo = !string.IsNullOrEmpty(videoPath);
         _videoRequestedForTrackDimmer = hasVideo;
+        // Always on, in builds too. Whether a video was even asked for is the
+        // first fork of every "the video is missing" investigation, and the rest
+        // of this path logs through BuildLogger.Log, which release builds strip.
+        Debug.Log($"[Background] LoadBackground hasVideo={hasVideo} " +
+            $"video='{videoPath}' cover='{coverPath}'");
 
         if (hasVideo)
         {
@@ -2331,6 +3476,7 @@ public class GameBackgroundManager : MonoBehaviour
     {
         // Interpret dimStrength as the desired overlay opacity to dim the video.
         videoOverlayOpacity = Mathf.Clamp01(dimStrength);
+        if (_videoRequestedForTrackDimmer) SetVideoOverlay(true);
         UpdateTrackDimmer(_videoRequestedForTrackDimmer, true, Mathf.Clamp01(dimStrength));
     }
 
@@ -2745,16 +3891,23 @@ public class GameBackgroundManager : MonoBehaviour
                 }
                 else
                 {
-                    Color fadeColor = SpriteOriginalColor;
-                    fadeColor.a = Mathf.Lerp(SpriteOriginalColor.a, 0f, intensity);
-                    SpriteRenderer.color = fadeColor;
+                    Color dimmedColor = SpriteOriginalColor;
+                    float brightness = Mathf.Lerp(1f, 0.22f, intensity);
+                    dimmedColor.r *= brightness;
+                    dimmedColor.g *= brightness;
+                    dimmedColor.b *= brightness;
+                    dimmedColor.a = SpriteOriginalColor.a;
+                    SpriteRenderer.color = dimmedColor;
                 }
                 return;
             }
 
             if (Renderer == null || !HasMaterialProperties) return;
 
-            UpdateMaterialTransparency(intensity);
+            // The track is a solid gameplay surface. Video dimming must lower
+            // its brightness rather than convert it to a transparent material.
+            // Otherwise the marble texture disappears as soon as video mode is active.
+            RestoreOriginalMaterial();
 
             PropertyBlock ??= new MaterialPropertyBlock();
 
@@ -2795,8 +3948,11 @@ public class GameBackgroundManager : MonoBehaviour
             foreach (var slot in _colorProperties)
             {
                 Color targetColor = slot.OriginalColor;
-                float newAlpha = Mathf.Lerp(slot.OriginalColor.a, 0f, intensity);
-                targetColor.a = newAlpha;
+                float brightness = Mathf.Lerp(1f, 0.22f, intensity);
+                targetColor.r *= brightness;
+                targetColor.g *= brightness;
+                targetColor.b *= brightness;
+                targetColor.a = slot.OriginalColor.a;
                 try
                 {
                     PropertyBlock.SetColor(slot.PropertyId, targetColor);

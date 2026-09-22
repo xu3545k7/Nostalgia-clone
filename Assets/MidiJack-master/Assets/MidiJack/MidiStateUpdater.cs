@@ -31,6 +31,18 @@ namespace MidiJack
 
         public static void CreateGameObject(Callback callback)
         {
+            // Reuse an updater that may already exist in the scene or survive
+            // an Enter Play Mode/domain-reload transition. Its delegate is not
+            // serialized, so invoking such an instance before rebinding it
+            // causes a NullReferenceException every frame.
+            var existing = Object.FindFirstObjectByType<MidiStateUpdater>();
+            if (existing != null)
+            {
+                existing._callback = callback;
+                existing.enabled = callback != null;
+                return;
+            }
+
             var go = new GameObject("MIDI Updater");
 
             GameObject.DontDestroyOnLoad(go);
@@ -44,7 +56,16 @@ namespace MidiJack
 
         void Update()
         {
-            _callback();
+            var callback = _callback;
+            if (callback == null)
+            {
+                // A manually placed/duplicated updater has no driver callback.
+                // Disable it quietly; MidiDriver will bind or create the valid
+                // updater when its singleton is first requested.
+                enabled = false;
+                return;
+            }
+            callback();
         }
     }
 }

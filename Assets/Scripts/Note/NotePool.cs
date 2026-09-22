@@ -8,11 +8,14 @@ public class NotePool
     private Transform container;
     private bool ownsContainer = false;
     private Stack<GameObject> pool = new Stack<GameObject>();
+    private readonly HashSet<GameObject> pooledObjects = new HashSet<GameObject>();
+    private int totalCapacity;
     // Runtime statistics for verification
     private int totalSpawnCalls = 0;
     private int totalDespawnCalls = 0;
     private int poolHits = 0; // returned from pool
     private int poolMisses = 0; // had to instantiate
+    private bool reportedRuntimeMiss;
     private int logInterval = 500; // log every N spawns to avoid spamming console
 
     public NotePool(GameObject prefab, Transform container, int initialSize = 64)
@@ -32,16 +35,20 @@ public class NotePool
         for (int i = 0; i < initialSize; i++)
         {
             var go = Object.Instantiate(prefab, this.container);
+            totalCapacity++;
             global::RuntimeDiagnostics.RegisterInstantiate();
             go.SetActive(false);
             var noteCtrl = go.GetComponent<NoteController>();
             if (noteCtrl != null)
             {
                 noteCtrl.SetOwningPool(this);
-                // Allow note controller to pre-create its HoldTail (to avoid allocations at spawn)
+                // The pool is bounded to the visible window now, so preparing
+                // one lightweight shared-mesh tail per slot is affordable and
+                // prevents Hold-heavy passages from allocating during play.
                 noteCtrl.PrecreateHoldTail();
             }
             pool.Push(go);
+            pooledObjects.Add(go);
         }
     //Debug.Log($"NotePool: created for prefab '{prefab.name}' with initialSize={initialSize}, poolCount={pool.Count}");
     }
@@ -57,11 +64,12 @@ public class NotePool
     public void EnsureCapacity(int targetCapacity)
     {
         if (targetCapacity <= 0) return;
-        int missing = targetCapacity - pool.Count;
+        int missing = targetCapacity - totalCapacity;
         if (missing <= 0) return;
         for (int i = 0; i < missing; i++)
         {
             var go = Object.Instantiate(prefab, this.container);
+            totalCapacity++;
             global::RuntimeDiagnostics.RegisterInstantiate();
             go.SetActive(false);
             var noteCtrl = go.GetComponent<NoteController>();
@@ -71,6 +79,7 @@ public class NotePool
                 noteCtrl.PrecreateHoldTail();
             }
             pool.Push(go);
+            pooledObjects.Add(go);
         }
     //Debug.Log($"NotePool: EnsureCapacity created {missing} instances; new poolSize={pool.Count}");
     }
@@ -89,6 +98,8 @@ public class NotePool
                 try { Object.Destroy(go); } catch { }
             }
         }
+        pooledObjects.Clear();
+        totalCapacity = 0;
 
         // Destroy container only if pool created it
         if (ownsContainer && container != null)
@@ -106,12 +117,13 @@ public class NotePool
     {
         if (targetCapacity <= 0) yield break;
         // instantiate in small batches to avoid frame hitching
-        while (pool.Count < targetCapacity)
+        while (totalCapacity < targetCapacity)
         {
-            int toCreate = Mathf.Min(batchSize, targetCapacity - pool.Count);
+            int toCreate = Mathf.Min(batchSize, targetCapacity - totalCapacity);
             for (int i = 0; i < toCreate; i++)
             {
                 var go = Object.Instantiate(prefab, this.container);
+                totalCapacity++;
                 global::RuntimeDiagnostics.RegisterInstantiate();
                 go.SetActive(false);
                 var noteCtrl = go.GetComponent<NoteController>();
@@ -121,6 +133,7 @@ public class NotePool
                     noteCtrl.PrecreateHoldTail();
                 }
                 pool.Push(go);
+                pooledObjects.Add(go);
             }
             // yield one frame between batches
             yield return null;
@@ -134,6 +147,7 @@ public class NotePool
         if (pool.Count > 0)
         {
             go = pool.Pop();
+            pooledObjects.Remove(go);
             var noteCtrl = go.GetComponent<NoteController>();
             // Defensive: ensure pooled object is cleaned/reset before reuse
             if (noteCtrl != null)
@@ -157,13 +171,21 @@ public class NotePool
         {
             // Instantiate directly under the desired parent to avoid a visible frame at the pool container
             go = Object.Instantiate(prefab, parent != null ? parent : this.container);
+            totalCapacity++;
             global::RuntimeDiagnostics.RegisterInstantiate();
             var noteCtrl = go.GetComponent<NoteController>();
             if (noteCtrl != null)
             {
                 noteCtrl.SetOwningPool(this);
+                noteCtrl.PrecreateHoldTail();
             }
             poolMisses++;
+            if (!reportedRuntimeMiss)
+            {
+                reportedRuntimeMiss = true;
+                Debug.LogWarning($"[Note Pool] Runtime miss at spawn {totalSpawnCalls}; capacity={totalCapacity}. " +
+                    "The visible-window estimate is too small and caused a live Instantiate.");
+            }
         }
         
 
@@ -178,6 +200,9 @@ public class NotePool
     public void Despawn(GameObject go)
     {
         if (go == null) return;
+        // A pooled instance must occur only once in the free stack. Duplicate
+        // entries cause simultaneous notes to reuse and overwrite the same object.
+        if (!pooledObjects.Add(go)) return;
         totalDespawnCalls++;
         // For debugging: detect if this note has a HoldTail child before cleanup
         #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -244,4 +269,6 @@ public class NotePool
     {
         return (totalSpawnCalls, totalDespawnCalls, poolHits, poolMisses, pool.Count);
     }
+
+    public int TotalCapacity => totalCapacity;
 }

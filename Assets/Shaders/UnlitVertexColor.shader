@@ -3,6 +3,7 @@ Shader "Custom/UnlitVertexColor"
     Properties
     {
         _Color ("Tint", Color) = (1,1,1,1)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("Depth Test", Float) = 4
     }
     SubShader
     {
@@ -11,6 +12,7 @@ Shader "Custom/UnlitVertexColor"
         Blend SrcAlpha OneMinusSrcAlpha
         Cull Off
         ZWrite Off
+        ZTest [_ZTest]
         Lighting Off
         Pass
         {

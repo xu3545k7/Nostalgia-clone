@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 #pragma warning disable CS0414
 using UnityEngine.Rendering;
@@ -18,12 +19,39 @@ public class NoteController : MonoBehaviour
     public Texture2D softTexture;
     public Texture2D rightHandTexture; // 可選：直接指定貼圖檔 (拖 PNG 也行)
     public Texture2D leftHandTexture;  // 可選：直接指定貼圖檔 (拖 PNG 也行)
+    [Header("Glass Theme")]
+    [SerializeField] private Shader glassThemeShaderOverride;
+    [SerializeField] private Color rightThemeColor = new Color(1f, 0.1764706f, 0.1764706f, 1f); // #FF2D2D
+    [SerializeField] private Color leftThemeColor = new Color(0.2745098f, 0.6392157f, 1f, 1f);   // #46A3FF
+    [SerializeField, ColorUsage(true, true)] private Color softThemeColor = new Color(1f, 0.72f, 0.22f, 1f);
+    [Header("Gesture Note Theme")]
+    [SerializeField, ColorUsage(true, true)] private Color slideThemeColor = new Color(0.40f, 0.94f, 1f, 1f);
+    [SerializeField, ColorUsage(true, true)] private Color trillThemeColor = new Color(1f, 0.1764706f, 0.1764706f, 1f);
+    [SerializeField, Range(0f, 4f)] private float noteEmission = 1.45f;
+    [SerializeField, Range(0f, 4f)] private float noteRimGlow = 1.3f;
+    [SerializeField, Range(0f, 1f)] private float noteShimmerStrength = 0.2f;
+    [Header("Tap White Glass Inset")]
+    [SerializeField, ColorUsage(true, true)] private Color tapGlassColor = new Color(1f, 1f, 1f, 1f);
+    [SerializeField, Range(0f, 1f)] private float tapGlassOpacity = 0.42f;
+    [SerializeField, Range(0f, 4f)] private float tapGlassRimGlow = 1.45f;
+    [SerializeField, Range(0.1f, 0.48f)] private float tapGlassInsetX = 0.40f;
+    [SerializeField, Range(0.05f, 0.45f)] private float tapGlassInsetY = 0.27f;
+    [SerializeField, Range(0.005f, 0.12f)] private float tapGlassBorder = 0.035f;
+    [SerializeField, Range(0f, 0.15f)] private float tapGlassChamfer = 0.055f;
+    [Header("Note Fan Particles")]
+    [SerializeField] private bool enableNoteFanParticles = true;
+    [SerializeField] private Texture2D noteFanParticleTexture;
+    [SerializeField, Range(1, 128)] private int noteFanBurstCount = 48;
+    [SerializeField, Range(1f, 60f)] private float noteFanEmissionRate = 18f;
+    [SerializeField, Range(0.1f, 15f)] private float noteFanSpeed = 3.2f;
+    [SerializeField, Range(5f, 80f)] private float noteFanHalfAngle = 34f;
+    [SerializeField, Range(0.05f, 1.5f)] private float noteFanLifetime = 0.62f;
+    [SerializeField, Range(0.02f, 1.5f)] private float noteFanParticleSize = 0.16f;
     [Header("Staccato Indicator")]
     [SerializeField] private Sprite rightStaccatoIndicatorSprite;
     [SerializeField] private Sprite leftStaccatoIndicatorSprite;
     [SerializeField] private Vector3 staccatoIndicatorOffset = new Vector3(0f, 0.6f, 0f);
     [SerializeField] private float staccatoIndicatorScale = 1f;
-    [SerializeField] private float staccatoIndicatorHeight = 1f;
     [SerializeField] private bool staccatoIndicatorUpright = true;
     [SerializeField] private bool staccatoIndicatorOffsetRelativeToWidth = true;
 
@@ -45,6 +73,18 @@ public class NoteController : MonoBehaviour
     private Vector3 parentLossyScale = Vector3.one;
     private Renderer noteRenderer;
     private SpriteRenderer runtimeSpriteRenderer;
+    private MaterialPropertyBlock notePropertyBlock;
+    private static readonly int TapGlassEnabledId = Shader.PropertyToID("_TapGlassEnabled");
+    private static readonly int TapGlassColorId = Shader.PropertyToID("_TapGlassColor");
+    private static readonly int TapGlassOpacityId = Shader.PropertyToID("_TapGlassOpacity");
+    private static readonly int TapGlassRimGlowId = Shader.PropertyToID("_TapGlassRimGlow");
+    private static readonly int TapGlassInsetXId = Shader.PropertyToID("_TapGlassInsetX");
+    private static readonly int TapGlassInsetYId = Shader.PropertyToID("_TapGlassInsetY");
+    private static readonly int TapGlassBorderId = Shader.PropertyToID("_TapGlassBorder");
+    private static readonly int TapGlassChamferId = Shader.PropertyToID("_TapGlassChamfer");
+    private static readonly int ThemeColorId = Shader.PropertyToID("_ThemeColor");
+    private static readonly int EmissionId = Shader.PropertyToID("_Emission");
+    private static readonly int RimGlowId = Shader.PropertyToID("_RimGlow");
     private bool isInitialized = false;
     [Header("Hold Tail Visual")]
     [SerializeField] private Texture2D rightHoldTailTexture;
@@ -56,25 +96,200 @@ public class NoteController : MonoBehaviour
     private GameObject holdTailObject;
     private MeshRenderer holdTailRenderer;
     private MeshFilter holdTailMeshFilter;
+    private Mesh gestureTailMesh;
+    private GameObject gestureEndCapObject;
+
+    /// <summary>
+    /// 一般長條的身體有多寬，佔 TAP 的比例。
+    /// </summary>
+    /// <remarks>
+    /// 0.9：比 TAP 窄一點，頭尾兩顆 TAP 才看得出是「蓋在長條上的兩個端點」，而
+    /// 不是和身體黏成同一塊。滑奏另外用 <see cref="holdTailWidthFactor"/>，它的兩
+    /// 端要和前後音符接得上，寬度規則不一樣。
+    /// </remarks>
+    private const float HoldGlassWidthShare = 0.9f;
+    private SpriteRenderer gestureEndCapRenderer;
+    private float gestureVisualStrength = 1f;
+    private float slideFarCenterOffsetWorld;
+    private float slideNearWidthWorld;
+    private float slideFarWidthWorld;
+    private float slideConnectorLengthWorld;
+    private float lastSlideConnectorRatio = -1f;
+    private readonly Vector3[] slideConnectorVertices = new Vector3[4];
+    private static readonly Vector2[] SlideConnectorUvs =
+    {
+        new Vector2(0f, 0f), new Vector2(1f, 0f),
+        new Vector2(0f, 1f), new Vector2(1f, 1f)
+    };
+    /// <summary>
+    /// 連結段自己的頂點色。**四個頂點一律相同。**
+    /// </summary>
+    /// <remarks>
+    /// 這裡本來是 0.92 → 0.58 的近亮遠暗漸層，照的是長條的邏輯：長條往譜面深處
+    /// 拉，遠端淡掉讀成「它還很長」。
+    ///
+    /// 滑動不是那樣。它是一串**斜著往下走的音符**，每一段連結的近端貼著前一顆
+    /// 音符、遠端貼著後一顆 —— 漸層一放上去，近端就比它蓋住的那顆音符淺（看起來
+    /// 是蓋在上面的一片東西），遠端就比它要接上的那顆深（看起來根本沒接上）。
+    /// **同一條漸層在兩端各製造了一個不同的錯誤。**
+    ///
+    /// 沿著連結不做任何明暗變化，兩端才會各自消失在它連的那顆音符裡。
+    /// </remarks>
+    private static readonly Color[] SlideConnectorColors =
+    {
+        new Color(1f, 1f, 1f, 0.92f), new Color(1f, 1f, 1f, 0.92f),
+        new Color(1f, 1f, 1f, 0.92f), new Color(1f, 1f, 1f, 0.92f)
+    };
+    private static readonly int[] SlideConnectorTriangles = { 0, 2, 1, 2, 3, 1 };
+
+    /// <summary>
+    /// 連結相對於音符的繪製順序。**一定要是負的。**
+    /// </summary>
+    /// <remarks>
+    /// 這裡本來和音符**同一個 sortingOrder**，於是誰蓋誰是未定義的 —— 實際跑起來
+    /// 連結蓋在音符上，一串滑動就變成「紅帶子上面擺著幾塊被吃掉一半的音符」。
+    ///
+    /// 順序定下來之後，連結兩端**該不該伸進音符裡**這個問題也一起消失了：伸進去
+    /// 就好，反正被蓋住。這樣接縫不可能露出來 —— 對齊一條看不見的邊，本來就是
+    /// 做不到的事。
+    /// </remarks>
+    private const int GestureTailOrderOffset = -1;
+    private float streamingMeshLengthWorld;
+    private float trillArrowRepeatWorldLength;
+    private float streamingVisibleLengthWorld;
     private float currentTailWidthWorld = 0f;
     private static Mesh sharedHoldTailQuad;
     private MaterialPropertyBlock holdTailPropertyBlock;
     private static readonly int HoldTailColorId = Shader.PropertyToID("_Color");
+    private static readonly int HoldTailNearColorId = Shader.PropertyToID("_NearColor");
+    private static readonly int HoldTailFarColorId = Shader.PropertyToID("_FarColor");
     private static readonly int HoldTailMainTexId = Shader.PropertyToID("_MainTex");
+    private static readonly int HoldTailFlowStrengthId = Shader.PropertyToID("_FlowStrength");
+    private static readonly int HoldTailFlowColorId = Shader.PropertyToID("_FlowColor");
+    private static readonly int HoldTailPreserveGoldId = Shader.PropertyToID("_PreserveGold");
+    private static readonly int HoldTailEmissionId = Shader.PropertyToID("_Emission");
+    private static readonly int HoldTailEdgeGlowId = Shader.PropertyToID("_EdgeGlow");
+    private static readonly int HoldTailFadeStrengthId = Shader.PropertyToID("_TailFadeStrength");
+    private static readonly int HoldTailWorldClipEnabledId = Shader.PropertyToID("_WorldClipEnabled");
+    private static readonly int HoldTailWorldClipMinZId = Shader.PropertyToID("_WorldClipMinZ");
+    private static readonly int HoldTailWorldClipMaxZId = Shader.PropertyToID("_WorldClipMaxZ");
+    private static readonly int HoldGlassRodId = Shader.PropertyToID("_GlassRod");
+    private static readonly int HoldStartZId = Shader.PropertyToID("_HoldStartZ");
+    private static readonly int HoldEndZId = Shader.PropertyToID("_HoldEndZ");
+    private static readonly int HoldBeatSpacingZId = Shader.PropertyToID("_BeatSpacingZ");
+    private static readonly int HoldJudgeZId = Shader.PropertyToID("_JudgeZ");
+    private static readonly int HoldTailMainTexStId = Shader.PropertyToID("_MainTex_ST");
+    private static readonly int HoldTailFlatFillId = Shader.PropertyToID("_FlatFill");
+    private static readonly int HoldTailSmoothBodyId = Shader.PropertyToID("_SmoothBody");
+    private static readonly int HoldTailCoreWidthId = Shader.PropertyToID("_CoreWidth");
+    private static readonly int HoldTailCoreGlowId = Shader.PropertyToID("_CoreGlow");
+    private static readonly int HoldTailCoreJudgedBoostId = Shader.PropertyToID("_CoreJudgedBoost");
+    private float lastHoldTailFlowStrength = -1f;
+    private float lastAppliedGestureVisualStrength = -1f;
     // Cached soft-note flag to avoid repeated reflection checks
     private bool isSoftCached = false;
     // Cached staccato-note flag to avoid repeated reflection checks
     private bool isStaccatoCached = false;
+    private bool isSlideCached = false;
+    private bool isTrillCached = false;
+    private MeshRenderer velocityHaloRenderer;
+    private Mesh velocityHaloMesh;
     private GameObject staccatoIndicatorInstance;
     private StaccatoIndicatorBillboard staccatoIndicatorController;
     private SpriteRenderer staccatoIndicatorRenderer;
+    private static Transform staccatoIndicatorRoot;
+    // Staccato heads use the ordinary glass frame with a gem set in the centre
+    // (tools/make_staccato_gem.py). The gem lies flat on the note like the frame
+    // does — it is a flat inlay, so there is nothing to gain from billboarding it.
+    // Ratios are for the whole texture, glow included; the solid gold rim is
+    // about 75% of it. Notes are wide bars (a 3-lane head is ~10u wide, 2u tall).
+    // The gem follows the note's width, clamped between Min and Max times its
+    // height. Tuned by eye in play: 0.55 too big, 0.127 a dot, 0.2 then +50%.
+    // Constants, not [SerializeField]: the Editor keeps a loaded prefab's
+    // serialized values across script reloads, so changing an initializer there
+    // silently did nothing until Unity was restarted.
+    private const float staccatoGemWidthRatio = 0.3f;
+    private const float staccatoGemMinHeightRatio = 1.05f;
+    private const float staccatoGemMaxHeightRatio = 1.8f;
+    private SpriteRenderer staccatoGemRenderer;
+    private static Material staccatoGemMaterial;
+    private static bool staccatoGemMaterialResolved;
+    private static Sprite staccatoGemRightSprite;
+    private static Sprite staccatoGemLeftSprite;
+    private static Sprite staccatoMarkRightSprite;
+    private static Sprite staccatoMarkLeftSprite;
     // Public accessor for cached soft flag so other managers can read without reflection
     public bool IsSoft => isSoftCached;
     // Public accessor for cached staccato flag
     public bool IsStaccato => isStaccatoCached;
+    public bool IsSlide => isSlideCached;
+    public bool IsTrill => isTrillCached;
+    public void PlayJudgmentLineFanParticles(bool sustainedHold, int inputLane = -1)
+    {
+        using var _probe = HitchProbe.Measure("fanParticles");
+        if (noteFanParticleEmitter == null) return;
+        if (inputLane >= 0)
+        {
+            try
+            {
+                var meshManager = NoteJudgementMeshManager.EnsureCreated();
+                if (meshManager != null &&
+                    meshManager.TryGetHitOrigin(this, out var origin, out _, out var laneWidth, inputLane))
+                {
+                    noteFanParticleEmitter.SetJudgmentOrigin(origin, laneWidth);
+                }
+            }
+            catch { }
+        }
+        if (sustainedHold) noteFanParticleEmitter.BeginHoldEmission();
+        else
+        {
+            // Current and compatibility judgment routes may report the same
+            // hit in one frame. Preserve the fallback without double bursts.
+            if (lastNoteFanBurstFrame == Time.frameCount) return;
+            lastNoteFanBurstFrame = Time.frameCount;
+            bool needsContinuousEmitter = noteData != null &&
+                noteData.type == "hold" && !isStaccatoCached;
+            noteFanParticleEmitter.EmitJudgmentBurst(!needsContinuousEmitter);
+        }
+    }
+
+    public void StopJudgmentLineFanParticles()
+    {
+        noteFanParticleEmitter?.EndHoldEmission();
+    }
     private float cachedWorldWidth = 1f;
+    [Header("Fixed Note Visual Height")]
+    [SerializeField, Min(0.05f)] private float fixedNoteWorldHeight = 2f;
+
+    private float ResolveNoteWorldHeight()
+    {
+        SettingsManager settings = SettingsManager.Instance;
+        return settings != null
+            ? settings.NoteVisualHeight
+            : Mathf.Max(0.05f, fixedNoteWorldHeight);
+    }
+
+    /// <summary>
+    /// Local-Z distance from a flat note sprite's centre to its near (player-facing)
+    /// edge. Every flat sprite that marks a chart timestamp is pushed this far AWAY
+    /// from the judgment line, so at its timed moment the visible leading edge — not
+    /// the sprite centre — meets the line. Centring instead makes the note read as
+    /// arriving early by (noteHeight / 2) / scrollSpeed. Note that this is SMALL at
+    /// real play speeds: 2u at the shipped default of 190u/s is about 5ms, not the
+    /// 33ms that the 30u/s code fallback would suggest. Correct, but never expect it
+    /// to account for a large judgment bias on its own.
+    /// Staccato heads lie flat like every other head now, so they use it too.
+    /// </summary>
+    private float NoteNearEdgeLocalOffsetZ()
+    {
+        float scaleZ = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
+        return ResolveNoteWorldHeight() * 0.5f / scaleZ;
+    }
     [SerializeField]
     private float releaseZThreshold = 0.00f; // world units: how close to judgmentZ before actually releasing
+    [SerializeField, Range(0.05f, 1f), Tooltip("Visual speed after an unjudged note crosses the judgment line. Timing and miss calculation remain on the original song clock.")]
+    private float postJudgmentVisualSpeed = 0.28f;
     [SerializeField]
     private float holdTailYOffset = 0.0f; // small Y offset to avoid Z-fighting with the track
     [SerializeField]
@@ -85,6 +300,9 @@ public class NoteController : MonoBehaviour
     private float tailEndOffsetMs = 40f; // tail will end at (endTime - tailEndOffsetMs) milliseconds
     [SerializeField]
     private float minimumHoldTailVisualLength = 0.02f; // ensure very short holds still show a visible tail pre-judgment
+    [Header("Streaming Long Note Visual")]
+    [SerializeField, Min(2f)] private float streamingTailMaximumVisibleLength = 55f;
+    [SerializeField, Min(0.25f)] private float streamingTailRepeatWorldLength = 5f;
     private float currentTailLength = 0f;
     private float initialTailLength = 0f;
     // Cache last applied tail length to avoid redundant hold-tail mesh updates
@@ -93,20 +311,40 @@ public class NoteController : MonoBehaviour
     private float tailLengthUpdateThreshold = 0.001f; // world units: minimum change to update endpoint
     private float holdDurationMs = 0f;
     private float holdTailAdjustedEndMs = 0f;
+    // Once a Hold/Trill head is judged, its visual consumption point freezes
+    // at that exact timing position. Judgment scheduling still uses the chart's
+    // immutable start/end times and never derives from this visual state.
+    private bool streamingJudgmentAnchorActive;
+    private float streamingJudgmentAnchorZ;
+    private float streamingAnchorClipMinZ;
+    private float streamingAnchorWindowTopZ;
+    private float streamingAnchorTailEndZ;
+    private float streamingAnchorConsumeStartMs;
+    private float streamingAnchorLastSongPosMs;
+    private float streamingAnchorTravelWorld;
+    private float streamingAnchorVisualEndMs;
+    private float streamingAnchorRequiredTailTravelWorld;
+    private float streamingAnchorTailTravelWorld;
     private bool isJudged = false; // flag set when judged by JudgmentManager
     // Soft notes: judged immediately, but disappear only when reaching judgment line.
     private bool softJudgedPendingRelease = false;
     private bool headPressed = false; // set when player successfully pressed the head of a hold
     private bool headMissed = false;  // set when head wasn't pressed within allowed window -> make the hold unjudgeable
+    private bool judgmentSuppressed = false; // overlapping-later-note protection: keep visual flow, but never judge this note
     
     // Hit sound tracking
     private bool hasTriggeredHitSound = false;
     private static AudioClip cachedHitSound;
     private static Material cachedRightHoldTailMaterial;
     private static Material cachedLeftHoldTailMaterial;
+    private static Material cachedRightGlassThemeMaterial;
+    private static Material cachedLeftGlassThemeMaterial;
+    private static Material cachedSoftGlowMaterial;
+    private static Material cachedDefaultSpriteMaterial;
+    private NoteFanParticleEmitter noteFanParticleEmitter;
+    private int lastNoteFanBurstFrame = -1;
     private static readonly System.Collections.Generic.Dictionary<Texture2D, Sprite> spriteCache = new System.Collections.Generic.Dictionary<Texture2D, Sprite>();
     private NotePool owningPool;
-    private static Camera cachedMainCamera = null;
 
     public Transform TrackTransform => noteSpawner != null ? noteSpawner.trackTransform : null;
 
@@ -211,6 +449,135 @@ public class NoteController : MonoBehaviour
         return false;
     }
 
+    /// <summary>How thick the shell is, as a share of the note's own height.</summary>
+    /// <remarks>
+    /// Tied to the note rather than to the lane so the shell keeps the same
+    /// proportion whatever the note's size: a band measured in lane widths is a
+    /// thin rim on a three-lane note and a slab around a one-lane one.
+    /// </remarks>
+    /// <summary>斷音紋章相對基準寬度再加寬多少。高度不跟著加，所以它會稍微變扁。</summary>
+    private const float StaccatoMarkWiden = 1.5f;
+
+    private const float StrongBandShare = 0.55f;
+    private const float WeakBandShare = 0.30f;
+
+    /// <summary>
+    /// Wraps the note in a shell showing how hard it is meant to be played.
+    /// </summary>
+    /// <remarks>
+    /// Only in recital mode, and never on trills or slides -- those are already
+    /// several notes' worth of marks in one lane, and a shell on each would read
+    /// as one large smear rather than as a dynamic.
+    /// </remarks>
+    private void UpdateVelocityHalo()
+    {
+        bool wanted = false;
+        try
+        {
+            wanted = SettingsManager.Instance != null && SettingsManager.Instance.RecitalModeInPlay
+                     && !isTrillCached && !isSlideCached && noteData != null;
+        }
+        catch { wanted = false; }
+
+        // 強弱的界線是這首曲子自己的（VelocityBands），不是固定值。沒有可用
+        // 力度的譜面 Measured 會是 false，整張就一顆殼都不畫。
+        int velocity = wanted ? noteData.velocity : 0;
+        bool strong = VelocityBands.IsStrong(velocity);
+        bool weak = VelocityBands.IsWeak(velocity);
+        if (!wanted || (!strong && !weak))
+        {
+            if (velocityHaloRenderer != null) velocityHaloRenderer.enabled = false;
+            return;
+        }
+
+        Renderer plate = runtimeSpriteRenderer != null && runtimeSpriteRenderer.enabled
+            ? (Renderer)runtimeSpriteRenderer
+            : noteRenderer;
+        if (plate == null) return;
+
+        Vector3 localSize;
+        Vector3 localCentre;
+        if (runtimeSpriteRenderer != null && runtimeSpriteRenderer.sprite != null
+            && ReferenceEquals(plate, runtimeSpriteRenderer))
+        {
+            localSize = runtimeSpriteRenderer.sprite.bounds.size;
+            localCentre = runtimeSpriteRenderer.sprite.bounds.center;
+        }
+        else
+        {
+            var filter = plate.GetComponent<MeshFilter>();
+            Mesh mesh = filter != null ? filter.sharedMesh : null;
+            if (mesh == null) return;
+            localSize = mesh.bounds.size;
+            localCentre = mesh.bounds.center;
+        }
+
+        // 殼直接掛在音符的圖底下，尺寸也用圖自己的 local 尺寸 —— 完全不碰縮放。
+        //
+        // 先前是用世界單位算尺寸，再把 localScale 設成 1/parentLossy 去抵銷父物件
+        // 的縮放。父物件同時帶著旋轉**和**非等比縮放的時候，那個補償會在旋轉之後
+        // 才作用，形狀就被剪成梯形 —— 螢幕上看到的就是那個。掛在圖底下之後殼和
+        // 音符共用同一個變換，兩者不可能對不齊。
+        Transform plateTransform = plate.transform;
+        float localWidth = Mathf.Abs(localSize.x);
+        float localHeight = Mathf.Abs(localSize.y);
+        if (localWidth <= 0.0001f || localHeight <= 0.0001f) return;
+        float band = localHeight * (strong ? StrongBandShare : WeakBandShare);
+
+        if (velocityHaloRenderer == null)
+        {
+            var halo = new GameObject("VelocityHalo", typeof(MeshFilter), typeof(MeshRenderer));
+            halo.layer = gameObject.layer;
+            velocityHaloMesh = new Mesh { name = "VelocityHalo", hideFlags = HideFlags.HideAndDontSave };
+            velocityHaloMesh.MarkDynamic();
+            halo.GetComponent<MeshFilter>().sharedMesh = velocityHaloMesh;
+            velocityHaloRenderer = halo.GetComponent<MeshRenderer>();
+            velocityHaloRenderer.sharedMaterial = VelocityHalo.Material;
+            velocityHaloRenderer.shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
+            velocityHaloRenderer.receiveShadows = false;
+        }
+
+        VelocityHalo.Build(velocityHaloMesh, localWidth, localHeight, band,
+            strong ? VelocityHalo.Strong : VelocityHalo.Weak);
+
+        velocityHaloRenderer.enabled = true;
+        velocityHaloRenderer.sortingLayerID = plate.sortingLayerID;
+        // 音符後面，不是前面：殼是襯在後面的光，蓋在音符上就變成一層霧。
+        velocityHaloRenderer.sortingOrder = plate.sortingOrder - 1;
+
+        Transform haloTransform = velocityHaloRenderer.transform;
+        if (haloTransform.parent != plateTransform)
+            haloTransform.SetParent(plateTransform, false);
+        haloTransform.localPosition = localCentre;
+        haloTransform.localRotation = Quaternion.identity;
+        haloTransform.localScale = Vector3.one;
+
+        if (!VelocityBands.ShellReported)
+        {
+            VelocityBands.ShellReported = true;
+            Debug.Log($"[VelocityHalo] first shell strong={strong} v={velocity} " +
+                $"local={localWidth:F3}x{localHeight:F3} band={band:F3} " +
+                $"order={velocityHaloRenderer.sortingOrder} " +
+                $"material={(velocityHaloRenderer.sharedMaterial != null ? "ok" : "MISSING")}");
+        }
+    }
+
+    private static bool IsGestureType(NoteData data, string typeName, int numericType)
+    {
+        if (data == null) return false;
+        return string.Equals(data.type, typeName, StringComparison.OrdinalIgnoreCase) ||
+               data.note_type == numericType;
+    }
+
+    private Color ResolveGestureColor()
+    {
+        if (isSlideCached) return noteData != null && noteData.hand == 0 ? rightThemeColor : leftThemeColor;
+        if (isTrillCached) return noteData != null && noteData.hand == 0 ? rightThemeColor : leftThemeColor;
+        if (isSoftCached) return softThemeColor;
+        return noteData != null && noteData.hand == 0 ? rightThemeColor : leftThemeColor;
+    }
+
     public void SetOwningPool(NotePool pool)
     {
         this.owningPool = pool;
@@ -218,19 +585,114 @@ public class NoteController : MonoBehaviour
 
     // Expose note data and active flag for JudgmentManager
     public NoteData NoteData => noteData;
-    public bool IsActive => isInitialized && gameObject.activeInHierarchy && !isJudged;
+    public bool IsActive => isInitialized && activeInHierarchyCached && !isJudged;
+
+    // gameObject.activeInHierarchy 是原生呼叫，而判定每一下按鍵都會對附近每顆音符問好幾次
+    // IsActive。OnEnable／OnDisable 正好在物件於階層中啟用／停用時被叫到（父物件關掉也會），
+    // 這個元件本身從不單獨停用，所以兩者等價。
+    private bool activeInHierarchyCached;
+    private void OnEnable()
+    {
+        activeInHierarchyCached = true;
+        if (liveIndex < 0)
+        {
+            liveIndex = live.Count;
+            live.Add(this);
+        }
+    }
+    private void OnDisable()
+    {
+        activeInHierarchyCached = false;
+        visibleTailClipValid = false;
+        if (liveIndex >= 0)
+        {
+            // 換到最後一格再刪，O(1)。
+            int last = live.Count - 1;
+            NoteController moved = live[last];
+            live[liveIndex] = moved;
+            moved.liveIndex = liveIndex;
+            live.RemoveAt(last);
+            liveIndex = -1;
+        }
+    }
+
+    // ── 畫面上實際看得到的範圍 ───────────────────────────────────────────────
+    //
+    // 給要「讓開音符」的特效用（踏板的框）。從譜面時間去推算音符在哪裡是不準的：
+    // 長押頭判中後會凍在線上、身體用裁切窗一段一段吃掉、還有平滑偏移和可見跑道上
+    // 限。直接問畫出來的東西，才和玩家眼睛看到的一致。
+
+    private static readonly System.Collections.Generic.List<NoteController> live =
+        new System.Collections.Generic.List<NoteController>(256);
+    private int liveIndex = -1;
+
+    /// <summary>目前在場上（物件啟用中）的音符。</summary>
+    public static System.Collections.Generic.IReadOnlyList<NoteController> Live => live;
+
+    private bool visibleTailClipValid;
+    private float visibleTailClipMinZ;
+    private float visibleTailClipMaxZ;
+
+    /// <summary>音符頭（含力度光暈，如果有畫）現在畫在世界座標的哪裡。</summary>
+    /// <param name="withHalo">true 的話把力度光暈也算進去。</param>
+    public bool TryGetVisibleHead(bool withHalo, out Bounds bounds)
+    {
+        bounds = default;
+        Renderer head = runtimeSpriteRenderer != null && runtimeSpriteRenderer.enabled
+            && runtimeSpriteRenderer.gameObject.activeInHierarchy
+            ? runtimeSpriteRenderer
+            : (noteRenderer != null && noteRenderer.enabled && noteRenderer.gameObject.activeInHierarchy
+                ? noteRenderer : null);
+        if (head == null) return false;
+        bounds = head.bounds;
+        if (withHalo && velocityHaloRenderer != null && velocityHaloRenderer.enabled
+            && velocityHaloRenderer.gameObject.activeInHierarchy)
+            bounds.Encapsulate(velocityHaloRenderer.bounds);
+        return true;
+    }
+
+    /// <summary>長條的身體（走廊）現在實際看得到的那一段。</summary>
+    public bool TryGetVisibleCorridor(out float minX, out float maxX, out float minZ, out float maxZ)
+    {
+        minX = maxX = minZ = maxZ = 0f;
+        if (holdTailRenderer == null || !holdTailRenderer.enabled || holdTailObject == null
+            || !holdTailObject.activeInHierarchy) return false;
+        Bounds b = holdTailRenderer.bounds;
+        minX = b.min.x;
+        maxX = b.max.x;
+        minZ = b.min.z;
+        maxZ = b.max.z;
+        // 串流長條的網格比看得到的長，超出的部分由 shader 依世界 z 裁掉。
+        if (visibleTailClipValid)
+        {
+            minZ = Mathf.Max(minZ, visibleTailClipMinZ);
+            maxZ = Mathf.Min(maxZ, visibleTailClipMaxZ);
+        }
+        return maxZ > minZ;
+    }
     // Whether this note can be judged by player input. For holds, becomes false if head was missed.
-    public bool IsJudgeable => IsActive && !headMissed;
+    public bool IsJudgeable => IsActive && !headMissed && !judgmentSuppressed;
     public bool IsJudged
     {
         get => isJudged;
         set => isJudged = value;
     }
+    public bool IsJudgmentSuppressed => judgmentSuppressed;
+    /// <summary>新手教學的示範段音符：走自動演奏、不計分。</summary>
+    public bool IsTutorialDemo => noteData != null && noteData.tutorialDemo;
 
     // Clear headMissed flag when player recovers a hold after release (for non-drop behavior)
     public void ClearHeadMissed()
     {
         headMissed = false;
+    }
+
+    public void SuppressJudgment()
+    {
+        judgmentSuppressed = true;
+        headMissed = false;
+        headPressed = false;
+        softJudgedPendingRelease = false;
     }
 
     public float GetCurrentWorldWidth()
@@ -266,6 +728,27 @@ public class NoteController : MonoBehaviour
         return Mathf.Max(0.0001f, cachedWorldWidth);
     }
 
+    public float GetCurrentWorldHeight()
+    {
+        try
+        {
+            if (runtimeSpriteRenderer != null && runtimeSpriteRenderer.enabled)
+            {
+                Bounds bounds = runtimeSpriteRenderer.bounds;
+                float height = Mathf.Max(bounds.size.y, bounds.size.z);
+                if (height > 0.0001f) return height;
+            }
+        }
+        catch { }
+        return ResolveNoteWorldHeight();
+    }
+
+    public float GetCurrentHoldVisualLength()
+    {
+        if (noteData == null || noteData.type != "hold" || isStaccatoCached) return 0f;
+        return Mathf.Max(0f, currentTailLength);
+    }
+
     // Precreate a disabled holdTail to avoid runtime allocations at spawn time
     public void PrecreateHoldTail()
     {
@@ -275,14 +758,10 @@ public class NoteController : MonoBehaviour
             EnsureHoldTailVisualExists();
             if (holdTailObject != null)
             {
-                if (owningPool != null && owningPool.Container != null)
-                {
-                    holdTailObject.transform.SetParent(owningPool.Container, false);
-                }
-                else
-                {
-                    holdTailObject.transform.SetParent(null, false);
-                }
+                // Keep the prepared tail owned by its pooled note. Parenting it
+                // beside the note leaked orphan HoldTail objects whenever a song
+                // pool was destroyed and rebuilt.
+                holdTailObject.transform.SetParent(transform, false);
                 holdTailObject.SetActive(false);
             }
         }
@@ -323,8 +802,8 @@ public class NoteController : MonoBehaviour
             {
                 new Color(1f, 1f, 1f, 1f),
                 new Color(1f, 1f, 1f, 1f),
-                new Color(1f, 1f, 1f, 0f),
-                new Color(1f, 1f, 1f, 0f)
+                new Color(1f, 1f, 1f, 1f),
+                new Color(1f, 1f, 1f, 1f)
             };
             sharedHoldTailQuad.triangles = new int[] { 0, 2, 1, 2, 3, 1 };
             sharedHoldTailQuad.RecalculateBounds();
@@ -361,6 +840,458 @@ public class NoteController : MonoBehaviour
         holdTailObject.SetActive(false);
     }
 
+    private Mesh GetOrCreateGestureTailMesh(string meshName)
+    {
+        if (gestureTailMesh == null)
+        {
+            gestureTailMesh = new Mesh { name = meshName };
+            gestureTailMesh.MarkDynamic();
+        }
+        else
+        {
+            gestureTailMesh.name = meshName;
+            gestureTailMesh.Clear();
+        }
+        if (holdTailMeshFilter != null) holdTailMeshFilter.sharedMesh = gestureTailMesh;
+        return gestureTailMesh;
+    }
+
+    /// <summary>
+    /// 譜面檢視器在選曲畫面用的譜。滑奏要靠它才連得起來。
+    /// </summary>
+    /// <remarks>
+    /// 選曲時 GameManager.CurrentChart 還是 null（那首歌根本還沒載入），滑奏的下
+    /// 一個節點就找不到，連結整段不見。與其為了預覽去動 CurrentChart（那會連帶
+    /// 改 Conductor 的 BPM、餵踏板給取樣器），不如開一個明講用途的覆寫。
+    /// </remarks>
+    public static Chart PreviewChartOverride;
+
+    /// <summary>
+    /// 正在替譜面檢視器生音符。生出來的東西只是要看的，不該動到全域資源。
+    /// </summary>
+    /// <remarks>
+    /// 斷奏的飄浮標示會掛進一顆**全域**容器、扇形粒子會去借共用粒子池、力度光暈會
+    /// 讀演奏會模式的狀態 —— 一次生一千多顆的時候，這三樣都是在遊戲的資源上留下痕
+    /// 跡，關掉檢視器之後就變成畫面上的殘留。檢視器不需要它們（斷奏在俯視圖上看寶
+    /// 石就夠了），所以整批跳過。
+    /// </remarks>
+    public static bool PreviewBuildMode;
+
+    private NoteData FindNextSlideNode()
+    {
+        if (noteData == null || noteData.param2 < 0) return null;
+        try
+        {
+            var notes = PreviewChartOverride != null
+                ? PreviewChartOverride.notes
+                : (GameManager.Instance != null && GameManager.Instance.CurrentChart != null
+                    ? GameManager.Instance.CurrentChart.notes
+                    : null);
+            if (notes == null) return null;
+            for (int i = 0; i < notes.Count; i++)
+            {
+                var candidate = notes[i];
+                if (candidate == null || candidate.index != noteData.param2) continue;
+                if (IsGestureType(candidate, "slide", 4)) return candidate;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private bool BuildSlideConnectorMesh(float trackWidth, float currentWidthWorld,
+        float lengthWorld, float speedWorldUnits)
+    {
+        NoteData next = FindNextSlideNode();
+        if (next == null || holdTailMeshFilter == null) return false;
+
+        float currentCenter = PianoVisualLayout.ResolveCenterX(noteData, trackWidth);
+        float nextCenter = PianoVisualLayout.ResolveCenterX(next, trackWidth);
+        slideFarCenterOffsetWorld = nextCenter - currentCenter;
+        slideNearWidthWorld = Mathf.Max(0.01f, currentWidthWorld * holdTailWidthFactor);
+        slideFarWidthWorld = Mathf.Max(0.01f,
+            PianoVisualLayout.ResolveVisualWidth(next, trackWidth) * holdTailWidthFactor);
+        // 長度要量到**下一個節點**，不是這一顆自己的長度。
+        //
+        // lengthWorld 是從 holdDurationMs 換算的，也就是這一顆音符持續多久。滑動
+        // 的節點多半是瞬時的，那個值比到下一個節點的間隔短得多 —— 連結因此在半路
+        // 就結束，看起來就是接不上去。
+        float spanMs = next.startTime - noteData.startTime;
+        float spanWorld = spanMs > 0f && speedWorldUnits > 0f
+            ? (spanMs / 1000f) * speedWorldUnits
+            : lengthWorld;
+        slideConnectorLengthWorld = Mathf.Max(minimumHoldTailVisualLength, spanWorld);
+        lastSlideConnectorRatio = -1f;
+        UpdateSlideConnectorMesh(1f);
+        return true;
+    }
+
+    private void UpdateSlideConnectorMesh(float remainingRatio)
+    {
+        if (gestureTailMesh == null || !isSlideCached) return;
+        remainingRatio = Mathf.Clamp01(remainingRatio);
+        if (Mathf.Abs(remainingRatio - lastSlideConnectorRatio) < 0.0005f) return;
+        lastSlideConnectorRatio = remainingRatio;
+        Vector3 scale = transform.lossyScale;
+        float sx = Mathf.Max(0.0001f, Mathf.Abs(scale.x));
+        float sz = Mathf.Max(0.0001f, Mathf.Abs(scale.z));
+        float nearHalf = slideNearWidthWorld * 0.5f / sx;
+        float farWidth = Mathf.Lerp(slideNearWidthWorld, slideFarWidthWorld, remainingRatio);
+        float farHalf = farWidth * 0.5f / sx;
+        float farCenter = slideFarCenterOffsetWorld * remainingRatio / sx;
+        float farZ = slideConnectorLengthWorld * remainingRatio / sz;
+
+        slideConnectorVertices[0] = new Vector3(-nearHalf, 0f, 0f);
+        slideConnectorVertices[1] = new Vector3( nearHalf, 0f, 0f);
+        slideConnectorVertices[2] = new Vector3(farCenter - farHalf, 0f, farZ);
+        slideConnectorVertices[3] = new Vector3(farCenter + farHalf, 0f, farZ);
+        gestureTailMesh.vertices = slideConnectorVertices;
+        gestureTailMesh.uv = SlideConnectorUvs;
+        gestureTailMesh.colors = SlideConnectorColors;
+        gestureTailMesh.triangles = SlideConnectorTriangles;
+        gestureTailMesh.RecalculateBounds();
+    }
+
+    private void BuildTrillArrowMesh(float widthWorld, float lengthWorld)
+    {
+        if (holdTailMeshFilter == null) return;
+        Mesh mesh = GetOrCreateGestureTailMesh("TrillAlternatingArrowMesh");
+        Vector3 scale = transform.lossyScale;
+        float sx = Mathf.Max(0.0001f, Mathf.Abs(scale.x));
+        float sz = Mathf.Max(0.0001f, Mathf.Abs(scale.z));
+        float half = Mathf.Max(0.01f, widthWorld * holdTailWidthFactor) * 0.5f / sx;
+        float localLength = Mathf.Max(minimumHoldTailVisualLength, lengthWorld) / sz;
+        // The requested visual ratio is independent of scroll speed: one full
+        // left+right cycle may occupy at most five TAP heights.
+        float tapHeightWorld = Mathf.Max(0.05f, ResolveNoteWorldHeight());
+        float maximumCycleWorld = tapHeightWorld * 5f;
+        int cycleCount = Mathf.Max(1, Mathf.CeilToInt(lengthWorld / maximumCycleWorld));
+        int count = cycleCount * 2;
+        // The streamed chunk must contain complete left/right pairs.  An odd
+        // arrow count flips the phase when the next chunk is recycled and
+        // leaves a conspicuous join in the middle of the lane.
+        if ((count & 1) != 0) count++;
+        // A Trill pattern only repeats after BOTH a left and a right arrow.
+        // Repeating after one arrow caused a visible phase seam at each recycle.
+        trillArrowRepeatWorldLength = Mathf.Max(0.25f,
+            (lengthWorld / Mathf.Max(1, count)) * 2f);
+
+        var vertices = new System.Collections.Generic.List<Vector3>(count * 6);
+        var uvs = new System.Collections.Generic.List<Vector2>(count * 6);
+        var colors = new System.Collections.Generic.List<Color>(count * 6);
+        var triangles = new System.Collections.Generic.List<int>(count * 15);
+        float step = localLength / Mathf.Max(1, count);
+        // Opposite arrows sit tightly together; separation is created by their
+        // opposing lateral fades, not by large longitudinal holes.
+        float gap = step * 0.06f;
+        // Use a long pointed head rather than a shallow corner chamfer. The
+        // larger horizontal inset keeps the diagonal readable in perspective.
+        float bevel = Mathf.Min(half * 0.68f, step * 1.25f);
+
+        for (int i = 0; i < count; i++)
+        {
+            float z0 = i * step + gap * 0.5f;
+            float z1 = (i + 1) * step - gap * 0.5f;
+            float zm = (z0 + z1) * 0.5f;
+            bool pointsLeft = (i & 1) == 0;
+            int baseIndex = vertices.Count;
+            if (pointsLeft)
+            {
+                vertices.Add(new Vector3(-half, 0f, zm));
+                vertices.Add(new Vector3(-half + bevel, 0f, z0));
+                vertices.Add(new Vector3(half, 0f, z0));
+                vertices.Add(new Vector3(half, 0f, z1));
+                vertices.Add(new Vector3(-half + bevel, 0f, z1));
+            }
+            else
+            {
+                vertices.Add(new Vector3(half, 0f, zm));
+                vertices.Add(new Vector3(half - bevel, 0f, z0));
+                vertices.Add(new Vector3(-half, 0f, z0));
+                vertices.Add(new Vector3(-half, 0f, z1));
+                vertices.Add(new Vector3(half - bevel, 0f, z1));
+            }
+            Vector3 center = Vector3.zero;
+            for (int v = 0; v < 5; v++) center += vertices[baseIndex + v];
+            center /= 5f;
+            vertices.Add(center);
+
+            for (int v = 0; v < 6; v++)
+            {
+                float u = v == 5
+                    ? 0.5f
+                    : (v == 0 ? (pointsLeft ? 0f : 1f)
+                        : (v == 2 || v == 3 ? (pointsLeft ? 1f : 0f) : 0.18f));
+                uvs.Add(new Vector2(u, i / (float)count));
+                float vertexX = vertices[baseIndex + v].x;
+                float towardPoint = pointsLeft
+                    ? Mathf.InverseLerp(half, -half, vertexX)
+                    : Mathf.InverseLerp(-half, half, vertexX);
+                // Almost invisible immediately after crossing the centre line,
+                // then rapidly reaches full glass intensity toward its arrow tip.
+                float lateralAlpha = Mathf.SmoothStep(0f, 1f,
+                    Mathf.InverseLerp(0.26f, 0.72f, towardPoint));
+                // R carries the directional falloff. B stores the signed
+                // horizontal position (0=left, .5=centre, 1=right). Unlike an
+                // edge flag this interpolates linearly across triangles, so no
+                // mesh edge or centre-fan line can become a light source.
+                float lateralPosition = Mathf.Clamp01(
+                    vertexX / Mathf.Max(0.0001f, half) * 0.5f + 0.5f);
+                colors.Add(new Color(lateralAlpha, 0f, lateralPosition,
+                    Mathf.Lerp(0.015f, 1f, lateralAlpha)));
+            }
+            int centerIndex = baseIndex + 5;
+            for (int edge = 0; edge < 5; edge++)
+            {
+                triangles.Add(centerIndex);
+                triangles.Add(baseIndex + edge);
+                triangles.Add(baseIndex + ((edge + 1) % 5));
+            }
+        }
+
+        mesh.SetVertices(vertices);
+        mesh.SetUVs(0, uvs);
+        mesh.SetColors(colors);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+    }
+
+    private void EnsureTrillEndCap(float lengthWorld)
+    {
+        if (!isTrillCached || runtimeSpriteRenderer == null || runtimeSpriteRenderer.sprite == null) return;
+        if (gestureEndCapObject == null)
+        {
+            gestureEndCapObject = new GameObject("TrillEndSoftNote");
+            gestureEndCapObject.hideFlags = HideFlags.DontSave;
+            gestureEndCapObject.transform.SetParent(transform, false);
+            gestureEndCapRenderer = gestureEndCapObject.AddComponent<SpriteRenderer>();
+        }
+        gestureEndCapRenderer.sprite = runtimeSpriteRenderer.sprite;
+        gestureEndCapRenderer.sharedMaterial = runtimeSpriteRenderer.sharedMaterial;
+        gestureEndCapRenderer.color = Color.white;
+        runtimeSpriteRenderer.GetPropertyBlock(notePropertyBlock);
+        gestureEndCapRenderer.SetPropertyBlock(notePropertyBlock);
+        gestureEndCapRenderer.sortingLayerID = runtimeSpriteRenderer.sortingLayerID;
+        gestureEndCapRenderer.sortingOrder = runtimeSpriteRenderer.sortingOrder + 1;
+        gestureEndCapObject.transform.localRotation = runtimeSpriteRenderer.transform.localRotation;
+        gestureEndCapObject.transform.localScale = runtimeSpriteRenderer.transform.localScale;
+        // The ending TAP marks endTime and must reach the judgment line at exactly
+        // that moment. It is a flat sprite like a TAP head, so it uses the same
+        // near-edge anchoring — centring it here would put it half a note-height
+        // ahead of the head's convention.
+        float localZ = lengthWorld / Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
+        gestureEndCapObject.transform.localPosition =
+            new Vector3(0f, 0.015f, localZ + NoteNearEdgeLocalOffsetZ());
+        gestureEndCapObject.SetActive(true);
+    }
+
+    /// <summary>
+    /// 把這顆音符擺成「只給看的」：外觀照遊戲裡的規則長出來，然後凍住。
+    /// </summary>
+    /// <remarks>
+    /// 譜面檢視器要的是**真的那顆音符**，不是重畫一次 —— 圖、材質、寬度、斷奏的
+    /// 寶石、滑奏的連結、長條的水晶身體全都由這裡的既有程式產生，所以檢視器不會
+    /// 和遊戲各長各的。
+    ///
+    /// 凍住的意思是：不註冊給判定、不噴粒子、不飄斷奏標示、元件 enabled 關掉（所
+    /// 以 Update 不會再把它往判定線推）。長條的身體另外算一次靜態版本：正常的那
+    /// 條路會把身體裁在判定線附近的跑道內，而檢視器裡整首譜同時攤在 Z 軸上，照跑
+    /// 道裁的話遠處的長條會整條消失。
+    /// </remarks>
+    public void ConfigureStaticPreview(NoteData data, NoteSpawner spawner, float speedWorldUnits,
+        Vector3 worldOffset)
+    {
+        PreviewBuildMode = true;
+        try
+        {
+            Initialize(data, spawner, data != null ? data.startTime : 0f);
+        }
+        finally
+        {
+            PreviewBuildMode = false;
+        }
+
+        // 整座舞台搬離遊戲的世界。Initialize 是照判定線的世界座標擺的，所以偏移要
+        // 在它之後、長條身體之前 —— 身體的 shader 錨點（_HoldStartZ/_HoldEndZ）是
+        // 絕對世界 Z，順序反了就會對不上。
+        if (worldOffset != Vector3.zero) transform.position += worldOffset;
+
+        try { Judgment.JudgmentManager.Instance?.UnregisterNote(this); } catch { }
+        SuppressJudgment();
+        HideStaccatoIndicator();
+        if (noteFanParticleEmitter != null)
+        {
+            noteFanParticleEmitter.StopAndClear();
+            noteFanParticleEmitter.enabled = false;
+        }
+
+        LayoutStaticPreviewBody(speedWorldUnits);
+        enabled = false;
+    }
+
+    /// <summary>
+    /// 俯視圖上的厚度。縮放變了就重設一次，音符在畫面上才是固定的厚度。
+    /// </summary>
+    /// <remarks>
+    /// 遊戲裡音符的世界厚度是固定的（NoteVisualHeight），從斜上方看剛剛好；但檢視
+    /// 器可以把時間軸縮到一格一秒，那個厚度就會細成一條線。所以改由檢視器算「螢幕
+    /// 上要幾個像素」，換成世界單位餵回來。
+    /// </remarks>
+    public void SetPreviewThickness(float worldThickness)
+    {
+        if (runtimeSpriteRenderer == null || runtimeSpriteRenderer.sprite == null) return;
+        Vector2 authoredSize = runtimeSpriteRenderer.sprite.bounds.size;
+        float rootScaleZ = Mathf.Abs(transform.lossyScale.z);
+        if (authoredSize.y <= 0.0001f || rootScaleZ <= 0.0001f) return;
+
+        Transform child = runtimeSpriteRenderer.transform;
+        Vector3 scale = child.localScale;
+        scale.y = Mathf.Max(0.0001f, worldThickness) / (authoredSize.y * rootScaleZ);
+        child.localScale = scale;
+        // 近緣仍然對齊音符的時間點：厚度改了，偏移也要跟著改。localPosition 是
+        // 父物件的區域座標，所以世界厚度要先除回根的 Z 縮放（和
+        // NoteNearEdgeLocalOffsetZ 同一個換算）。
+        child.localPosition = new Vector3(0f, 0f, worldThickness * 0.5f / rootScaleZ);
+    }
+
+    /// <summary>長條／顫音的身體：整段畫出來，不做判定線裁切。</summary>
+    private void LayoutStaticPreviewBody(float speedWorldUnits)
+    {
+        if (holdTailObject == null || holdTailRenderer == null) return;
+
+        if (isStaccatoCached)
+        {
+            SetHoldTailActive(false);
+            if (gestureEndCapObject != null) gestureEndCapObject.SetActive(false);
+            return;
+        }
+
+        // 滑奏要先處理，而且**不能用 endTime 算長度**。
+        //
+        // 滑奏節點的 endTime 等於 startTime：它自己沒有長度，連結的長度來自「到下
+        // 一個節點的距離」，在生成時就由 BuildSlideConnectorMesh 算進 mesh 裡了。
+        // 照長度為 0 把它隱藏的話，一整串滑奏就會變成一顆一顆分開的 tap。
+        if (isSlideCached)
+        {
+            holdTailObject.transform.localScale = Vector3.one;
+            holdTailObject.transform.localPosition = new Vector3(0f, holdTailYOffset, 0f);
+            SetHoldTailActive(true);
+            holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+            holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId, 0f);
+            holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+            if (gestureEndCapObject != null) gestureEndCapObject.SetActive(false);
+            return;
+        }
+
+        float lengthWorld = ((endTime - startTime) / 1000f) * Mathf.Max(0.0001f, speedWorldUnits);
+        if (lengthWorld <= 0.0001f)
+        {
+            SetHoldTailActive(false);
+            if (gestureEndCapObject != null) gestureEndCapObject.SetActive(false);
+            return;
+        }
+
+        float headZ = transform.position.z;
+        float tailEndZ = headZ + lengthWorld;
+        float widthWorld = currentTailWidthWorld > 0f
+            ? currentTailWidthWorld
+            : Mathf.Max(0.01f, cachedWorldWidth *
+                (IsGlassRodHold ? HoldGlassWidthShare : holdTailWidthFactor));
+
+        if (isTrillCached)
+        {
+            // 顫音的箭頭也是自訂 mesh，但它在生成時是照「跑道長度」建的（會做成
+            // 實際長度的兩倍多，好讓它在跑道上循環）。靜態檢視要的是真正的長度，
+            // 所以用同一支函式重建一次，縮放維持 1。
+            BuildTrillArrowMesh(widthWorld, lengthWorld);
+            EnsureTrillEndCap(lengthWorld);
+            holdTailObject.transform.localScale = Vector3.one;
+            holdTailObject.transform.localPosition = new Vector3(0f, holdTailYOffset, 0f);
+            SetHoldTailActive(true);
+        }
+        else
+        {
+            UpdateHoldTailDimensions(widthWorld, lengthWorld, true);
+            holdTailObject.transform.localPosition = new Vector3(0f, holdTailYOffset, 0f);
+            SetHoldTailActive(true);
+        }
+
+        holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+        // 不裁切：檢視器把整首攤開，跑道範圍在這裡沒有意義。
+        holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId, 0f);
+        float repeatWorld = isTrillCached
+            ? Mathf.Max(0.25f, trillArrowRepeatWorldLength)
+            : Mathf.Max(0.25f, streamingTailRepeatWorldLength);
+        holdTailPropertyBlock.SetVector(HoldTailMainTexStId, isTrillCached
+            ? new Vector4(1f, Mathf.Max(1f, lengthWorld / repeatWorld), 0f, 0f)
+            : new Vector4(1f, 1f, 0f, 0f));
+        if (IsGlassRodHold)
+        {
+            holdTailPropertyBlock.SetFloat(HoldStartZId, headZ);
+            holdTailPropertyBlock.SetFloat(HoldEndZId, tailEndZ);
+            holdTailPropertyBlock.SetFloat(HoldBeatSpacingZId,
+                (HoldBeatMs() / 1000f) * speedWorldUnits);
+            // 判定線推到很遠：檢視器裡沒有「正在按」，充能和經過線的高光都不該亮。
+            holdTailPropertyBlock.SetFloat(HoldJudgeZId, -1e6f);
+        }
+        holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+
+        if (gestureEndCapObject != null)
+        {
+            if (!isTrillCached)
+            {
+                gestureEndCapObject.SetActive(false);
+            }
+            else
+            {
+                float localZScale = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
+                gestureEndCapObject.transform.localPosition = new Vector3(
+                    0f, 0.015f, (tailEndZ - headZ) / localZScale + NoteNearEdgeLocalOffsetZ());
+                gestureEndCapObject.SetActive(true);
+            }
+        }
+    }
+
+    public void SetGestureVisualStrength(float strength)
+    {
+        if (!isTrillCached) return;
+        strength = Mathf.Clamp01(strength);
+        if (Mathf.Abs(strength - lastAppliedGestureVisualStrength) < 0.001f) return;
+        gestureVisualStrength = strength;
+        lastAppliedGestureVisualStrength = strength;
+        Color body = ResolveGestureColor();
+        body.a = Mathf.Lerp(0f, 1f, gestureVisualStrength);
+        if (holdTailRenderer != null)
+        {
+            holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+            holdTailPropertyBlock.SetColor(HoldTailColorId, body);
+            holdTailPropertyBlock.SetFloat(HoldTailFlowStrengthId, Mathf.Lerp(0.08f, 0.85f, gestureVisualStrength));
+            holdTailPropertyBlock.SetColor(HoldTailFlowColorId, Color.Lerp(body, Color.white, 0.06f));
+            holdTailPropertyBlock.SetFloat(HoldTailPreserveGoldId, 0f);
+            holdTailPropertyBlock.SetFloat(HoldTailEmissionId, Mathf.Lerp(0.1f, 1.1f, gestureVisualStrength));
+            holdTailPropertyBlock.SetFloat(HoldTailEdgeGlowId, Mathf.Lerp(0.15f, 1.4f, gestureVisualStrength));
+            holdTailPropertyBlock.SetFloat(HoldTailFadeStrengthId, 0f);
+            holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+        }
+        if (runtimeSpriteRenderer != null)
+        {
+            runtimeSpriteRenderer.GetPropertyBlock(notePropertyBlock);
+            Color headColor = ResolveGestureColor();
+            headColor.a = gestureVisualStrength;
+            notePropertyBlock.SetColor(ThemeColorId, headColor);
+            notePropertyBlock.SetFloat(EmissionId, noteEmission * Mathf.Lerp(0.25f, 1.55f, gestureVisualStrength));
+            notePropertyBlock.SetFloat(RimGlowId, noteRimGlow * Mathf.Lerp(0.2f, 1.55f, gestureVisualStrength));
+            notePropertyBlock.SetFloat(TapGlassOpacityId, tapGlassOpacity * gestureVisualStrength);
+            runtimeSpriteRenderer.SetPropertyBlock(notePropertyBlock);
+        }
+        if (gestureEndCapRenderer != null)
+        {
+            // The ending TAP is a timing marker, not part of the sustained
+            // input glow. It remains fully visible when the Trill body fades.
+            gestureEndCapRenderer.color = Color.white;
+        }
+    }
+
     private void DisposeHoldTailImmediate()
     {
         try
@@ -381,6 +1312,71 @@ public class NoteController : MonoBehaviour
         holdTailObject = null;
         holdTailRenderer = null;
         holdTailMeshFilter = null;
+    }
+
+    private void ApplyRuntimeSpriteTheme()
+    {
+        if (runtimeSpriteRenderer == null) return;
+
+        if (cachedDefaultSpriteMaterial == null)
+            cachedDefaultSpriteMaterial = runtimeSpriteRenderer.sharedMaterial;
+
+        Shader shader = glassThemeShaderOverride != null
+            ? glassThemeShaderOverride
+            : Shader.Find("Custom/GlassThemeSprite");
+        if (shader == null) return;
+
+        bool isRight = noteData != null && noteData.hand == 0;
+        bool useSoftGestureHead = isSoftCached || isSlideCached;
+        Material themed = useSoftGestureHead
+            ? cachedSoftGlowMaterial
+            : (isRight ? cachedRightGlassThemeMaterial : cachedLeftGlassThemeMaterial);
+        if (themed == null || themed.shader != shader)
+        {
+            themed = new Material(shader)
+            {
+                name = useSoftGestureHead
+                    ? "Glass Theme Gold SOFT (Runtime)"
+                    : (isRight ? "Glass Theme Red (Runtime)" : "Glass Theme Blue (Runtime)"),
+                hideFlags = HideFlags.DontSave
+            };
+            if (useSoftGestureHead) cachedSoftGlowMaterial = themed;
+            else if (isRight) cachedRightGlassThemeMaterial = themed;
+            else cachedLeftGlassThemeMaterial = themed;
+        }
+
+        themed.SetColor("_ThemeColor", useSoftGestureHead ? softThemeColor : (isRight ? rightThemeColor : leftThemeColor));
+        themed.SetFloat("_Emission", noteEmission);
+        themed.SetFloat("_RimGlow", noteRimGlow);
+        themed.SetFloat("_ShimmerStrength", noteShimmerStrength);
+
+        runtimeSpriteRenderer.sharedMaterial = themed;
+        runtimeSpriteRenderer.color = Color.white;
+
+        bool isPlainTap = noteData != null && !isSoftCached && !isStaccatoCached &&
+            (string.Equals(noteData.type, "tap", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(noteData.type, "0", StringComparison.OrdinalIgnoreCase) ||
+             (string.IsNullOrEmpty(noteData.type) && noteData.note_type == 0));
+        bool isOrdinaryHoldHead = noteData != null && !isStaccatoCached &&
+            string.Equals(noteData.type, "hold", StringComparison.OrdinalIgnoreCase);
+        bool useGlassCore = isPlainTap || isOrdinaryHoldHead || isSlideCached || isTrillCached ||
+            isStaccatoCached;
+        if (notePropertyBlock == null) notePropertyBlock = new MaterialPropertyBlock();
+        runtimeSpriteRenderer.GetPropertyBlock(notePropertyBlock);
+        notePropertyBlock.SetColor(ThemeColorId, useSoftGestureHead ? softThemeColor : ResolveGestureColor());
+        notePropertyBlock.SetFloat(EmissionId, (isSlideCached || isTrillCached) ? noteEmission * 1.3f : noteEmission);
+        notePropertyBlock.SetFloat(RimGlowId, (isSlideCached || isTrillCached) ? noteRimGlow * 1.35f : noteRimGlow);
+        notePropertyBlock.SetFloat(TapGlassEnabledId, useGlassCore ? 1f : 0f);
+        notePropertyBlock.SetColor(TapGlassColorId, isTrillCached
+            ? new Color(0.96f, 0.98f, 1f, 1f)
+            : (isSlideCached ? new Color(0.88f, 1f, 1f, 1f) : tapGlassColor));
+        notePropertyBlock.SetFloat(TapGlassOpacityId, (isSlideCached || isTrillCached) ? 0.62f : tapGlassOpacity);
+        notePropertyBlock.SetFloat(TapGlassRimGlowId, (isSlideCached || isTrillCached) ? tapGlassRimGlow * 1.35f : tapGlassRimGlow);
+        notePropertyBlock.SetFloat(TapGlassInsetXId, tapGlassInsetX);
+        notePropertyBlock.SetFloat(TapGlassInsetYId, tapGlassInsetY);
+        notePropertyBlock.SetFloat(TapGlassBorderId, tapGlassBorder);
+        notePropertyBlock.SetFloat(TapGlassChamferId, tapGlassChamfer);
+        runtimeSpriteRenderer.SetPropertyBlock(notePropertyBlock);
     }
 
     private Texture2D ResolveHoldTailTexture(bool isRightHand)
@@ -498,17 +1494,95 @@ public class NoteController : MonoBehaviour
         if (holdTailPropertyBlock == null) holdTailPropertyBlock = new MaterialPropertyBlock();
 
         holdTailPropertyBlock.Clear();
-        holdTailPropertyBlock.SetColor(HoldTailColorId, isRightHand ? rightTailTint : leftTailTint);
-        if (texture != null)
+        Color tailColor = (isSlideCached || isTrillCached)
+            ? ResolveGestureColor()
+            : (isRightHand ? rightTailTint : leftTailTint);
+        holdTailPropertyBlock.SetColor(HoldTailColorId, tailColor);
+        // 近端提亮、遠端壓暗，是長條的透視：一條拉向譜面深處的帶子，這條漸層就
+        // 是它的長度。
+        //
+        // **滑動必須關掉它。** 滑動是一串斜著往下走的音符，每一段連結的近端貼著
+        // 前一顆、遠端貼著後一顆。漸層一放上去，近端比它蓋住的那顆淺（讀成蓋在
+        // 上面的一片東西），遠端比它要接的那顆深（讀成沒接上）—— 同一條漸層在兩
+        // 端各製造了一個不同的錯誤。兩端都用音符自己的顏色，接縫才會不見。
+        float nearMix = isSlideCached ? 0f : 0.34f;
+        float farShade = isSlideCached ? 1f : 0.38f;
+        Color nearColor = Color.Lerp(tailColor, Color.white, nearMix);
+        nearColor.a = tailColor.a;
+        Color farColor = new Color(
+            tailColor.r * farShade,
+            tailColor.g * farShade,
+            tailColor.b * farShade,
+            tailColor.a);
+        holdTailPropertyBlock.SetColor(HoldTailNearColorId, nearColor);
+        holdTailPropertyBlock.SetColor(HoldTailFarColorId, farColor);
+        holdTailPropertyBlock.SetFloat(HoldTailFlowStrengthId, headPressed ? 0.82f : 0.12f);
+        Color flowColor = (isTrillCached || isSlideCached)
+            ? Color.Lerp(tailColor, Color.white, 0.06f)
+            : new Color(1f, 0.76f, 0.28f, 1f);
+        holdTailPropertyBlock.SetColor(HoldTailFlowColorId, flowColor);
+        holdTailPropertyBlock.SetFloat(HoldTailPreserveGoldId, (isTrillCached || isSlideCached) ? 0f : 1f);
+        holdTailPropertyBlock.SetFloat(HoldTailFlatFillId, isTrillCached ? 1f : 0f);
+        // 一般長條走玻璃棒的畫法。滑奏、顫音不動：滑奏兩端要和前後的音符接得
+        // 上（所以它刻意不做明暗），顫音是深色中心的扁平帶 —— 各有各的理由。
+        holdTailPropertyBlock.SetFloat(HoldGlassRodId, IsGlassRodHold ? 1f : 0f);
+        holdTailPropertyBlock.SetFloat(HoldTailSmoothBodyId, 1f);
+        holdTailPropertyBlock.SetFloat(HoldTailCoreWidthId, 0.25f);
+        holdTailPropertyBlock.SetFloat(HoldTailCoreGlowId, 0.65f);
+        holdTailPropertyBlock.SetFloat(HoldTailCoreJudgedBoostId, 1.45f);
+        holdTailPropertyBlock.SetFloat(HoldTailEmissionId, isTrillCached ? 1.1f : (isSlideCached ? 1.65f : 1.2f));
+        holdTailPropertyBlock.SetFloat(HoldTailEdgeGlowId, isTrillCached ? 1.4f : (isSlideCached ? 1.35f : 0.9f));
+        holdTailPropertyBlock.SetFloat(HoldTailFadeStrengthId,
+            isTrillCached ? 0f : (isSlideCached ? 0.3f : 1f));
+        holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId,
+            (isTrillCached || (noteData != null && noteData.type == "hold")) ? 1f : 0f);
+        if (isTrillCached)
+        {
+            // Trill is a clean glass ribbon.  Reusing the Hold texture stamped
+            // rectangular ornaments into every arrow and made it look like a
+            // row of unrelated note cards.
+            holdTailPropertyBlock.SetTexture(HoldTailMainTexId, Texture2D.whiteTexture);
+        }
+        else if (texture != null)
         {
             holdTailPropertyBlock.SetTexture(HoldTailMainTexId, texture);
         }
         holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+        lastHoldTailFlowStrength = headPressed ? 0.82f : 0.12f;
+    }
+
+    /// <summary>一般長條（不是滑奏、不是顫音）。</summary>
+    private bool IsGlassRodHold => !isTrillCached && !isSlideCached;
+
+    /// <summary>一拍多少毫秒。譜面是單一 BPM 的，拿 first_bpm 就夠了。</summary>
+    private static float HoldBeatMs()
+    {
+        float bpm = 0f;
+        try
+        {
+            Chart chart = GameManager.Instance != null ? GameManager.Instance.CurrentChart : null;
+            if (chart != null) bpm = chart.first_bpm;
+        }
+        catch { }
+        return 60000f / Mathf.Max(1f, bpm > 0f ? bpm : 120f);
+    }
+
+    private void UpdateHoldTailFlow()
+    {
+        if (holdTailRenderer == null || holdTailObject == null || !holdTailObject.activeInHierarchy) return;
+        float target = headPressed ? 0.82f : 0.12f;
+        if (Mathf.Abs(target - lastHoldTailFlowStrength) < 0.001f) return;
+        holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+        holdTailPropertyBlock.SetFloat(HoldTailFlowStrengthId, target);
+        holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+        lastHoldTailFlowStrength = target;
     }
 
     private void SetHoldTailActive(bool active)
     {
         if (holdTailObject == null || holdTailRenderer == null) return;
+        if (active && holdTailObject.activeSelf && holdTailRenderer.enabled) return;
+        if (!active && !holdTailObject.activeSelf && !holdTailRenderer.enabled) return;
         if (active)
         {
             holdTailRenderer.enabled = true;
@@ -522,6 +1596,7 @@ public class NoteController : MonoBehaviour
                     currentTexture = holdTailRenderer.sharedMaterial.mainTexture as Texture2D;
                 }
                 ApplyHoldTailMaterialProperties(isRightHand, currentTexture);
+                if (isTrillCached) SetGestureVisualStrength(gestureVisualStrength);
             }
             catch { }
         }
@@ -558,12 +1633,307 @@ public class NoteController : MonoBehaviour
         currentTailWidthWorld = widthWorld;
         lastAppliedTailLength = lengthWorld;
     }
+
+    private static float FollowDspVisualTarget(float current, float target, float speedWorldUnits)
+    {
+        // Conductor.renderSongPosition is already a continuous clock: it runs
+        // at realtime rate and only its offset from the quantised DSP sample is
+        // filtered. Do NOT re-introduce a per-object deltaTime follower here —
+        // it would advance at a slightly different rate, accumulate error, then
+        // snap, and each note would drift out of phase with beat lines and
+        // TRACK. Smoothing belongs in exactly one place: the render clock.
+        return target;
+    }
+
+    private void UpdateStreamingLongVisual(float songPos, float speedWorldUnits)
+    {
+        float movingHeadZ = judgmentZ + ((startTime - songPos) / 1000f) * speedWorldUnits;
+        // All long-note parts use the same DSP-derived target as TAP notes and
+        // beat lines. Do not add a per-object deltaTime follower here: even a
+        // tiny rate mismatch eventually catches up in a visible snap.
+        float visualSmoothOffset = 0f;
+        float headZ;
+        if (streamingJudgmentAnchorActive)
+        {
+            headZ = streamingJudgmentAnchorZ;
+        }
+        else
+        {
+            float smoothed = FollowDspVisualTarget(
+                transform.position.z, movingHeadZ, speedWorldUnits);
+            headZ = smoothed;
+            visualSmoothOffset = headZ - movingHeadZ;
+        }
+        float visualEndTime = holdTailAdjustedEndMs > startTime ? holdTailAdjustedEndMs : endTime;
+        float anchorVisualClock = songPos;
+        if (streamingJudgmentAnchorActive)
+        {
+            anchorVisualClock = Mathf.Max(songPos, streamingAnchorConsumeStartMs);
+            float deltaMs = Mathf.Max(0f, anchorVisualClock - streamingAnchorLastSongPosMs);
+            streamingAnchorTravelWorld += (deltaMs / 1000f) * speedWorldUnits;
+            streamingAnchorLastSongPosMs = Mathf.Max(streamingAnchorLastSongPosMs, anchorVisualClock);
+
+            // Pattern motion follows actual scroll speed, but the authored tail
+            // must reach the captured clipping edge exactly at visual end time.
+            // This also consumes any small smoothing offset retained on the hit
+            // frame instead of leaving a final piece that vanishes abruptly.
+            float consumeDurationMs = Mathf.Max(1f,
+                streamingAnchorVisualEndMs - streamingAnchorConsumeStartMs);
+            float consumeProgress = Mathf.Clamp01(
+                (anchorVisualClock - streamingAnchorConsumeStartMs) / consumeDurationMs);
+            float requiredTailTravel = streamingAnchorRequiredTailTravelWorld * consumeProgress;
+            streamingAnchorTailTravelWorld = Mathf.Max(
+                streamingAnchorTailTravelWorld, requiredTailTravel);
+        }
+        // A FAST head freezes above the line, but the ribbon must continue its
+        // authored downward travel immediately. Translate the captured clip
+        // window to the judgment line during the early interval; do not hold it
+        // in place and append that interval beyond endTime.
+        float anchorWindowTranslation = 0f;
+        if (streamingJudgmentAnchorActive && streamingAnchorClipMinZ > judgmentZ)
+        {
+            float preStartDurationMs = Mathf.Max(1f,
+                startTime - streamingAnchorConsumeStartMs);
+            float preStartProgress = Mathf.Clamp01(
+                (anchorVisualClock - streamingAnchorConsumeStartMs) / preStartDurationMs);
+            anchorWindowTranslation =
+                (streamingAnchorClipMinZ - judgmentZ) * preStartProgress;
+        }
+        // The judged head/effect may sit above or below the line to communicate
+        // timing, but the body never reveals pixels that already crossed its
+        // captured lower edge. For an early hit that edge travels to the line.
+        float streamOriginZ = streamingJudgmentAnchorActive
+            ? Mathf.Max(judgmentZ, streamingAnchorClipMinZ - anchorWindowTranslation)
+            : judgmentZ;
+        float tailEndZ = streamingJudgmentAnchorActive
+            // Keep the authored tail moving in the same direction and at the
+            // same world speed after the head freezes. Only the pixels that
+            // cross the fixed lower clipping edge are consumed.
+            ? streamingAnchorTailEndZ - streamingAnchorTailTravelWorld
+            : judgmentZ + ((visualEndTime - songPos) / 1000f) * speedWorldUnits + visualSmoothOffset;
+        Vector3 notePos = transform.position;
+        notePos.z = headZ;
+        transform.position = notePos;
+
+        // A judged Hold keeps its exact head visible on the judgment line. Only
+        // the ribbon behind it is consumed toward endTime.
+        bool headVisible = streamingJudgmentAnchorActive || headZ >= judgmentZ - 0.001f;
+        if (runtimeSpriteRenderer != null) runtimeSpriteRenderer.enabled = headVisible;
+
+        float visibleRunway = Mathf.Max(streamingTailMaximumVisibleLength, streamingVisibleLengthWorld);
+        float streamTopZ = streamingJudgmentAnchorActive
+            ? Mathf.Max(streamOriginZ, streamingAnchorWindowTopZ - anchorWindowTranslation)
+            : streamOriginZ + Mathf.Min(visibleRunway, Mathf.Max(0f, initialTailLength));
+        float clipMinZ;
+        float clipMaxZ;
+        if (streamingJudgmentAnchorActive)
+        {
+            // The body keeps streaming toward its captured lower edge. Head and
+            // effect position are independent, so a SLOW hit below the line
+            // cannot regenerate an already-consumed part of the ribbon.
+            clipMinZ = streamOriginZ;
+            clipMaxZ = Mathf.Min(streamTopZ, tailEndZ);
+        }
+        else if (songPos < startTime)
+        {
+            clipMinZ = Mathf.Max(judgmentZ, headZ);
+            clipMaxZ = Mathf.Min(judgmentZ + visibleRunway, tailEndZ);
+        }
+        else
+        {
+            // The lower clipping edge never leaves the judgment line. The tail
+            // endpoint and every pattern vertex continue downward in chart
+            // coordinates; only geometry that crosses the line is destroyed.
+            clipMinZ = judgmentZ;
+            clipMaxZ = Mathf.Min(streamTopZ, tailEndZ);
+        }
+        currentTailLength = Mathf.Max(0f, clipMaxZ - clipMinZ);
+        bool tailVisible = holdTailObject != null && clipMaxZ > clipMinZ + 0.0001f;
+        visibleTailClipValid = tailVisible;
+        visibleTailClipMinZ = clipMinZ;
+        visibleTailClipMaxZ = clipMaxZ;
+        SetHoldTailActive(tailVisible && !isStaccatoCached);
+        if (!tailVisible || holdTailObject == null || holdTailRenderer == null)
+        {
+            if (gestureEndCapObject != null) gestureEndCapObject.SetActive(false);
+            return;
+        }
+
+        float repeatWorld = isTrillCached
+            ? Mathf.Max(0.25f, trillArrowRepeatWorldLength)
+            : Mathf.Max(0.25f, streamingTailRepeatWorldLength);
+        // Before judgment the whole note root already travels with the chart,
+        // so an additional local offset would double its speed. Once the head
+        // freezes, continue the Trill pattern from zero at exactly chart speed.
+        // Loop only one complete left+right pair; both ends are geometrically
+        // identical, making the wrap invisible instead of respawning a runway.
+        float passedWorld = streamingJudgmentAnchorActive
+            ? streamingAnchorTravelWorld
+            : 0f;
+        float windowOffsetWorld = isTrillCached
+            ? -Mathf.Repeat(passedWorld, repeatWorld)
+            : 0f;
+        float localZScale = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
+        holdTailObject.transform.localPosition = new Vector3(
+            0f, holdTailYOffset, windowOffsetWorld / localZScale);
+
+        if (isTrillCached)
+        {
+            holdTailObject.transform.localScale = Vector3.one;
+        }
+        else
+        {
+            float widthWorld = currentTailWidthWorld > 0f
+                ? currentTailWidthWorld
+                : Mathf.Max(0.01f, cachedWorldWidth *
+                    (IsGlassRodHold ? HoldGlassWidthShare : holdTailWidthFactor));
+            Vector3 rootScale = transform.lossyScale;
+            float localWidth = widthWorld / Mathf.Max(0.0001f, Mathf.Abs(rootScale.x));
+            float localLength = streamingMeshLengthWorld / localZScale;
+            holdTailObject.transform.localScale = new Vector3(localWidth, 1f, localLength);
+        }
+
+        holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+        holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId, 1f);
+        holdTailPropertyBlock.SetFloat(HoldTailWorldClipMinZId, clipMinZ - 0.002f);
+        holdTailPropertyBlock.SetFloat(HoldTailWorldClipMaxZId, clipMaxZ);
+        if (isTrillCached)
+        {
+            float tiledLength = Mathf.Max(1f, streamingMeshLengthWorld / repeatWorld);
+            holdTailPropertyBlock.SetVector(HoldTailMainTexStId,
+                new Vector4(1f, tiledLength, 0f, passedWorld / repeatWorld));
+        }
+        else
+        {
+            // Hold textures are commonly imported with Clamp wrapping. Tiling those
+            // textures produces a bright/dark line at every repeat boundary, so the
+            // body stays single-sampled while its procedural flow supplies motion.
+            // Moving/recycling the whole quad caused judged sections to reappear.
+            holdTailPropertyBlock.SetVector(HoldTailMainTexStId, new Vector4(1f, 1f, 0f, 0f));
+        }
+        if (IsGlassRodHold)
+        {
+            // 長條的真實起點由尾端往回推，而不是讀 headZ：判定之後音符頭會停在判
+            // 定線上，但身體照譜面速度繼續走。刻度和紋理要跟著身體走，所以起點要
+            // 從還在動的那一端算回來。
+            float beatSpacingZ = (HoldBeatMs() / 1000f) * speedWorldUnits;
+            float holdStartZ = tailEndZ - ((visualEndTime - startTime) / 1000f) * speedWorldUnits;
+            holdTailPropertyBlock.SetFloat(HoldStartZId, holdStartZ);
+            holdTailPropertyBlock.SetFloat(HoldEndZId, tailEndZ);
+            holdTailPropertyBlock.SetFloat(HoldBeatSpacingZId, beatSpacingZ);
+            holdTailPropertyBlock.SetFloat(HoldJudgeZId, judgmentZ);
+        }
+        holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+
+        if (gestureEndCapObject != null)
+        {
+            if (!isTrillCached)
+            {
+                // A pooled controller may retain the object created by an older
+                // Trill. Never reactivate that marker for an ordinary Hold.
+                gestureEndCapObject.SetActive(false);
+            }
+            else
+            {
+                float capWorldZ = tailEndZ;
+                float endLocalZ = (capWorldZ - headZ) / localZScale;
+                gestureEndCapObject.transform.localPosition =
+                    new Vector3(0f, 0.015f, endLocalZ + NoteNearEdgeLocalOffsetZ());
+                float capVisibleMaxZ = songPos < startTime
+                    ? streamOriginZ + visibleRunway
+                    : streamTopZ;
+                gestureEndCapObject.SetActive(tailVisible && capWorldZ >= streamOriginZ &&
+                    capWorldZ <= capVisibleMaxZ);
+            }
+        }
+    }
+
+    public void BeginStreamingJudgment(float inputSongPosMs)
+    {
+        if (streamingJudgmentAnchorActive || noteData == null) return;
+        bool isLongStream = isTrillCached ||
+            (string.Equals(noteData.type, "hold", System.StringComparison.OrdinalIgnoreCase) &&
+             !isStaccatoCached);
+        if (!isLongStream) return;
+
+        float speedWorldUnits = noteSpawner != null ? noteSpawner.speed : 30f;
+        // inputSongPosMs belongs to the judgment clock and may include the
+        // player's judgment offset. Capture the ribbon from the raw visual
+        // clock so switching to the judged state cannot move its tail.
+        float visualSongPosMs = inputSongPosMs;
+        try
+        {
+            Conductor visualConductor = conductor != null
+                ? conductor
+                : (GameManager.Instance != null ? GameManager.Instance.Conductor : null);
+            if (visualConductor != null)
+                visualSongPosMs = visualConductor.renderSongPosition;
+        }
+        catch { }
+        float actualVisualHeadZ = judgmentZ +
+            ((startTime - visualSongPosMs) / 1000f) * speedWorldUnits;
+        // UpdateStreamingLongVisual smooths the moving root toward its DSP
+        // target. Snapshot that rendered offset too; otherwise the judgment
+        // transition silently removes the smoothing distance from the Trill.
+        float renderedVisualHeadZ = transform.position.z;
+        float renderedSmoothOffsetZ = renderedVisualHeadZ - actualVisualHeadZ;
+        // Freeze the long-note root exactly where it was rendered on the hit
+        // frame. FAST/SLOW precision is communicated by the independent MESH
+        // and particle origin; moving this root to a separately calculated
+        // timestamp changes the head-to-tail distance and looks like growth.
+        // Timing precision remains visible through MESH/particles. The physical
+        // Hold head itself always locks to the judgment line after acceptance.
+        float movingHeadZ = judgmentZ;
+        float visualEndTime = holdTailAdjustedEndMs > startTime ? holdTailAdjustedEndMs : endTime;
+        float movingTailEndZ = judgmentZ +
+            ((visualEndTime - visualSongPosMs) / 1000f) * speedWorldUnits +
+            renderedSmoothOffsetZ;
+        float visibleRunway = Mathf.Max(streamingTailMaximumVisibleLength, streamingVisibleLengthWorld);
+        float oldClipMinZ = judgmentZ;
+        float oldClipMaxZ = Mathf.Min(judgmentZ + visibleRunway, movingTailEndZ);
+
+        streamingJudgmentAnchorZ = movingHeadZ;
+        // Capture absolute endpoints instead of a length ratio. The hit frame
+        // keeps the old upper endpoint exactly where it was; after that, the
+        // authored tail continues downward at note speed. This prevents the
+        // tail from losing a chunk when a late head is anchored below the line.
+        streamingAnchorClipMinZ = oldClipMinZ;
+        streamingAnchorWindowTopZ = Mathf.Max(oldClipMinZ, oldClipMaxZ);
+        streamingAnchorTailEndZ = movingTailEndZ;
+        streamingAnchorConsumeStartMs = visualSongPosMs;
+        streamingAnchorLastSongPosMs = streamingAnchorConsumeStartMs;
+        streamingAnchorTravelWorld = 0f;
+        streamingAnchorVisualEndMs = visualEndTime;
+        // The authored end marker always targets the judgment line at endTime,
+        // even when the head was accepted early above it.
+        streamingAnchorRequiredTailTravelWorld = Mathf.Max(0f,
+            streamingAnchorTailEndZ - judgmentZ);
+        streamingAnchorTailTravelWorld = 0f;
+        streamingJudgmentAnchorActive = true;
+        Vector3 position = transform.position;
+        position.z = streamingJudgmentAnchorZ;
+        transform.position = position;
+
+        // Before judgment, the near edge represents the chart timestamp. Once a
+        // Hold/Trill is accepted, its head becomes a stationary contact marker:
+        // centre that marker on the now note-thick judgment bar, as in the arcade
+        // reference, while the tail continues to be clipped independently.
+        if (runtimeSpriteRenderer != null && !isStaccatoCached)
+        {
+            runtimeSpriteRenderer.transform.localPosition = Vector3.zero;
+        }
+    }
     
     public void Initialize(NoteData noteData, NoteSpawner spawner, float timeToStartMs)
     {
+        visibleTailClipValid = false;
         this.noteData = noteData;
+        lastSlideConnectorRatio = -1f;
+        lastAppliedGestureVisualStrength = -1f;
         isSoftCached = false;
         isStaccatoCached = false;
+        isSlideCached = IsGestureType(noteData, "slide", 4);
+        isTrillCached = IsGestureType(noteData, "trill", 64);
         try { isStaccatoCached = IsStaccatoNote(noteData); }
         catch { isStaccatoCached = false; }
         if (!isStaccatoCached)
@@ -586,6 +1956,19 @@ public class NoteController : MonoBehaviour
                 softJudgedPendingRelease = false;
                 headMissed = false;
                 headPressed = false;
+                streamingJudgmentAnchorActive = false;
+                streamingJudgmentAnchorZ = judgmentZ;
+                streamingAnchorClipMinZ = judgmentZ;
+                streamingAnchorWindowTopZ = judgmentZ;
+                streamingAnchorTailEndZ = judgmentZ;
+                streamingAnchorConsumeStartMs = 0f;
+                streamingAnchorLastSongPosMs = 0f;
+                streamingAnchorTravelWorld = 0f;
+                streamingAnchorVisualEndMs = 0f;
+                streamingAnchorRequiredTailTravelWorld = 0f;
+                streamingAnchorTailTravelWorld = 0f;
+                judgmentSuppressed = false;
+                lastNoteFanBurstFrame = -1;
                 hasTriggeredHitSound = false;
             }
             catch { }
@@ -605,6 +1988,19 @@ public class NoteController : MonoBehaviour
             isInitialized = false;
         }
 #endif
+        // CleanupPooled resets cached type flags. Re-evaluate them after the defensive
+        // pooled-instance cleanup so Slide/Trill visuals also work in Editor/Development builds.
+        isSoftCached = false;
+        isStaccatoCached = false;
+        isSlideCached = IsGestureType(noteData, "slide", 4);
+        isTrillCached = IsGestureType(noteData, "trill", 64);
+        try { isStaccatoCached = IsStaccatoNote(noteData); }
+        catch { isStaccatoCached = false; }
+        if (!isStaccatoCached)
+        {
+            try { isSoftCached = IsSoftNote(noteData); }
+            catch { isSoftCached = false; }
+        }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         //try {
         //    var nd = this.noteData;
@@ -738,20 +2134,22 @@ public class NoteController : MonoBehaviour
                 {
                         try
                         {
-                            // Special-case: staccato notes may have dedicated sprites
+                            // Staccato: the ordinary glass frame; the gem inlay marks it
+                            // (ApplyStaccatoGem). The old flat staccato sprites are only a
+                            // fallback when the frame is missing.
                             if (isStaccatoCached)
                             {
                                 if (noteData.hand == 0) // right
                                 {
-                                    if (staccatoRightSprite != null) runtimeSpriteRenderer.sprite = staccatoRightSprite;
-                                    else if (rightHandSprite != null) runtimeSpriteRenderer.sprite = rightHandSprite;
+                                    if (rightHandSprite != null) runtimeSpriteRenderer.sprite = rightHandSprite;
                                     else if (rightHandTexture != null) runtimeSpriteRenderer.sprite = GetOrCreateSprite(rightHandTexture);
+                                    else if (staccatoRightSprite != null) runtimeSpriteRenderer.sprite = staccatoRightSprite;
                                 }
                                 else // left
                                 {
-                                    if (staccatoLeftSprite != null) runtimeSpriteRenderer.sprite = staccatoLeftSprite;
-                                    else if (leftHandSprite != null) runtimeSpriteRenderer.sprite = leftHandSprite;
+                                    if (leftHandSprite != null) runtimeSpriteRenderer.sprite = leftHandSprite;
                                     else if (leftHandTexture != null) runtimeSpriteRenderer.sprite = GetOrCreateSprite(leftHandTexture);
+                                    else if (staccatoLeftSprite != null) runtimeSpriteRenderer.sprite = staccatoLeftSprite;
                                 }
                             }
                             else
@@ -795,6 +2193,8 @@ public class NoteController : MonoBehaviour
                         // Debug.LogError($"NoteController.Initialize: Exception while assigning sprite: {ex} -- noteData.hand={(noteData!=null?noteData.hand:-1)}");
                     }
 
+                    ApplyRuntimeSpriteTheme();
+
                     // Copy sorting from existing renderer when possible
                     if (noteRenderer != null)
                     {
@@ -826,7 +2226,8 @@ public class NoteController : MonoBehaviour
                         if (holdTailRenderer != null && runtimeSpriteRenderer != null)
                         {
                             holdTailRenderer.sortingLayerID = runtimeSpriteRenderer.sortingLayerID;
-                            holdTailRenderer.sortingOrder = runtimeSpriteRenderer.sortingOrder;
+                            holdTailRenderer.sortingOrder =
+                                runtimeSpriteRenderer.sortingOrder + GestureTailOrderOffset;
                         }
                         if (staccatoIndicatorRenderer != null && runtimeSpriteRenderer != null)
                         {
@@ -906,38 +2307,10 @@ public class NoteController : MonoBehaviour
             }
 
             // --- Dynamically calculate position and scale ---
-            float totalLanes = 28f; // Total number of lanes
-            // Determine track width from assigned spawner/track when possible to avoid hardcoded lane spacing errors
-            float trackWidth = 105f; // default fallback width (world units)
-            try
-            {
-                if (noteSpawner != null && noteSpawner.trackTransform != null)
-                {
-                    var rend = noteSpawner.trackTransform.GetComponentInChildren<Renderer>();
-                    if (rend != null)
-                    {
-                        trackWidth = rend.bounds.size.x;
-                    }
-                    else
-                    {
-                        // If no renderer is present, attempt to infer width from localScale.x if it's been configured
-                        // (this is a best-effort fallback; keep the existing constant if inference fails)
-                        float inferred = Mathf.Abs(noteSpawner.trackTransform.lossyScale.x);
-                        if (inferred > 0.001f)
-                        {
-                            // assume a base unity width of 1 maps to scale.x units; multiply by a nominal per-track unit
-                            trackWidth = inferred * 100f; // nominal conversion factor when no renderer is available
-                        }
-                    }
-                }
-            }
-            catch { /* keep fallback trackWidth */ }
-            float laneWidth = trackWidth / totalLanes;
-            float gap = 1.0f;
-
-            float width = ((noteData.endLane - noteData.startLane + 1) * laneWidth) - gap;
-            float centerLane = (noteData.startLane + noteData.endLane) / 2.0f;
-            float positionX = (centerLane * laneWidth) - (trackWidth / 2.0f) + (laneWidth / 2.0f);
+            float trackWidth = PianoVisualLayout.ResolveTrackWidth(
+                noteSpawner != null ? noteSpawner.trackTransform : null);
+            float width = PianoVisualLayout.ResolveVisualWidth(noteData, trackWidth);
+            float positionX = PianoVisualLayout.ResolveCenterX(noteData, trackWidth);
 
             // If a JudgmentLine exists in scene, align note Y/Z to that line so visuals match popups
             try
@@ -1011,28 +2384,76 @@ public class NoteController : MonoBehaviour
 
             float desiredWorldWidth = width;
             cachedWorldWidth = Mathf.Max(0.0001f, desiredWorldWidth);
-            float scaleFactorX = desiredWorldWidth / Mathf.Max(0.0001f, currentWorldWidth);
-            Vector3 baseLocal = transform.localScale;
-            // Apply same X scale multiplier to Y to preserve sprite aspect ratio and ensure height matches proportionally
-            float newLocalX = baseLocal.x * scaleFactorX;
-            float newLocalY = baseLocal.y * scaleFactorX;
-            transform.localScale = new Vector3(newLocalX, newLocalY, baseLocal.z);
+            if (runtimeSpriteRenderer != null && runtimeSpriteRenderer.sprite != null)
+            {
+                // Set an absolute world-space visual size on the rotated child.
+                // The scene intentionally gives note roots a non-uniform world scale
+                // (notably Z), so scaling the root can never preserve sprite aspect.
+                Vector2 authoredSize = runtimeSpriteRenderer.sprite.bounds.size;
+                // All note heads use one world-space height. Sprite aspect ratio
+                // no longer changes gameplay readability between note types.
+                float desiredWorldHeight = ResolveNoteWorldHeight();
+                Vector3 noteWorldScale = transform.lossyScale;
+                float childScaleX = desiredWorldWidth /
+                    Mathf.Max(0.0001f, authoredSize.x * Mathf.Abs(noteWorldScale.x));
+                // RuntimeSprite is rotated -90 degrees around X: its local Y maps
+                // onto the note parent's Z axis in world space.
+                float childScaleY = desiredWorldHeight /
+                    Mathf.Max(0.0001f, authoredSize.y * Mathf.Abs(noteWorldScale.z));
+                runtimeSpriteRenderer.transform.localScale = new Vector3(childScaleX, childScaleY, 1f);
+
+                runtimeSpriteRenderer.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+
+                // The note root represents the chart timestamp. Anchor the near edge to that
+                // root so at startTime the visible leading edge, rather than the sprite
+                // centre, meets the judgment line. See NoteNearEdgeLocalOffsetZ.
+                runtimeSpriteRenderer.transform.localPosition =
+                    new Vector3(0f, 0f, NoteNearEdgeLocalOffsetZ());
+
+                ApplyStaccatoGem(desiredWorldWidth, desiredWorldHeight, childScaleX, childScaleY);
+            }
+            else
+            {
+                float scaleFactorX = desiredWorldWidth / Mathf.Max(0.0001f, currentWorldWidth);
+                Vector3 baseLocal = transform.localScale;
+                transform.localScale = new Vector3(
+                    baseLocal.x * scaleFactorX,
+                    baseLocal.y * scaleFactorX,
+                    baseLocal.z);
+            }
 
             // If this is a hold note, create a quad-based tail mesh to visually represent its length
-            if (noteData.type == "hold")
+            if (noteData.type == "hold" || isSlideCached || isTrillCached)
             {
                 try
                 {
                     float speedWorldUnits = (noteSpawner != null) ? noteSpawner.speed : 30f;
-                    holdTailAdjustedEndMs = Mathf.Max(startTime, endTime - tailEndOffsetMs);
+                    holdTailAdjustedEndMs = (isSlideCached || isTrillCached)
+                        ? Mathf.Max(startTime, endTime)
+                        : Mathf.Max(startTime, endTime - tailEndOffsetMs);
                     holdDurationMs = Mathf.Max(1f, holdTailAdjustedEndMs - startTime);
                     float initialLengthWorld = (holdDurationMs / 1000f) * speedWorldUnits;
                     if (initialLengthWorld < minimumHoldTailVisualLength)
                     {
                         initialLengthWorld = minimumHoldTailVisualLength;
                     }
+                    // Cover the entire visible runway, rather than beginning a
+                    // fixed-size stream halfway down it.  Keep two repeat cells
+                    // outside the clipping window so recycling never exposes an
+                    // empty frame at either edge.
+                    streamingVisibleLengthWorld = Mathf.Max(
+                        streamingTailMaximumVisibleLength,
+                        Mathf.Abs(spawnZ - judgmentZ));
+                    float streamedSpanWorld = Mathf.Min(initialLengthWorld,
+                        streamingVisibleLengthWorld);
+                    // Two complete runway chunks allow the first to move down
+                    // continuously while the following chunk feeds in above it.
+                    streamingMeshLengthWorld = streamedSpanWorld * 2f
+                        + streamingTailRepeatWorldLength * 2f;
 
                     EnsureHoldTailVisualExists();
+                    if (!isSlideCached && !isTrillCached && holdTailMeshFilter != null)
+                        holdTailMeshFilter.sharedMesh = sharedHoldTailQuad;
                     if (holdTailObject != null && holdTailRenderer != null)
                     {
                         holdTailObject.transform.SetParent(this.transform, false);
@@ -1051,17 +2472,36 @@ public class NoteController : MonoBehaviour
                         {
                             holdTailRenderer.sortingLayerID = runtimeSpriteRenderer.sortingLayerID;
                             // Match the note's sorting so the tail is not buried under track/background
-                            holdTailRenderer.sortingOrder = runtimeSpriteRenderer.sortingOrder;
+                            holdTailRenderer.sortingOrder =
+                                runtimeSpriteRenderer.sortingOrder + GestureTailOrderOffset;
                         }
                         else if (noteRenderer != null)
                         {
                             holdTailRenderer.sortingLayerID = noteRenderer.sortingLayerID;
-                            holdTailRenderer.sortingOrder = noteRenderer.sortingOrder;
+                            holdTailRenderer.sortingOrder =
+                                noteRenderer.sortingOrder + GestureTailOrderOffset;
                         }
 
-                        SetHoldTailActive(true);
-                        float tailWidthWorld = Mathf.Max(0.01f, width * holdTailWidthFactor);
-                        UpdateHoldTailDimensions(tailWidthWorld, initialLengthWorld, true);
+                        float tailWidthWorld = Mathf.Max(0.01f,
+                            width * (IsGlassRodHold ? HoldGlassWidthShare : holdTailWidthFactor));
+                        bool showTail = true;
+                        if (isSlideCached)
+                        {
+                            GetOrCreateGestureTailMesh("SlideTrapezoidConnector");
+                            showTail = BuildSlideConnectorMesh(
+                                trackWidth, width, initialLengthWorld, speedWorldUnits);
+                        }
+                        else if (isTrillCached)
+                        {
+                            BuildTrillArrowMesh(width, streamingMeshLengthWorld);
+                            EnsureTrillEndCap(initialLengthWorld);
+                            gestureVisualStrength = 1f;
+                        }
+                        else
+                        {
+                            UpdateHoldTailDimensions(tailWidthWorld, streamingMeshLengthWorld, true);
+                        }
+                        SetHoldTailActive(showTail);
                     }
 
                     initialTailLength = initialLengthWorld;
@@ -1107,7 +2547,51 @@ public class NoteController : MonoBehaviour
                 // No runtime sprite assigned: ensure the original renderer is enabled so the note is visible
                 if (noteRenderer != null) noteRenderer.enabled = true;
             }
-            RefreshStaccatoIndicator();
+            // 浮在音符上方的斷音紋章。音符正中央的寶石是「這一顆是斷音」的**內
+            // 嵌**記號，貼在音符上、跟著音符一起被判掉；紋章是浮在它上方、面向玩
+            // 家、上下飄的一塊牌子，遠遠就看得到。兩個各有各的距離。
+            if (!PreviewBuildMode) RefreshStaccatoIndicator();
+            ParticleEffectPlayer fanParticleController = ParticleEffectPlayer.Instance;
+            if (PreviewBuildMode)
+            {
+                // 檢視器的音符不會被打到，扇形粒子只會去借共用粒子池然後留下殘骸。
+                noteFanParticleEmitter?.StopAndClear();
+            }
+            else if (enableNoteFanParticles || fanParticleController != null)
+            {
+                if (noteFanParticleEmitter == null)
+                    noteFanParticleEmitter = GetComponent<NoteFanParticleEmitter>();
+                if (noteFanParticleEmitter == null)
+                    noteFanParticleEmitter = gameObject.AddComponent<NoteFanParticleEmitter>();
+
+                Color fanColor = ResolveGestureColor();
+                int fanSortingLayer = runtimeSpriteRenderer != null
+                    ? runtimeSpriteRenderer.sortingLayerID
+                    : (noteRenderer != null ? noteRenderer.sortingLayerID : 0);
+                int fanSortingOrder = runtimeSpriteRenderer != null
+                    ? runtimeSpriteRenderer.sortingOrder + 1
+                    : (noteRenderer != null ? noteRenderer.sortingOrder + 1 : 1);
+                noteFanParticleEmitter.Configure(
+                    fanParticleController,
+                    noteSpawner != null ? noteSpawner.trackTransform : null,
+                    judgmentLineTransformForNote,
+                    fanColor,
+                    desiredWorldWidth,
+                    noteFanParticleTexture,
+                    noteFanBurstCount,
+                    noteFanEmissionRate,
+                    noteFanSpeed,
+                    noteFanHalfAngle,
+                    noteFanLifetime,
+                    noteFanParticleSize,
+                    fanSortingLayer,
+                    fanSortingOrder);
+            }
+            else
+            {
+                noteFanParticleEmitter?.StopAndClear();
+            }
+            if (!PreviewBuildMode) { try { UpdateVelocityHalo(); } catch { } }
             isInitialized = true;
             // Register with JudgmentManager so it can be found when player presses buttons
             try { JudgmentManager.Instance.RegisterNote(this); } catch { }
@@ -1146,6 +2630,7 @@ public class NoteController : MonoBehaviour
     // Called by pool when object is returned; cleans up transient children (holdTail) and resets state
     public void CleanupPooled()
     {
+        noteFanParticleEmitter?.StopAndClear();
         try
         {
                     if (holdTailObject != null)
@@ -1153,11 +2638,9 @@ public class NoteController : MonoBehaviour
                         SetHoldTailActive(false);
                         holdTailObject.transform.localScale = Vector3.one;
                         holdTailObject.transform.localPosition = Vector3.zero;
-                        if (owningPool != null && owningPool.Container != null)
-                        {
-                            holdTailObject.transform.SetParent(owningPool.Container, false);
-                        }
+                        holdTailObject.transform.SetParent(transform, false);
                     }
+                    if (gestureEndCapObject != null) gestureEndCapObject.SetActive(false);
         }
         catch
         {
@@ -1170,6 +2653,9 @@ public class NoteController : MonoBehaviour
     noteData = null;
     // reset cached soft flag
     isSoftCached = false;
+    isStaccatoCached = false;
+    isSlideCached = false;
+    isTrillCached = false;
     softJudgedPendingRelease = false;
     noteSpawner = null;
     cachedWorldWidth = 1f;
@@ -1180,8 +2666,30 @@ public class NoteController : MonoBehaviour
         currentTailWidthWorld = 0f;
         holdDurationMs = 0f;
         holdTailAdjustedEndMs = 0f;
+        streamingJudgmentAnchorActive = false;
+        streamingJudgmentAnchorZ = 0f;
+        streamingAnchorClipMinZ = 0f;
+        streamingAnchorWindowTopZ = 0f;
+        streamingAnchorTailEndZ = 0f;
+        streamingAnchorConsumeStartMs = 0f;
+        streamingAnchorLastSongPosMs = 0f;
+        streamingAnchorTravelWorld = 0f;
+        streamingAnchorVisualEndMs = 0f;
+        streamingAnchorRequiredTailTravelWorld = 0f;
+        streamingAnchorTailTravelWorld = 0f;
+        gestureVisualStrength = 1f;
+        lastAppliedGestureVisualStrength = -1f;
+        lastSlideConnectorRatio = -1f;
+        slideFarCenterOffsetWorld = 0f;
+        slideNearWidthWorld = 0f;
+        slideFarWidthWorld = 0f;
+        slideConnectorLengthWorld = 0f;
+        streamingMeshLengthWorld = 0f;
+        trillArrowRepeatWorldLength = 0f;
+        streamingVisibleLengthWorld = 0f;
     // Clear judged flag so pooled notes become active/visible when respawned
     isJudged = false;
+        judgmentSuppressed = false;
         // unregister from JudgmentManager
         try { JudgmentManager.Instance.UnregisterNote(this); } catch { }
         HideStaccatoIndicator();
@@ -1222,9 +2730,33 @@ public class NoteController : MonoBehaviour
     }
 
     // Called by JudgmentManager when this note is judged
+    /// <summary>
+    /// Raised once per note, the moment it is judged.
+    /// </summary>
+    /// <remarks>
+    /// Every judgment path -- current, legacy and compatibility managers alike --
+    /// funnels through <see cref="OnJudged"/>, so this is the one place a visual
+    /// can subscribe to "a note was just played" without having to know which
+    /// manager is in charge.
+    /// </remarks>
+    public static event System.Action<NoteData, JudgmentResult> Judged;
+
     public void OnJudged(JudgmentResult result)
     {
         if (isJudged) return;
+        if (noteData != null)
+        {
+            try { Judged?.Invoke(noteData, result); } catch { }
+        }
+
+        // Final fallback shared by the current, legacy and compatibility
+        // managers. PlayHitEffect normally gets here first; the frame guard
+        // above prevents that route from producing a duplicate burst.
+        if (result == JudgmentResult.Perfect || result == JudgmentResult.Great || result == JudgmentResult.Good)
+        {
+            try { PlayJudgmentLineFanParticles(false); } catch { }
+        }
+
         isJudged = true;
         if (isSoftCached)
         {
@@ -1242,8 +2774,15 @@ public class NoteController : MonoBehaviour
     }
 
     // Called when a hold note is pressed at its head. Do not release the note here; keep it active until hold end.
+    /// <summary>Raised the moment a hold's head is pressed.</summary>
+    public static event System.Action<NoteData, JudgmentResult> HoldStarted;
+
     public void OnHoldStart(JudgmentResult startResult)
     {
+        if (noteData != null)
+        {
+            try { HoldStarted?.Invoke(noteData, startResult); } catch { }
+        }
         headPressed = true;
         // Do not mark as fully judged; play hit sound and ensure tail is visible
         try
@@ -1276,9 +2815,20 @@ public class NoteController : MonoBehaviour
     }
 
     // Called when the player releases a hold or the hold naturally ends. This finalizes visuals and releases the note.
+    /// <summary>
+    /// Raised when a hold finishes.  Holds never reach <see cref="OnJudged"/>:
+    /// the manager's hold-end branch calls this and returns, so anything
+    /// listening only to Judged silently never sees a long note.
+    /// </summary>
+    public static event System.Action<NoteData, JudgmentResult> HoldFinished;
+
     public void OnHoldEnd(JudgmentResult endResult)
     {
         if (isJudged) return;
+        if (noteData != null)
+        {
+            try { HoldFinished?.Invoke(noteData, endResult); } catch { }
+        }
         headPressed = false;
         // Tail/end judgement should NOT play a hit sound (head already played on start).
         // Removed PlayHitSound() here to avoid duplicate/undesired audio on release.
@@ -1293,6 +2843,11 @@ public class NoteController : MonoBehaviour
     void Update()
     {
     if (!isInitialized) return;
+
+    // Camera/layout settings can reposition the judgment line after pooled notes have
+    // initialized.  Keep every not-yet-judged head aimed at the line players actually see.
+    if (!isJudged && !headPressed && judgmentLineTransformForNote != null)
+        judgmentZ = judgmentLineTransformForNote.position.z;
     // Defensive: if noteData becomes null for any reason while marked initialized,
     // avoid NullReferenceExceptions and try to recover by releasing the object.
     if (noteData == null)
@@ -1305,6 +2860,7 @@ public class NoteController : MonoBehaviour
         try { ReleaseOrDestroy(); } catch { }
         return;
     }
+    UpdateHoldTailFlow();
     // Try to ensure we have a conductor reference; do the expensive Find only once per instance.
     if (conductor == null && !didTryFindConductor)
     {
@@ -1316,17 +2872,17 @@ public class NoteController : MonoBehaviour
     }
 
         float songPos = (conductor != null) ? conductor.effectiveSongPosition : 0f;
+        float visualSongPos = (conductor != null) ? conductor.renderSongPosition : songPos;
         float currentSpeed = (noteSpawner != null) ? noteSpawner.speed : 30f;
 
         // Soft-only delayed disappearance:
         // judged soft notes stay visible until they hit the judgment line.
         if (isSoftCached && isJudged && softJudgedPendingRelease)
         {
-            float timeToStartSoft = startTime - songPos;
+            float timeToStartSoft = startTime - visualSongPos;
             float targetZSoft = judgmentZ + (timeToStartSoft / 1000f) * currentSpeed;
             Vector3 posSoft = transform.position;
-            float maxStepSoft = currentSpeed * Time.deltaTime;
-            posSoft.z = Mathf.MoveTowards(posSoft.z, targetZSoft, maxStepSoft);
+            posSoft.z = FollowDspVisualTarget(posSoft.z, targetZSoft, currentSpeed);
             if (Mathf.Abs(targetZSoft - posSoft.z) <= 0.0001f) posSoft.z = targetZSoft;
             transform.position = posSoft;
 
@@ -1346,12 +2902,85 @@ public class NoteController : MonoBehaviour
 
         // Cache settings once per Update — avoids N×SettingsManager.Instance reads per active note per frame
         var _sm = SettingsManager.Instance;
-        bool _debugMode = _sm != null && _sm.DebugMode;
-        bool _judgmentMode = _sm != null && _sm.JudgmentMode;
+        // 教學示範段的音符就是這一顆的自動演奏，其餘音符照玩家設定。
+        bool _debugMode = (_sm != null && _sm.DebugModeInPlay) || IsTutorialDemo;
+        bool _judgmentMode = _sm != null && _sm.JudgmentModeInPlay;
+        // Judgment clock: player-facing timing (hit AND miss) runs on effectiveSongPosition + judgment
+        // offset, matching JudgmentManager.GetSongPositionMs(). Visual note movement below stays on the
+        // raw songPos so notes still align with the audio — ONLY the miss/fail timeout checks use this,
+        // otherwise the offset the player sets would have no effect on auto-miss and desync from input.
+        float judgmentPos = songPos + (_sm != null ? _sm.JudgmentOffsetMs : 0f);
+        if (judgmentSuppressed)
+        {
+            // Suppressed notes should keep their travel/visual timing but never produce
+            // head/tail/miss judgments, so treat them like non-judgment-mode visuals.
+            _debugMode = false;
+            _judgmentMode = false;
+        }
 
         // --- Debug Mode Auto-Play Logic ---
 
-    if (noteData.type == "tap" || isSoftCached || isStaccatoCached)
+    if (isTrillCached)
+        {
+            UpdateStreamingLongVisual(visualSongPos, currentSpeed);
+        }
+    else if (isSlideCached)
+        {
+            // Gesture heads travel like TAP notes, then stay on the judgment
+            // line while their short ribbon is being checked. JudgmentManager
+            // owns completion so the note cannot time out as an ordinary tap.
+            if (visualSongPos < startTime)
+            {
+                float timeToStartGesture = startTime - visualSongPos;
+                float targetZGesture = judgmentZ + (timeToStartGesture / 1000f) * currentSpeed;
+                Vector3 gesturePos = transform.position;
+                gesturePos.z = FollowDspVisualTarget(
+                    gesturePos.z, targetZGesture, currentSpeed);
+                transform.position = gesturePos;
+                if (holdTailObject != null)
+                {
+                    currentTailLength = initialTailLength;
+                    if (isSlideCached) UpdateSlideConnectorMesh(1f);
+                    else
+                    {
+                        holdTailObject.transform.localScale = Vector3.one;
+                        if (gestureEndCapObject != null)
+                        {
+                            float endZ = initialTailLength / Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
+                            gestureEndCapObject.transform.localPosition =
+                                new Vector3(0f, 0.015f, endZ + NoteNearEdgeLocalOffsetZ());
+                        }
+                    }
+                    SetHoldTailActive(currentTailLength > 0.0001f && (!isSlideCached || noteData.param2 >= 0));
+                }
+            }
+            else
+            {
+                Vector3 gesturePos = transform.position;
+                gesturePos.z = judgmentZ;
+                transform.position = gesturePos;
+                float remaining = Mathf.Max(0f, holdTailAdjustedEndMs - visualSongPos);
+                float ratio = holdDurationMs > 0f ? Mathf.Clamp01(remaining / holdDurationMs) : 0f;
+                currentTailLength = initialTailLength * ratio;
+                if (isSlideCached)
+                {
+                    UpdateSlideConnectorMesh(ratio);
+                }
+                else if (holdTailObject != null)
+                {
+                    holdTailObject.transform.localScale = new Vector3(1f, 1f, Mathf.Max(0.0001f, ratio));
+                    if (gestureEndCapObject != null)
+                    {
+                        float endZ = initialTailLength * ratio /
+                            Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
+                        gestureEndCapObject.transform.localPosition =
+                            new Vector3(0f, 0.015f, endZ + NoteNearEdgeLocalOffsetZ());
+                    }
+                }
+                SetHoldTailActive(currentTailLength > 0.0001f && (!isSlideCached || noteData.param2 >= 0));
+            }
+        }
+    else if (noteData.type == "tap" || isSoftCached || isStaccatoCached)
         {
             // If judgment mode is enabled, do not auto-trigger on reaching startTime.
             // Instead wait for player input; if the note passes beyond the 'good' window, count as fail.
@@ -1359,7 +2988,7 @@ public class NoteController : MonoBehaviour
             // If DebugMode is enabled, auto-judge as Perfect at startTime.
             if (_judgmentMode && !_debugMode)
             {
-                if (songPos - startTime > (JudgmentManager.Instance != null ? JudgmentManager.Instance.goodMs : 150))
+                if (judgmentPos - startTime > (JudgmentManager.Instance != null ? JudgmentManager.Instance.goodMs : 150))
                 {
                     // note missed (failed)
                     try { JudgmentManager.Instance.RecordFail(this); } catch { }
@@ -1410,12 +3039,18 @@ public class NoteController : MonoBehaviour
                 }
             }
 
-            // Move deterministically toward the DSP-derived target using deltaTime to keep playback smooth.
-            float timeToStart = startTime - songPos;
+            // Place directly on the shared DSP-derived visual target.
+            float timeToStart = startTime - visualSongPos;
             float targetZ = judgmentZ + (timeToStart / 1000f) * currentSpeed;
+            if (targetZ < judgmentZ)
+            {
+                // Crossing still happens at the exact chart time. Only the visual
+                // overshoot is compressed, so late notes visibly decelerate without
+                // widening or shifting any judgment window.
+                targetZ = judgmentZ + (targetZ - judgmentZ) * postJudgmentVisualSpeed;
+            }
             Vector3 pos = transform.position;
-            float maxStep = currentSpeed * Time.deltaTime;
-            pos.z = Mathf.MoveTowards(pos.z, targetZ, maxStep);
+            pos.z = FollowDspVisualTarget(pos.z, targetZ, currentSpeed);
             // Snap if we are within an imperceptible range to guarantee precise alignment.
             if (Mathf.Abs(targetZ - pos.z) <= 0.0001f) pos.z = targetZ;
             transform.position = pos;
@@ -1426,26 +3061,7 @@ public class NoteController : MonoBehaviour
             // smoothly shrink to zero, then destroy the GameObject once the tail is effectively gone.
                 if (songPos < startTime)
             {
-                // --- Before hold starts: Move the entire note ---
-                float timeToStart = startTime - songPos;
-                float headZ = judgmentZ + (timeToStart / 1000f) * currentSpeed;
-
-                // Advance toward the DSP-derived head position using deltaTime while preserving exact alignment.
-                Vector3 pos = transform.position;
-                float maxStep = currentSpeed * Time.deltaTime;
-                pos.z = Mathf.MoveTowards(pos.z, headZ, maxStep);
-                if (Mathf.Abs(headZ - pos.z) <= 0.0001f) pos.z = headZ;
-                transform.position = pos;
-                if (holdTailObject != null)
-                {
-                    float widthWorld = currentTailWidthWorld > 0f
-                        ? currentTailWidthWorld
-                        : Mathf.Max(0.01f, cachedWorldWidth * holdTailWidthFactor);
-                    currentTailLength = initialTailLength;
-                    bool force = Mathf.Abs(lastAppliedTailLength - currentTailLength) > tailLengthUpdateThreshold;
-                    UpdateHoldTailDimensions(widthWorld, currentTailLength, force);
-                    SetHoldTailActive(!isStaccatoCached && currentTailLength > 0.0001f);
-                }
+                UpdateStreamingLongVisual(visualSongPos, currentSpeed);
 
             }
             else
@@ -1467,7 +3083,7 @@ public class NoteController : MonoBehaviour
                     if (!headPressed && !headMissed && (judgmentModeActive || debugModeActive))
                     {
                         float allowedMs = (JudgmentManager.Instance != null) ? JudgmentManager.Instance.goodMs : 150f;
-                        if (songPos - startTime > allowedMs)
+                        if (judgmentPos - startTime > allowedMs)
                         {
                             headMissed = true;
                             // immediately avoid snapping to judgment line; we'll let visual continue flowing
@@ -1494,86 +3110,10 @@ public class NoteController : MonoBehaviour
                     }
                 }
 
-                // --- After hold starts: Shrink the note towards remaining time until endTime ---
-                float adjustedEndMs2 = holdTailAdjustedEndMs;
-                float remainingMsAdjusted = adjustedEndMs2 - songPos;
-                float remainingRatio = holdDurationMs > 0f ? Mathf.Clamp01(remainingMsAdjusted / holdDurationMs) : 0f;
-                float targetLengthWorld = Mathf.Max(0f, initialTailLength * remainingRatio);
-                // If head was missed, in non-debug JudgmentMode we snap to judgment line so
-                // the hold visually stays on the line and continues to receive per-beat ticks.
-                // In DebugMode or non-judgment flows, preserve original "flowing past" behavior.
-                if (headMissed)
-                {
-                    // Reuse outer scope's debugModeActive/judgmentModeActive variables
-                    if (judgmentModeActive && !debugModeActive)
-                    {
-                        // Keep head locked on judgment line to allow continued per-beat judgement
-                        Vector3 pos = transform.position;
-                        pos.z = judgmentZ;
-                        transform.position = pos;
-                    }
-                    else
-                    {
-                        // Legacy behavior: let head continue flowing past the line
-                        float timeToStartAfter = startTime - songPos; // negative after start
-                        float headZ = judgmentZ + (timeToStartAfter / 1000f) * currentSpeed;
-                        Vector3 pos = transform.position;
-                        float maxStepMiss = currentSpeed * Time.deltaTime;
-                        pos.z = Mathf.MoveTowards(pos.z, headZ, maxStepMiss);
-                        if (Mathf.Abs(headZ - pos.z) <= 0.0001f) pos.z = headZ;
-                        transform.position = pos;
-                    }
-                }
-                else
-                {
-                    // Head stays at judgment line while the player is holding
-                    Vector3 pos = transform.position;
-                    pos.z = judgmentZ;
-                    transform.position = pos;
-                }
-                if (holdTailObject != null)
-                {
-                    float widthWorld = currentTailWidthWorld > 0f
-                        ? currentTailWidthWorld
-                        : Mathf.Max(0.01f, cachedWorldWidth * holdTailWidthFactor);
-
-                    float previousLength = currentTailLength;
-                    float shrinkRate = Mathf.Max(holdTailShrinkSpeed, currentSpeed);
-                    currentTailLength = Mathf.MoveTowards(previousLength, targetLengthWorld, shrinkRate * Time.deltaTime);
-
-                    bool forceUpdate = Mathf.Abs(lastAppliedTailLength - currentTailLength) > tailLengthUpdateThreshold;
-                    UpdateHoldTailDimensions(widthWorld, currentTailLength, forceUpdate);
-                    SetHoldTailActive(!isStaccatoCached && currentTailLength > 0.0001f);
-
-                    if (targetLengthWorld <= 0.001f)
-                    {
-                        SetHoldTailActive(false);
-                        // In non-judgment (non-debug) mode, do NOT release immediately even if head was missed.
-                        // Allow the hold to continue until endTime so player can still re-press and recover.
-                        bool isNonDebugMode = !_debugMode && _judgmentMode;
-
-                        if (headMissed && !isNonDebugMode)
-                        {
-                            // head was missed AND (debug mode or non-judgment) -> release when tail ends
-                            TryReleaseOrDestroy("Hold tail ended: headMissed", songPos, currentSpeed);
-                            return;
-                        }
-                        if (headMissed && isNonDebugMode)
-                        {
-                            // In non-debug judgment mode: keep the note alive until endTime to allow recovery
-                            // Tail is now invisible but the hold state persists in JudgmentManager
-                        }
-                        else if (_judgmentMode)
-                        {
-                            // In judgment mode (no headMissed), defer immediate release; allow endTime handling to decide fail timeout
-                        }
-                        else
-                        {
-                            TryReleaseOrDestroy("Hold tail ended: non-judgment", songPos, currentSpeed);
-                            return;
-                        }
-                    }
-                }
+                // The long-note stream keeps moving with the chart. Geometry below
+                // the judgment line and beyond the visible runway is clipped by shader;
+                // no endpoint is scaled inward and no very long mesh is created.
+                UpdateStreamingLongVisual(visualSongPos, currentSpeed);
                 // If we've passed or reached the endTime
                 if (songPos >= endTime)
                 {
@@ -1589,14 +3129,15 @@ public class NoteController : MonoBehaviour
                             // already passed the grace window locally, release here to avoid
                             // stuck notes when no manager state exists.
                             float grace = (JudgmentManager.Instance != null) ? JudgmentManager.Instance.goodMs : 150f;
-                            if (songPos - endTime > grace)
+                            if (judgmentPos - endTime > grace)
                             {
-                                try
-                                {
-                                    var simple = SimpleJudgePopupManager.Instance;
-                                    if (simple != null) simple.ShowAtPosition(this.transform.position, JudgmentResult.Miss);
-                                }
-                                catch { }
+                                // Head was missed and the player never recovered the hold within the grace
+                                // window. The manager has no hold-state for a never-pressed hold, so it will
+                                // NOT finalize this note itself — without a RecordFail here the entire hold
+                                // would score nothing and leave the player's combo intact. Route a real Miss
+                                // (mirrors the tap miss-timeout path). RecordFail also shows the Miss popup,
+                                // so we no longer pop one manually.
+                                try { JudgmentManager.Instance.RecordFail(this); } catch { }
                                 TryReleaseOrDestroy("Hold end: headMissed (grace expired)", songPos, currentSpeed);
                                 return;
                             }
@@ -1623,13 +3164,20 @@ public class NoteController : MonoBehaviour
                     }
                     if (judgmentModeActive)
                     {
-                        if (songPos - endTime > (JudgmentManager.Instance != null ? JudgmentManager.Instance.goodMs : 150))
+                        // Only auto-fail a hold whose head was NEVER pressed. A pressed hold (headPressed==true)
+                        // is owned by JudgmentManager: FinalizeExpiredHolds judges its tail at this SAME
+                        // endTime+goodMs deadline and then releases the note via OnHoldEnd. Calling RecordFail
+                        // here as well double-judges the note and — because both deadlines are now identical —
+                        // turns a correctly-held hold into a Miss purely based on Unity's (unspecified) script
+                        // execution order. Reaching this branch already implies headMissed==false, so a true
+                        // condition here historically always meant headPressed==true; the guard makes that explicit.
+                        if (!headPressed && judgmentPos - endTime > (JudgmentManager.Instance != null ? JudgmentManager.Instance.goodMs : 150))
                         {
                             try { JudgmentManager.Instance.RecordFail(this); } catch { }
                             TryReleaseOrDestroy("Hold end: fail timeout", songPos, currentSpeed);
                             return;
                         }
-                        // otherwise keep head at judgment line until timeout
+                        // otherwise keep head at judgment line and let the manager finalize the tail
                     }
                     else
                     {
@@ -1647,6 +3195,101 @@ public class NoteController : MonoBehaviour
         }
     }
 
+    private static Sprite LoadStaccatoGemSprite(string resourcePath)
+    {
+        Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+        if (texture == null) return null;
+        return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height),
+            new Vector2(0.5f, 0.5f), texture.width);
+    }
+
+    /// <summary>
+    /// Sets the gem inlay in the centre of a staccato head. The gem is a child of
+    /// RuntimeSprite, so it inherits the flat orientation and the near-edge offset;
+    /// its own scale undoes the frame's non-uniform stretch so it stays round.
+    /// </summary>
+    private void ApplyStaccatoGem(float noteWorldWidth, float noteWorldHeight,
+        float frameScaleX, float frameScaleY)
+    {
+        if (!isStaccatoCached || runtimeSpriteRenderer == null)
+        {
+            if (staccatoGemRenderer != null) staccatoGemRenderer.enabled = false;
+            return;
+        }
+
+        bool isRight = noteData != null && noteData.hand == 0;
+        if (isRight && staccatoGemRightSprite == null)
+            staccatoGemRightSprite = LoadStaccatoGemSprite("graphic/StaccatoGem_Red");
+        if (!isRight && staccatoGemLeftSprite == null)
+            staccatoGemLeftSprite = LoadStaccatoGemSprite("graphic/StaccatoGem_Blue");
+        Sprite gem = isRight ? staccatoGemRightSprite : staccatoGemLeftSprite;
+        if (gem == null)
+        {
+            if (staccatoGemRenderer != null) staccatoGemRenderer.enabled = false;
+            return;
+        }
+
+        if (staccatoGemRenderer == null)
+        {
+            var go = new GameObject("StaccatoGem");
+            staccatoGemRenderer = go.AddComponent<SpriteRenderer>();
+        }
+        Transform gemTransform = staccatoGemRenderer.transform;
+        if (gemTransform.parent != runtimeSpriteRenderer.transform)
+            gemTransform.SetParent(runtimeSpriteRenderer.transform, false);
+
+        if (!staccatoGemMaterialResolved)
+        {
+            staccatoGemMaterialResolved = true;
+            // Resources/Shaders/StaccatoGem.shader: solid over the additive frame and
+            // HDR on the highlights. Without it the gem drowns in the frame's bloom.
+            Shader gemShader = Shader.Find("Custom/StaccatoGem");
+            if (gemShader != null)
+                staccatoGemMaterial = new Material(gemShader)
+                {
+                    name = "Staccato Gem (Runtime)",
+                    hideFlags = HideFlags.DontSave
+                };
+        }
+        if (staccatoGemMaterial != null && staccatoGemRenderer.sharedMaterial != staccatoGemMaterial)
+            staccatoGemRenderer.sharedMaterial = staccatoGemMaterial;
+        staccatoGemRenderer.sprite = gem;
+        // Frame local +Y runs toward the player (bottom of the screen), so the
+        // texture's top-left light would land bottom-left. Flip it back.
+        staccatoGemRenderer.flipY = true;
+        staccatoGemRenderer.color = Color.white;
+        staccatoGemRenderer.sortingLayerID = runtimeSpriteRenderer.sortingLayerID;
+        staccatoGemRenderer.sortingOrder = runtimeSpriteRenderer.sortingOrder + 1;
+
+        float diameter = Mathf.Clamp(noteWorldWidth * staccatoGemWidthRatio,
+            noteWorldHeight * staccatoGemMinHeightRatio,
+            noteWorldHeight * Mathf.Max(staccatoGemMinHeightRatio, staccatoGemMaxHeightRatio));
+        Vector3 rootScale = transform.lossyScale;
+        Vector2 gemSize = gem.bounds.size;
+        // Frame local X -> root X, frame local Y -> root Z (see the RuntimeSprite scale).
+        float localX = diameter / Mathf.Max(0.0001f,
+            gemSize.x * Mathf.Abs(frameScaleX) * Mathf.Abs(rootScale.x));
+        float localY = diameter / Mathf.Max(0.0001f,
+            gemSize.y * Mathf.Abs(frameScaleY) * Mathf.Abs(rootScale.z));
+        gemTransform.localScale = new Vector3(localX, localY, 1f);
+        gemTransform.localRotation = Quaternion.identity;
+        // Frame local +Z points up (world +Y). Lift a hair so the inlay never
+        // z-fights the frame or dips under the track surface.
+        gemTransform.localPosition = new Vector3(0f, 0f,
+            0.01f / Mathf.Max(0.0001f, Mathf.Abs(rootScale.y)));
+        staccatoGemRenderer.enabled = runtimeSpriteRenderer.enabled;
+    }
+
+    private void LateUpdate()
+    {
+        // The frame is hidden from many places (judged, hold start, head clipping);
+        // the gem just follows whatever the frame ended up as this frame.
+        if (staccatoGemRenderer == null) return;
+        bool show = isInitialized && isStaccatoCached && runtimeSpriteRenderer != null &&
+            runtimeSpriteRenderer.enabled && staccatoGemRenderer.sprite != null;
+        if (staccatoGemRenderer.enabled != show) staccatoGemRenderer.enabled = show;
+    }
+
     private void RefreshStaccatoIndicator()
     {
         if (!isStaccatoCached || noteData == null)
@@ -1655,15 +3298,21 @@ public class NoteController : MonoBehaviour
             return;
         }
 
-        Sprite indicatorSprite = null;
-        try
+        // 紅是右手、藍是左手 —— 和音符本身同一套顏色。看 NoteData.hand，不是看鍵
+        // 道：交叉手的時候鍵道會猜錯。
+        bool rightHand = true;
+        try { rightHand = noteData.hand == 0; }
+        catch { rightHand = true; }
+
+        Sprite indicatorSprite = rightHand ? rightStaccatoIndicatorSprite : leftStaccatoIndicatorSprite;
+        if (indicatorSprite == null)
         {
-            int hand = noteData.hand;
-            indicatorSprite = (hand == 0) ? rightStaccatoIndicatorSprite : leftStaccatoIndicatorSprite;
-        }
-        catch
-        {
-            indicatorSprite = rightStaccatoIndicatorSprite != null ? rightStaccatoIndicatorSprite : leftStaccatoIndicatorSprite;
+            // prefab 沒指定（或指到了已經換掉的舊圖）就自己載。寶石也是這樣載的。
+            if (rightHand && staccatoMarkRightSprite == null)
+                staccatoMarkRightSprite = LoadStaccatoGemSprite("graphic/StaccatoMark_Red");
+            if (!rightHand && staccatoMarkLeftSprite == null)
+                staccatoMarkLeftSprite = LoadStaccatoGemSprite("graphic/StaccatoMark_Blue");
+            indicatorSprite = rightHand ? staccatoMarkRightSprite : staccatoMarkLeftSprite;
         }
 
         if (indicatorSprite == null)
@@ -1675,7 +3324,7 @@ public class NoteController : MonoBehaviour
         if (staccatoIndicatorInstance == null)
         {
             staccatoIndicatorInstance = new GameObject("StaccatoIndicator");
-            staccatoIndicatorInstance.transform.SetParent(this.transform, false);
+            staccatoIndicatorInstance.transform.SetParent(GetStaccatoIndicatorRoot(), false);
             staccatoIndicatorRenderer = staccatoIndicatorInstance.AddComponent<SpriteRenderer>();
             staccatoIndicatorController = staccatoIndicatorInstance.AddComponent<StaccatoIndicatorBillboard>();
         }
@@ -1698,6 +3347,15 @@ public class NoteController : MonoBehaviour
                     staccatoIndicatorController = staccatoIndicatorInstance.AddComponent<StaccatoIndicatorBillboard>();
                 }
             }
+        }
+
+        // Keep the indicator outside the Note root's non-uniform scale. A
+        // camera-facing child under that transform is sheared and appears to
+        // lie on the track even when its world rotation is camera-aligned.
+        Transform indicatorRoot = GetStaccatoIndicatorRoot();
+        if (staccatoIndicatorInstance.transform.parent != indicatorRoot)
+        {
+            staccatoIndicatorInstance.transform.SetParent(indicatorRoot, true);
         }
 
         if (staccatoIndicatorRenderer == null)
@@ -1726,11 +3384,27 @@ public class NoteController : MonoBehaviour
         staccatoIndicatorRenderer.sortingLayerID = sortingLayerId;
         staccatoIndicatorRenderer.sortingOrder = sortingOrder + 5;
 
-        Vector3 parentScale = transform.lossyScale;
+        Vector3 parentScale = indicatorRoot != null ? indicatorRoot.lossyScale : Vector3.one;
         float noteWorldWidth = Mathf.Max(0.0001f, cachedWorldWidth);
         float widthScaleFactor = Mathf.Max(0.01f, staccatoIndicatorScale);
-        float targetWorldWidth = Mathf.Max(0.0001f, noteWorldWidth * widthScaleFactor);
-        float targetWorldHeight = Mathf.Max(0.01f, staccatoIndicatorHeight);
+
+        // 尺寸以**一個鍵道**為準，不是以音符自己的寬度。
+        //
+        // 照音符寬度算的話，三鍵寬的音符會得到三倍大的紋章 —— 而紋章講的是「這是
+        // 斷音」，那件事和音符佔幾個鍵道完全無關。同一件事在畫面上有三種大小，讀
+        // 到的會是「大的那個比較重要」。
+        //
+        // 88 鍵模式下一顆音符本來就只佔一個鍵，不必再除。
+        int laneSpan = 1;
+        if (noteData != null && !PianoVisualLayout.HasPianoPitch(noteData))
+            laneSpan = Mathf.Max(1, Mathf.Abs(noteData.endLane - noteData.startLane) + 1);
+        float singleLaneWidth = noteWorldWidth / laneSpan;
+        float baseWidth = Mathf.Max(0.0001f, singleLaneWidth * widthScaleFactor);
+
+        // 寬度也是統一的：**每一顆斷音的紋章都一模一樣大**，不管音符佔幾個鍵道。
+        // 加寬 50% 是套在所有人身上的一個固定比例，不是給寬音符的特例 —— 紋章因
+        // 此比基準寬一點、扁一點，一排排下來的輪廓才整齊。
+        float targetWorldWidth = baseWidth * StaccatoMarkWiden;
 
         float spriteWidthUnits = 1f;
         float spriteHeightUnits = 1f;
@@ -1740,6 +3414,11 @@ public class NoteController : MonoBehaviour
             spriteWidthUnits = Mathf.Max(0.0001f, spriteBounds.size.x);
             spriteHeightUnits = Mathf.Max(0.0001f, spriteBounds.size.y);
         }
+
+        // 高度用**沒有加寬**的基準寬度算，所以每一顆斷音的紋章都一樣高 —— 加寬
+        // 只往兩側長。高度統一，一整排斷音的紋章才會排在同一條線上。
+        float targetWorldHeight = Mathf.Max(0.01f,
+            baseWidth * (spriteHeightUnits / spriteWidthUnits));
 
         float parentScaleX = Mathf.Max(0.0001f, Mathf.Abs(parentScale.x));
         float parentScaleY = Mathf.Max(0.0001f, Mathf.Abs(parentScale.y));
@@ -1760,7 +3439,8 @@ public class NoteController : MonoBehaviour
                 staccatoIndicatorUpright,
                 staccatoIndicatorOffsetRelativeToWidth ? this : null,
                 staccatoIndicatorOffsetRelativeToWidth,
-                trackSpace
+                trackSpace,
+                targetWorldHeight
             );
         }
         else
@@ -1769,6 +3449,14 @@ public class NoteController : MonoBehaviour
         }
 
         staccatoIndicatorInstance.SetActive(true);
+    }
+
+    private static Transform GetStaccatoIndicatorRoot()
+    {
+        if (staccatoIndicatorRoot != null) return staccatoIndicatorRoot;
+        GameObject root = new GameObject("Staccato Indicator Container");
+        staccatoIndicatorRoot = root.transform;
+        return staccatoIndicatorRoot;
     }
 
     private void HideStaccatoIndicator()
@@ -1780,6 +3468,15 @@ public class NoteController : MonoBehaviour
         if (staccatoIndicatorInstance != null)
         {
             staccatoIndicatorInstance.SetActive(false);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (staccatoIndicatorInstance != null)
+        {
+            Destroy(staccatoIndicatorInstance);
+            staccatoIndicatorInstance = null;
         }
     }
 
@@ -1932,6 +3629,473 @@ public class NoteController : MonoBehaviour
 }
 
 /// <summary>
+/// Emits a low-count, track-flat particle fan behind a moving note. Velocities
+/// are assigned per particle so no mixed ParticleSystem velocity curves exist.
+/// </summary>
+public sealed class NoteFanParticleEmitter : MonoBehaviour
+{
+    private static Texture2D proceduralSparkTexture;
+    private static Transform particleRoot;
+    private static NoteFanParticlePool particlePool;
+    private static Camera cachedParticleCamera;
+    private static readonly Dictionary<Texture, Material> particleMaterialCache =
+        new Dictionary<Texture, Material>(4);
+    private static readonly Queue<ParticleSystem> availableParticleSystems =
+        new Queue<ParticleSystem>(24);
+    private const int PrewarmParticleSystems = 24;
+
+    private ParticleSystem particleSystemInstance;
+    private ParticleEffectPlayer particleController;
+    private Transform trackSpace;
+    private Transform judgmentLine;
+    private Color particleColor = Color.white;
+    private float noteWidth = 1f;
+    private int burstCount = 48;
+    private float emissionRate = 18f;
+    private float particleSpeed = 3.2f;
+    private float fanHalfAngle = 34f;
+    private float particleLifetime = 0.62f;
+    private float particleSize = 0.16f;
+    private float emissionAccumulator;
+    private bool configured;
+    private bool holdEmissionActive;
+    private bool hasJudgmentOrigin;
+    private Vector3 judgmentOrigin;
+    private Texture2D configuredTexture;
+    private int configuredSortingLayerId;
+    private int configuredSortingOrder;
+
+    public static void PrewarmSharedPool()
+    {
+        GetParticleRoot();
+    }
+
+    public void Configure(ParticleEffectPlayer newParticleController, Transform newTrackSpace,
+        Transform newJudgmentLine, Color newColor, float newWidth, Texture2D texture,
+        int newBurstCount, float newEmissionRate, float newSpeed, float newHalfAngle, float newLifetime, float newSize,
+        int sortingLayerId, int sortingOrder)
+    {
+        // Pooled notes are reconfigured many times. A ParticleSystem is only
+        // needed after a judgment, so don't create one for every visible note.
+        RelinquishParticleSystem(true);
+        particleController = newParticleController;
+        trackSpace = newTrackSpace;
+        judgmentLine = newJudgmentLine;
+        configuredTexture = texture;
+        configuredSortingLayerId = sortingLayerId;
+        configuredSortingOrder = sortingOrder;
+        particleColor = newColor;
+        particleColor.a = 0.76f;
+        noteWidth = Mathf.Max(0.05f, newWidth);
+        burstCount = Mathf.Clamp(newBurstCount, 1, 128);
+        emissionRate = Mathf.Max(1f, newEmissionRate);
+        particleSpeed = Mathf.Max(0.1f, newSpeed);
+        fanHalfAngle = Mathf.Clamp(newHalfAngle, 5f, 80f);
+        particleLifetime = Mathf.Max(0.05f, newLifetime);
+        particleSize = Mathf.Max(0.02f, newSize);
+        RefreshControllerSettings();
+        emissionAccumulator = 0f;
+        holdEmissionActive = false;
+        hasJudgmentOrigin = false;
+        configured = true;
+    }
+
+    public void EmitJudgmentBurst(bool releaseFromNoteAfterEmission = false)
+    {
+        if (!configured || !RefreshControllerSettings()) return;
+        EnsureParticleSystem(configuredTexture);
+        if (particleSystemInstance == null) return;
+        particleSystemInstance.Play(true);
+        ResolveBasis(out var up, out var forward, out var right);
+        for (int i = 0; i < burstCount; i++)
+            EmitSpark(up, forward, right, true);
+
+        if (releaseFromNoteAfterEmission)
+            RetireOneShotSystem();
+    }
+
+    public void SetJudgmentOrigin(Vector3 worldPosition, float visualWidth)
+    {
+        judgmentOrigin = worldPosition;
+        hasJudgmentOrigin = true;
+        if (visualWidth > 0.001f) noteWidth = visualWidth;
+    }
+
+    private void RetireOneShotSystem()
+    {
+        if (particleSystemInstance == null) return;
+
+        // A TAP/STAC/SOFT note is commonly returned to its pool or destroyed
+        // in the judgment frame. Relinquish the already-emitted system so its
+        // particles can finish simulating independently of that note.
+        ParticleSystem completedBurst = particleSystemInstance;
+        particleSystemInstance = null;
+        configured = false;
+        holdEmissionActive = false;
+        emissionAccumulator = 0f;
+        completedBurst.transform.SetParent(GetParticleRoot(), true);
+        completedBurst.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        GetParticlePool().ReturnWhenFinished(completedBurst);
+    }
+
+    public void BeginHoldEmission()
+    {
+        if (!configured || holdEmissionActive || !RefreshControllerSettings()) return;
+        EnsureParticleSystem(configuredTexture);
+        if (particleSystemInstance == null) return;
+        particleSystemInstance.Play(true);
+        holdEmissionActive = true;
+        emissionAccumulator = 0f;
+    }
+
+    public void EndHoldEmission()
+    {
+        holdEmissionActive = false;
+        emissionAccumulator = 0f;
+        if (particleSystemInstance != null)
+            particleSystemInstance.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+    }
+
+    public void StopAndClear()
+    {
+        bool wasHolding = holdEmissionActive;
+        configured = false;
+        holdEmissionActive = false;
+        emissionAccumulator = 0f;
+        // Tap/STAC/SOFT notes are pooled in the same frame as their judgment.
+        // Do not stop their detached burst before it has rendered. Hold streams
+        // still need an explicit stop when the sustained note ends.
+        if (particleSystemInstance != null)
+        {
+            if (wasHolding)
+                particleSystemInstance.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            RelinquishParticleSystem(wasHolding);
+        }
+    }
+
+    private void EnsureParticleSystem(Texture2D texture)
+    {
+        if (particleSystemInstance != null)
+        {
+            particleSystemInstance.GetComponent<ParticleSystemRenderer>().sharedMaterial = ResolveParticleMaterial(texture);
+            return;
+        }
+
+        particleSystemInstance = AcquireParticleSystem();
+        if (particleSystemInstance == null) return;
+        var renderer = particleSystemInstance.GetComponent<ParticleSystemRenderer>();
+        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        renderer.alignment = ParticleSystemRenderSpace.View;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.sharedMaterial = ResolveParticleMaterial(texture);
+        renderer.sortingLayerID = configuredSortingLayerId;
+        renderer.sortingOrder = configuredSortingOrder;
+    }
+
+    private static Transform GetParticleRoot()
+    {
+        if (particleRoot != null) return particleRoot;
+        var root = new GameObject("NoteFanParticleRoot");
+        DontDestroyOnLoad(root);
+        particleRoot = root.transform;
+        particlePool = root.AddComponent<NoteFanParticlePool>();
+        for (int i = 0; i < PrewarmParticleSystems; i++)
+            availableParticleSystems.Enqueue(CreateParticleSystem());
+        return particleRoot;
+    }
+
+    private static NoteFanParticlePool GetParticlePool()
+    {
+        GetParticleRoot();
+        return particlePool;
+    }
+
+    private static ParticleSystem AcquireParticleSystem()
+    {
+        GetParticleRoot();
+        ParticleSystem system = null;
+        while (availableParticleSystems.Count > 0 && system == null)
+            system = availableParticleSystems.Dequeue();
+        if (system == null) system = CreateParticleSystem();
+        system.transform.SetParent(particleRoot, false);
+        system.gameObject.SetActive(true);
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        return system;
+    }
+
+    private static ParticleSystem CreateParticleSystem()
+    {
+        var child = new GameObject("NoteFanParticles (Pooled)");
+        child.transform.SetParent(particleRoot, false);
+        var system = child.AddComponent<ParticleSystem>();
+
+        var main = system.main;
+        main.loop = false;
+        main.playOnAwake = false;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode = ParticleSystemScalingMode.Shape;
+        main.maxParticles = 96;
+        main.startSpeed = 0f;
+        main.startLifetime = 0.62f;
+        main.startSize = 0.16f;
+        main.startRotation = new ParticleSystem.MinMaxCurve(-Mathf.PI, Mathf.PI);
+
+        var emission = system.emission;
+        emission.enabled = false;
+        var shape = system.shape;
+        shape.enabled = false;
+        var velocity = system.velocityOverLifetime;
+        velocity.enabled = false;
+        var limitVelocity = system.limitVelocityOverLifetime;
+        limitVelocity.enabled = false;
+
+        var colorOverLifetime = system.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+        var fade = new Gradient();
+        fade.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[]
+            {
+                new GradientAlphaKey(0.15f, 0f),
+                new GradientAlphaKey(1f, 0.14f),
+                new GradientAlphaKey(0f, 1f)
+            });
+        colorOverLifetime.color = fade;
+
+        var renderer = child.GetComponent<ParticleSystemRenderer>();
+        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        renderer.alignment = ParticleSystemRenderSpace.View;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        child.SetActive(false);
+        return system;
+    }
+
+    internal static void ReturnParticleSystem(ParticleSystem system)
+    {
+        if (system == null) return;
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        system.transform.SetParent(GetParticleRoot(), false);
+        system.gameObject.SetActive(false);
+        availableParticleSystems.Enqueue(system);
+    }
+
+    private void RelinquishParticleSystem(bool preserveLiveParticles)
+    {
+        if (particleSystemInstance == null) return;
+        ParticleSystem system = particleSystemInstance;
+        particleSystemInstance = null;
+        if (preserveLiveParticles && system.IsAlive(true))
+        {
+            system.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            GetParticlePool().ReturnWhenFinished(system);
+        }
+        else
+        {
+            ReturnParticleSystem(system);
+        }
+    }
+
+    private static Material ResolveParticleMaterial(Texture2D texture)
+    {
+        Texture resolvedTexture = texture != null ? texture : CreateProceduralSparkTexture();
+        if (resolvedTexture != null &&
+            particleMaterialCache.TryGetValue(resolvedTexture, out Material cached) &&
+            cached != null)
+            return cached;
+
+        Material resourceMaterial = Resources.Load<Material>("Materials/NoteFanParticle");
+        Material material;
+        if (resourceMaterial != null)
+        {
+            material = new Material(resourceMaterial);
+        }
+        else
+        {
+            Shader shader = Shader.Find("Custom/UnlitAdditiveEmission");
+            if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
+            if (shader == null) return null;
+            material = new Material(shader);
+        }
+        material.name = "Note Fan Particle (Runtime)";
+        material.hideFlags = HideFlags.DontSave;
+        material.renderQueue = 3100;
+        material.SetTexture("_MainTex", resolvedTexture);
+        if (material.HasProperty("_Color"))
+            material.SetColor("_Color", Color.white);
+        if (material.HasProperty("_EmissionColor"))
+            material.SetColor("_EmissionColor", new Color(1.8f, 1.8f, 1.8f, 1f));
+        if (resolvedTexture != null) particleMaterialCache[resolvedTexture] = material;
+        return material;
+    }
+
+    private static Texture2D CreateProceduralSparkTexture()
+    {
+        if (proceduralSparkTexture != null) return proceduralSparkTexture;
+
+        const int size = 32;
+        proceduralSparkTexture = new Texture2D(size, size, TextureFormat.RGBA32, false, true)
+        {
+            name = "Procedural Note Star Spark",
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+            hideFlags = HideFlags.DontSave
+        };
+        var pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float nx = ((x + 0.5f) / size) * 2f - 1f;
+                float ny = ((y + 0.5f) / size) * 2f - 1f;
+                float radial = Mathf.Exp(-(nx * nx + ny * ny) * 7.5f);
+                float horizontal = Mathf.Exp(-Mathf.Abs(ny) * 17f) * Mathf.Exp(-Mathf.Abs(nx) * 2.4f);
+                float vertical = Mathf.Exp(-Mathf.Abs(nx) * 17f) * Mathf.Exp(-Mathf.Abs(ny) * 2.4f);
+                float intensity = Mathf.Clamp01(radial * 0.82f + Mathf.Max(horizontal, vertical) * 0.72f);
+                pixels[y * size + x] = new Color(intensity, intensity, intensity, intensity);
+            }
+        }
+        proceduralSparkTexture.SetPixels(pixels);
+        proceduralSparkTexture.Apply(false, true);
+        return proceduralSparkTexture;
+    }
+
+    private void LateUpdate()
+    {
+        if (!configured || !holdEmissionActive || particleSystemInstance == null || Time.deltaTime <= 0f) return;
+        if (!RefreshControllerSettings())
+        {
+            EndHoldEmission();
+            return;
+        }
+
+        ResolveBasis(out var up, out var forward, out var right);
+        emissionAccumulator += emissionRate * Time.deltaTime;
+        int emitCount = Mathf.Min(5, Mathf.FloorToInt(emissionAccumulator));
+        emissionAccumulator -= emitCount;
+        for (int i = 0; i < emitCount; i++)
+            EmitSpark(up, forward, right, false);
+    }
+
+    private void ResolveBasis(out Vector3 up, out Vector3 forward, out Vector3 right)
+    {
+        up = trackSpace != null ? trackSpace.up : Vector3.up;
+        up = up.sqrMagnitude > 0.0001f ? up.normalized : Vector3.up;
+
+        // In-plane spread axes for the cone around 'up'. They come from the
+        // player's screen axes projected onto the track so the widening burst
+        // reads on screen instead of running straight into camera depth.
+        Camera viewCamera = cachedParticleCamera;
+        if (viewCamera == null) cachedParticleCamera = viewCamera = Camera.main;
+        Vector3 desiredForward = viewCamera != null
+            ? viewCamera.transform.up
+            : (trackSpace != null ? trackSpace.forward : Vector3.forward);
+        Vector3 desiredRight = viewCamera != null
+            ? viewCamera.transform.right
+            : (trackSpace != null ? trackSpace.right : Vector3.right);
+        forward = Vector3.ProjectOnPlane(desiredForward, up).normalized;
+        right = Vector3.ProjectOnPlane(desiredRight, up).normalized;
+        forward = Vector3.ProjectOnPlane(forward, up).normalized;
+        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        if (right.sqrMagnitude < 0.0001f) right = Vector3.Cross(up, forward).normalized;
+
+        // Preserve a stable right-handed basis after projection.
+        if (Vector3.Dot(Vector3.Cross(right, forward), up) < 0f)
+            right = -right;
+    }
+
+    private bool RefreshControllerSettings()
+    {
+        if (particleController == null) return true;
+        return particleController.TryGetJudgmentStarFanSettings(
+            out burstCount,
+            out emissionRate,
+            out particleSpeed,
+            out fanHalfAngle,
+            out particleLifetime,
+            out particleSize);
+    }
+
+    private void EmitSpark(Vector3 up, Vector3 forward, Vector3 right, bool burst)
+    {
+        float maxAngle = fanHalfAngle * (burst ? 1.18f : 1f);
+        float angle = UnityEngine.Random.Range(-maxAngle, maxAngle) * Mathf.Deg2Rad;
+        float speedMultiplier = burst
+            ? UnityEngine.Random.Range(0.35f, 1.55f)
+            : UnityEngine.Random.Range(0.38f, 1.05f);
+        // Sparks leave the track surface: the cone is centred on the track
+        // normal and only spreads by fanHalfAngle around it. forward/right stay
+        // the in-plane axes that give that spread a random azimuth.
+        float azimuth = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+        Vector3 spread = right * Mathf.Cos(azimuth) + forward * Mathf.Sin(azimuth);
+        Vector3 direction = (up * Mathf.Cos(angle) + spread * Mathf.Sin(angle)).normalized;
+        Vector3 lineOrigin = hasJudgmentOrigin ? judgmentOrigin : transform.position;
+        if (judgmentLine != null)
+        {
+            Vector3 toLine = judgmentLine.position - lineOrigin;
+            lineOrigin += forward * Vector3.Dot(toLine, forward);
+            lineOrigin += up * Vector3.Dot(toLine, up);
+        }
+        Vector3 origin = lineOrigin
+            + up * 0.045f
+            + right * UnityEngine.Random.Range(-noteWidth * 0.32f, noteWidth * 0.32f);
+
+        float sizeVariation = UnityEngine.Random.Range(0.48f, 1.35f);
+        if (UnityEngine.Random.value < (burst ? 0.22f : 0.1f)) sizeVariation *= 2.2f;
+        float whiteMix = burst
+            ? UnityEngine.Random.Range(0.48f, 0.86f)
+            : UnityEngine.Random.Range(0.18f, 0.58f);
+        Color sparkColor = Color.Lerp(particleColor, Color.white, whiteMix);
+        sparkColor.a = burst
+            ? UnityEngine.Random.Range(0.72f, 1f)
+            : UnityEngine.Random.Range(0.42f, 0.82f);
+
+        var emit = new ParticleSystem.EmitParams
+        {
+            position = origin,
+            velocity = direction * particleSpeed * speedMultiplier,
+            startLifetime = particleLifetime * UnityEngine.Random.Range(0.72f, 1.3f),
+            startSize = particleSize * sizeVariation,
+            startColor = sparkColor,
+            rotation = UnityEngine.Random.Range(-Mathf.PI, Mathf.PI)
+        };
+        particleSystemInstance.Emit(emit, 1);
+    }
+
+    private void OnDestroy()
+    {
+        RelinquishParticleSystem(true);
+    }
+}
+
+/// <summary>
+/// Returns detached one-shot fan systems after their existing particles fade.
+/// This replaces per-hit GameObject destruction with a fixed reusable pool.
+/// </summary>
+public sealed class NoteFanParticlePool : MonoBehaviour
+{
+    private readonly List<ParticleSystem> retiring = new List<ParticleSystem>(24);
+
+    public void ReturnWhenFinished(ParticleSystem system)
+    {
+        if (system == null || retiring.Contains(system)) return;
+        retiring.Add(system);
+    }
+
+    private void Update()
+    {
+        for (int i = retiring.Count - 1; i >= 0; i--)
+        {
+            ParticleSystem system = retiring[i];
+            if (system != null && system.IsAlive(true)) continue;
+            retiring.RemoveAt(i);
+            if (system != null) NoteFanParticleEmitter.ReturnParticleSystem(system);
+        }
+    }
+}
+
+/// <summary>
 /// Keeps a staccato indicator hovering above its parent note and facing the camera.
 /// </summary>
 public class StaccatoIndicatorBillboard : MonoBehaviour
@@ -1944,10 +4108,50 @@ public class StaccatoIndicatorBillboard : MonoBehaviour
 
     private NoteController widthSource;
     private Transform coordinateSpace;
+    private float visualHeightWorld = 1f;
+
+    /// <summary>
+    /// 同時在跑的紋章數量。
+    /// </summary>
+    /// <remarks>
+    /// **兩個，不是三個。** 三個加上 0.78 的間距，整列有 2.3 個紋章高，在音符上
+    /// 方堆成一根柱子 —— 譜面一密就是一片箭頭牆，而且會蓋到上面那一顆音符。
+    ///
+    /// 兩個、間距收到 0.55：整列只有一個紋章多一點，讀起來是「一個往上跑的東西」，
+    /// 而不是「一疊東西」。往上的方向靠**動**講，不靠數量。
+    /// </remarks>
+    private const int RiseCopies = 2;
+
+    /// <summary>
+    /// 可以看到紋章的那一段有多高，佔紋章自己高度的比例。
+    /// </summary>
+    /// <remarks>
+    /// 這就是「碰到就銷毀」的那個高度。窗口的上緣和下緣都會**裁掉**紋章：從下面
+    /// 長出來的時候被下緣切，升到上面的時候被上緣切，切口永遠停在同一個高度上。
+    /// </remarks>
+    private const float RiseWindowShare = 1.5f;
+
+    /// <summary>跑完一整圈要幾秒。</summary>
+    private const float RisePeriod = 0.55f;
+
+    /// <summary>窗口下緣和音符之間的空隙，佔紋章自己高度的比例。</summary>
+    private const float GapShare = 0.30f;
+
+    private SpriteRenderer sourceRenderer;
+    private MeshRenderer riseRenderer;
+    private Mesh riseMesh;
+    private static System.Collections.Generic.Dictionary<Texture, Material> riseMaterials;
+    private readonly System.Collections.Generic.List<Vector3> riseVertices =
+        new System.Collections.Generic.List<Vector3>(16);
+    private readonly System.Collections.Generic.List<Vector2> riseUv =
+        new System.Collections.Generic.List<Vector2>(16);
+    private readonly System.Collections.Generic.List<int> riseTriangles =
+        new System.Collections.Generic.List<int>(24);
 
     private Camera cachedCamera;
 
-    public void Configure(Transform newTarget, Vector3 newOffset, bool freezeYaw, NoteController newWidthSource, bool scaleByWidth, Transform newCoordinateSpace)
+    public void Configure(Transform newTarget, Vector3 newOffset, bool freezeYaw, NoteController newWidthSource,
+        bool scaleByWidth, Transform newCoordinateSpace, float newVisualHeightWorld)
     {
         target = newTarget;
         offset = newOffset;
@@ -1955,12 +4159,13 @@ public class StaccatoIndicatorBillboard : MonoBehaviour
         widthSource = (scaleByWidth && newWidthSource != null) ? newWidthSource : null;
         scaleOffsetByWidth = scaleByWidth && newWidthSource != null;
         coordinateSpace = newCoordinateSpace;
+        visualHeightWorld = Mathf.Max(0.01f, newVisualHeightWorld);
         UpdateTransform();
     }
 
     public void SetTarget(Transform newTarget, Vector3 newOffset)
     {
-        Configure(newTarget, newOffset, freezeYawOnly, widthSource, scaleOffsetByWidth, coordinateSpace);
+        Configure(newTarget, newOffset, freezeYawOnly, widthSource, scaleOffsetByWidth, coordinateSpace, visualHeightWorld);
     }
 
     private void OnEnable()
@@ -2014,8 +4219,17 @@ public class StaccatoIndicatorBillboard : MonoBehaviour
                 }
             }
 
+            Camera viewCamera = GetActiveCamera();
+            Vector3 billboardUp = viewCamera != null ? viewCamera.transform.up.normalized : upVector;
+            Vector3 billboardRight = viewCamera != null ? viewCamera.transform.right.normalized : rightOnPlane;
             float xOffset = offset.x * (widthScale * 0.5f);
-            Vector3 worldOffset = (rightOnPlane * xOffset) + (upVector * offset.y) + (forwardOnPlane * offset.z);
+
+            // 這個物件的原點是**窗口的下緣**，不是紋章的中心：紋章在窗口裡上上下
+            // 下，而窗口本身不動 —— 不動的那個才適合當原點。
+            Vector3 worldOffset = (billboardRight * xOffset)
+                + (upVector * Mathf.Max(0.015f, offset.y))
+                + (forwardOnPlane * offset.z)
+                + (billboardUp * (visualHeightWorld * GapShare));
             if (target != null)
             {
                 transform.position = target.position + worldOffset;
@@ -2026,45 +4240,153 @@ public class StaccatoIndicatorBillboard : MonoBehaviour
             }
         }
 
-        Vector3 yawDir = forwardOnPlane;
-        if (yawDir.sqrMagnitude < 1e-6f && basis != null)
+        Camera camera = GetActiveCamera();
+        if (camera != null)
         {
-            yawDir = Vector3.ProjectOnPlane(basis.forward, upVector);
-        }
-        if (yawDir.sqrMagnitude < 1e-6f)
-        {
-            yawDir = Vector3.forward;
-        }
-
-        Quaternion yawRotation = Quaternion.LookRotation(yawDir.normalized, upVector);
-
-        float slopeDegrees;
-        var settingsManager = SettingsManager.Instance;
-        if (settingsManager != null)
-        {
-            slopeDegrees = settingsManager.CameraRotX;
+            // A SpriteRenderer is parallel to the camera image plane when it
+            // shares the camera rotation. This is a true billboard, not an
+            // approximation based on the configured camera pitch.
+            transform.rotation = camera.transform.rotation;
         }
         else
         {
-            var cam = GetActiveCamera();
-            if (cam != null)
-            {
-                slopeDegrees = Mathf.Abs(cam.transform.eulerAngles.x);
-                if (slopeDegrees > 180f)
-                {
-                    slopeDegrees = 360f - slopeDegrees;
-                }
-            }
-            else
-            {
-                slopeDegrees = 90f;
-            }
+            Vector3 yawDir = forwardOnPlane.sqrMagnitude > 1e-6f ? forwardOnPlane : Vector3.forward;
+            transform.rotation = Quaternion.LookRotation(yawDir.normalized, upVector);
         }
-        slopeDegrees = Mathf.Clamp(slopeDegrees, 0f, 90f);
 
-        Quaternion pitchRotation = Quaternion.AngleAxis(slopeDegrees, rightOnPlane);
+        UpdateRise();
+    }
 
-        transform.rotation = pitchRotation * yawRotation;
+    /// <summary>
+    /// 一列往上跑的紋章：升到窗口上緣被裁掉，從下緣再裁著長出來。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼自己畫網格，不用 SpriteRenderer。** 要的效果是**裁減**：切口停在固
+    /// 定的高度上，紋章從那條線底下長出來、也在那條線上被削掉。SpriteRenderer 畫
+    /// 的永遠是一整張圖，做不到這件事 —— 只能改成淡入淡出（那是另一種效果），或
+    /// 者每一幀用 Sprite.Create 重切一張圖（每一幀都在產生垃圾）。
+    ///
+    /// 網格則是直接把四個頂點放在切口上、UV 跟著切一樣的比例，切口因此是連續的，
+    /// 不會因為量化而在邊界上抖。兩個紋章一共八個頂點，每幀重寫一次。
+    ///
+    /// SpriteRenderer 還留著，因為 NoteController 用它記圖、排序和顯示與否；只是
+    /// 把它的**繪製**關掉（forceRenderingOff），那些設定才不會分成兩套。
+    /// </remarks>
+    private void UpdateRise()
+    {
+        if (sourceRenderer == null)
+        {
+            sourceRenderer = GetComponent<SpriteRenderer>();
+            if (sourceRenderer == null) return;
+        }
+        Sprite sprite = sourceRenderer.sprite;
+        if (sprite == null || sprite.texture == null) return;
+
+        sourceRenderer.forceRenderingOff = true;
+        if (!EnsureRiseRenderer(sprite)) return;
+
+        riseRenderer.enabled = sourceRenderer.enabled;
+        riseRenderer.sortingLayerID = sourceRenderer.sortingLayerID;
+        riseRenderer.sortingOrder = sourceRenderer.sortingOrder;
+        if (!riseRenderer.enabled) return;
+
+        float height = Mathf.Max(0.0001f, sprite.bounds.size.y);
+        float width = sprite.bounds.size.x;
+        float window = height * RiseWindowShare;
+
+        // 一圈 = 窗口高 + 紋章高：從完全在下緣底下，走到完全在上緣外面。
+        float cycle = window + height;
+        float step = cycle / RiseCopies;
+        // **每一顆斷音都在同一個相位上。** 之前每顆給了自己的相位，想讓它們看起來
+        // 不像同一塊板子在動 —— 但譜面上的斷音常常是成群出現的，各跑各的會讓那一
+        // 群箭頭高高低低，讀起來是噪點。同高同步反而像同一個機制在運作。
+        float t = Mathf.Repeat(Time.time / Mathf.Max(0.05f, RisePeriod), 1f);
+
+        Rect uvRect = sprite.textureRect;
+        float texW = sprite.texture.width;
+        float texH = sprite.texture.height;
+        float u0 = uvRect.xMin / texW;
+        float u1 = uvRect.xMax / texW;
+        float vMin = uvRect.yMin / texH;
+        float vMax = uvRect.yMax / texH;
+
+        riseVertices.Clear();
+        riseUv.Clear();
+        riseTriangles.Clear();
+
+        for (int i = 0; i < RiseCopies; i++)
+        {
+            float bottom = Mathf.Repeat((i + t) * step, cycle) - height;
+            float top = bottom + height;
+
+            // 切口：窗口外面的部分不畫。位置和 UV 切一樣的比例，圖才不會被拉扁。
+            float drawBottom = Mathf.Max(bottom, 0f);
+            float drawTop = Mathf.Min(top, window);
+            if (drawTop - drawBottom <= 0.0005f) continue;
+
+            float k0 = (drawBottom - bottom) / height;
+            float k1 = (drawTop - bottom) / height;
+            float v0 = Mathf.Lerp(vMin, vMax, k0);
+            float v1 = Mathf.Lerp(vMin, vMax, k1);
+
+            int at = riseVertices.Count;
+            riseVertices.Add(new Vector3(-width * 0.5f, drawBottom, 0f));
+            riseVertices.Add(new Vector3(-width * 0.5f, drawTop, 0f));
+            riseVertices.Add(new Vector3(width * 0.5f, drawTop, 0f));
+            riseVertices.Add(new Vector3(width * 0.5f, drawBottom, 0f));
+            riseUv.Add(new Vector2(u0, v0));
+            riseUv.Add(new Vector2(u0, v1));
+            riseUv.Add(new Vector2(u1, v1));
+            riseUv.Add(new Vector2(u1, v0));
+            riseTriangles.Add(at); riseTriangles.Add(at + 1); riseTriangles.Add(at + 2);
+            riseTriangles.Add(at); riseTriangles.Add(at + 2); riseTriangles.Add(at + 3);
+        }
+
+        riseMesh.Clear();
+        if (riseTriangles.Count == 0) return;
+        riseMesh.SetVertices(riseVertices);
+        riseMesh.SetUVs(0, riseUv);
+        riseMesh.SetTriangles(riseTriangles, 0);
+        riseMesh.bounds = new Bounds(new Vector3(0f, window * 0.5f, 0f),
+            new Vector3(Mathf.Abs(width), window + height, 0.01f));
+    }
+
+    private bool EnsureRiseRenderer(Sprite sprite)
+    {
+        if (riseMesh == null)
+        {
+            riseMesh = new Mesh { name = "StaccatoRise", hideFlags = HideFlags.HideAndDontSave };
+            riseMesh.MarkDynamic();
+        }
+        if (riseRenderer == null)
+        {
+            var host = new GameObject("RiseMesh");
+            host.layer = gameObject.layer;
+            host.transform.SetParent(transform, false);
+            host.AddComponent<MeshFilter>().sharedMesh = riseMesh;
+            riseRenderer = host.AddComponent<MeshRenderer>();
+            riseRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            riseRenderer.receiveShadows = false;
+            riseRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            riseRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        }
+
+        // 同一張圖共用一個材質：每一顆斷音各自 new 一個，材質數量會跟著譜面長。
+        riseMaterials ??= new System.Collections.Generic.Dictionary<Texture, Material>();
+        if (!riseMaterials.TryGetValue(sprite.texture, out Material material) || material == null)
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) return false;
+            material = new Material(shader)
+            {
+                name = "StaccatoRise (" + sprite.texture.name + ")",
+                hideFlags = HideFlags.HideAndDontSave,
+            };
+            material.mainTexture = sprite.texture;
+            riseMaterials[sprite.texture] = material;
+        }
+        if (riseRenderer.sharedMaterial != material) riseRenderer.sharedMaterial = material;
+        return true;
     }
 
     private Camera GetActiveCamera()

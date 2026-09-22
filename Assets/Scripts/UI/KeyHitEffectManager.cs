@@ -15,7 +15,9 @@ public class KeyHitEffectManager : MonoBehaviour
         {
             if (_instance == null)
             {
-                _instance = FindFirstObjectByType<KeyHitEffectManager>();
+                // 連未啟用的場景實例一起找，否則會在 gameplay root 還關著的時候
+                // 建出替身，把設定好的那個擠掉（見 SceneSingleton）。
+                _instance = SceneSingleton.Find<KeyHitEffectManager>();
                 if (_instance == null)
                 {
                     var go = new GameObject("KeyHitEffectManager");
@@ -733,6 +735,11 @@ public class KeyHitEffectManager : MonoBehaviour
     }
 
     private void Update()
+    {
+        using (HitchProbe.Measure("keyHitFx")) UpdateCore();
+    }
+
+    private void UpdateCore()
     {
         if (cachedMainCamera == null) cachedMainCamera = Camera.main;
         if (cachedJudgmentLine == null) cachedJudgmentLine = GameObject.Find("JudgmentLine")?.transform;

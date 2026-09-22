@@ -14909,7 +14909,7 @@ MonoBehaviour:
   judgmentYOffset: 0.1
   sortingOrderOffset: 2
   rotationOffsetEuler: {x: 90, y: 0, z: 0}
-  widthScale: 0.5
+  widthScale: 1
   widthPadding: 0
   localPositionOffset: {x: 0, y: -12, z: 12.5}
   snapToJudgmentPlane: 1

@@ -8,21 +8,39 @@ public class MidiNoteToKeyMapper
     {
         36, 38, 40, 41, 43, 45, 47, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83
     };
+    // The middle 28 white keys of a standard 88-key piano (A0-C8).
+    // Black keys and notes outside this range are intentionally ignored.
+    private static readonly int[] centralPianoWhiteNotes = new int[]
+    {
+        41, 43, 45, 47, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64,
+        65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84, 86, 88
+    };
 
     // 建立 note->key 映射表
     private static readonly Dictionary<int, int> noteToKey = new Dictionary<int, int>();
+    private static readonly Dictionary<int, int> centralPianoNoteToKey =
+        new Dictionary<int, int>();
     static MidiNoteToKeyMapper()
     {
         for (int i = 0; i < midiNotes.Length; i++)
         {
             noteToKey[midiNotes[i]] = i;
         }
+        for (int i = 0; i < centralPianoWhiteNotes.Length; i++)
+        {
+            centralPianoNoteToKey[centralPianoWhiteNotes[i]] = i;
+        }
     }
 
     // 取得對應的遊戲鍵位（找不到回傳 -1）
     public static int GetKeyIndex(int midiNote)
     {
-        if (noteToKey.TryGetValue(midiNote, out int key))
+        bool useCentralPiano = SettingsManager.Instance != null &&
+            SettingsManager.Instance.InputMode == InputModeType.MidiKeyboard;
+        Dictionary<int, int> mapping = useCentralPiano
+            ? centralPianoNoteToKey
+            : noteToKey;
+        if (mapping.TryGetValue(midiNote, out int key))
             return key;
         return -1;
     }

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Collections;
+using UnityEngine;
 
 namespace Judgment
 {
@@ -8,7 +10,7 @@ namespace Judgment
         // Disable protection to make judgement matching as permissive as possible.
         // Setting to false means pending/head/tail protection windows are bypassed
         // and payloads are applied immediately.
-        public static bool ProtectionEnabled = false;
+        public static bool ProtectionEnabled = true;
 
         private Dictionary<NoteController, float> protectionEndDict = new Dictionary<NoteController, float>();
 
@@ -18,10 +20,94 @@ namespace Judgment
             public JudgmentPayload payload;
             public float protectionEndMs;
             public float finalizationDeadlineMs;
+            public System.Action<JudgmentPayload> applyCallback;
+            public Coroutine finalizeCoroutine;
+            public int scheduleVersion;
+        }
+
+        private sealed class ProtectionScheduler : MonoBehaviour
+        {
         }
 
         private readonly Dictionary<NoteController, PendingJudgmentEntry> pendingHeadJudgments = new Dictionary<NoteController, PendingJudgmentEntry>();
         private readonly Dictionary<NoteController, PendingJudgmentEntry> pendingTailJudgments = new Dictionary<NoteController, PendingJudgmentEntry>();
+        private ProtectionScheduler scheduler;
+
+        private ProtectionScheduler EnsureScheduler()
+        {
+            if (scheduler != null) return scheduler;
+
+            var existing = Object.FindFirstObjectByType<ProtectionScheduler>();
+            if (existing != null)
+            {
+                scheduler = existing;
+                return scheduler;
+            }
+
+            var go = new GameObject("JudgmentProtectionScheduler");
+            Object.DontDestroyOnLoad(go);
+            scheduler = go.AddComponent<ProtectionScheduler>();
+            return scheduler;
+        }
+
+        private void StopScheduledFinalize(PendingJudgmentEntry entry)
+        {
+            if (entry == null || entry.finalizeCoroutine == null) return;
+            try
+            {
+                var host = EnsureScheduler();
+                if (host != null) host.StopCoroutine(entry.finalizeCoroutine);
+            }
+            catch { }
+            entry.finalizeCoroutine = null;
+        }
+
+        private void CancelPendingEntry(Dictionary<NoteController, PendingJudgmentEntry> dict, NoteController note)
+        {
+            if (note == null) return;
+            if (!dict.TryGetValue(note, out var entry)) return;
+            StopScheduledFinalize(entry);
+            dict.Remove(note);
+        }
+
+        private void SchedulePendingFinalize(NoteController note, bool isHead, PendingJudgmentEntry entry)
+        {
+            if (!ProtectionEnabled || note == null || entry == null) return;
+
+            var host = EnsureScheduler();
+            if (host == null) return;
+
+            StopScheduledFinalize(entry);
+            entry.scheduleVersion++;
+            entry.finalizeCoroutine = host.StartCoroutine(WaitAndFinalizePending(note, isHead, entry.scheduleVersion));
+        }
+
+        private IEnumerator WaitAndFinalizePending(NoteController note, bool isHead, int version)
+        {
+            while (ProtectionEnabled)
+            {
+                var dict = isHead ? pendingHeadJudgments : pendingTailJudgments;
+                if (!dict.TryGetValue(note, out var entry)) yield break;
+                if (entry.scheduleVersion != version) yield break;
+
+                var jm = JudgmentManager.Instance;
+                if (jm == null)
+                {
+                    yield return null;
+                    continue;
+                }
+
+                if (jm.CurrentSongPositionMs >= entry.finalizationDeadlineMs)
+                {
+                    entry.finalizeCoroutine = null;
+                    dict.Remove(note);
+                    entry.applyCallback?.Invoke(entry.payload);
+                    yield break;
+                }
+
+                yield return null;
+            }
+        }
 
         public void SetProtection(NoteController note, float protectionEndMs)
         {
@@ -48,8 +134,8 @@ namespace Judgment
         {
             if (note == null) return;
             protectionEndDict.Remove(note);
-            pendingHeadJudgments.Remove(note);
-            pendingTailJudgments.Remove(note);
+            CancelPendingEntry(pendingHeadJudgments, note);
+            CancelPendingEntry(pendingTailJudgments, note);
         }
 
         /// <summary>
@@ -84,6 +170,8 @@ namespace Judgment
         /// </summary>
         public void ClearAllPendingAndProtection()
         {
+            foreach (var entry in pendingHeadJudgments.Values) StopScheduledFinalize(entry);
+            foreach (var entry in pendingTailJudgments.Values) StopScheduledFinalize(entry);
             protectionEndDict.Clear();
             pendingHeadJudgments.Clear();
             pendingTailJudgments.Clear();
@@ -164,10 +252,11 @@ namespace Judgment
                 if (!string.IsNullOrEmpty(nd.type))
                 {
                     if (string.Equals(nd.type, "hold", System.StringComparison.OrdinalIgnoreCase)) return true;
+                    if (string.Equals(nd.type, "trill", System.StringComparison.OrdinalIgnoreCase)) return true;
                     if (string.Equals(nd.type, "staccato", System.StringComparison.OrdinalIgnoreCase) || string.Equals(nd.type, "stac", System.StringComparison.OrdinalIgnoreCase)) return true;
                     if (int.TryParse(nd.type, out int parsedType) && (parsedType == 2 || parsedType == 3)) return true;
                 }
-                if (nd.note_type == 2 || nd.note_type == 3) return true;
+                if (nd.note_type == 2 || nd.note_type == 3 || nd.note_type == 64) return true;
             }
             catch { }
             return false;
@@ -217,12 +306,12 @@ namespace Judgment
         private readonly System.Collections.Generic.List<NoteController> headToFinalize = new System.Collections.Generic.List<NoteController>();
         private readonly System.Collections.Generic.List<NoteController> tailToFinalize = new System.Collections.Generic.List<NoteController>();
 
-        public void StorePendingHead(NoteController note, JudgmentPayload payload, float protectionEnd, float deadline)
+        public void StorePendingHead(NoteController note, JudgmentPayload payload, float protectionEnd, float deadline, System.Action<JudgmentPayload> applyCallback)
         {
             if (!ProtectionEnabled) return;
             if (!pendingHeadJudgments.TryGetValue(note, out var entry))
             {
-                entry = new PendingJudgmentEntry { payload = payload, protectionEndMs = protectionEnd, finalizationDeadlineMs = deadline };
+                entry = new PendingJudgmentEntry { payload = payload, protectionEndMs = protectionEnd, finalizationDeadlineMs = deadline, applyCallback = applyCallback };
                 pendingHeadJudgments[note] = entry;
             }
             else
@@ -230,18 +319,20 @@ namespace Judgment
                 entry.protectionEndMs = UnityEngine.Mathf.Max(entry.protectionEndMs, protectionEnd);
                 entry.finalizationDeadlineMs = UnityEngine.Mathf.Max(entry.finalizationDeadlineMs, deadline);
                 if (IsBetterPayload(payload, entry.payload)) entry.payload = payload;
+                if (applyCallback != null) entry.applyCallback = applyCallback;
             }
+            SchedulePendingFinalize(note, true, entry);
             #if UNITY_EDITOR || DEVELOPMENT_BUILD
             try { BuildLogger.Log($"[JProt] StorePendingHead note={note?.name ?? "<null>"} res={payload?.result} protectionEnd={protectionEnd} deadline={deadline}"); } catch { }
             #endif
         }
 
-        public void StorePendingTail(NoteController note, JudgmentPayload payload, float protectionEnd, float deadline)
+        public void StorePendingTail(NoteController note, JudgmentPayload payload, float protectionEnd, float deadline, System.Action<JudgmentPayload> applyCallback)
         {
             if (!ProtectionEnabled) return;
             if (!pendingTailJudgments.TryGetValue(note, out var entry))
             {
-                entry = new PendingJudgmentEntry { payload = payload, protectionEndMs = protectionEnd, finalizationDeadlineMs = deadline };
+                entry = new PendingJudgmentEntry { payload = payload, protectionEndMs = protectionEnd, finalizationDeadlineMs = deadline, applyCallback = applyCallback };
                 pendingTailJudgments[note] = entry;
             }
             else
@@ -249,7 +340,9 @@ namespace Judgment
                 entry.protectionEndMs = UnityEngine.Mathf.Max(entry.protectionEndMs, protectionEnd);
                 entry.finalizationDeadlineMs = UnityEngine.Mathf.Max(entry.finalizationDeadlineMs, deadline);
                 if (IsBetterPayload(payload, entry.payload)) entry.payload = payload;
+                if (applyCallback != null) entry.applyCallback = applyCallback;
             }
+            SchedulePendingFinalize(note, false, entry);
             #if UNITY_EDITOR || DEVELOPMENT_BUILD
             try { BuildLogger.Log($"[JProt] StorePendingTail note={note?.name ?? "<null>"} res={payload?.result} protectionEnd={protectionEnd} deadline={deadline}"); } catch { }
             #endif
@@ -269,9 +362,11 @@ namespace Judgment
                 {
                     if (IsBetterPayload(payload, entry.payload)) entry.payload = payload;
                     entry.finalizationDeadlineMs = UnityEngine.Mathf.Max(entry.finalizationDeadlineMs, GetHeadFinalizationDeadline(note, goodMs));
+                    if (applyCallback != null) entry.applyCallback = applyCallback;
+                    SchedulePendingFinalize(note, true, entry);
                     return true;
                 }
-                pendingHeadJudgments.Remove(note);
+                CancelPendingEntry(pendingHeadJudgments, note);
             }
 
             if (!allowProtection || payload.result == JudgmentResult.Perfect)
@@ -290,7 +385,7 @@ namespace Judgment
                     #if UNITY_EDITOR || DEVELOPMENT_BUILD
                     try { BuildLogger.Log($"[JProt] ResolveHeadJudgment STORE note={note?.name ?? "<null>"} current={currentSongPos} protectionEnd={protectionEnd}"); } catch { }
                     #endif
-                    StorePendingHead(note, payload, protectionEnd, GetHeadFinalizationDeadline(note, goodMs));
+                    StorePendingHead(note, payload, protectionEnd, GetHeadFinalizationDeadline(note, goodMs), applyCallback);
                     return true;
                 }
             }
@@ -315,9 +410,11 @@ namespace Judgment
                 {
                     if (IsBetterPayload(payload, entry.payload)) entry.payload = payload;
                     entry.finalizationDeadlineMs = UnityEngine.Mathf.Max(entry.finalizationDeadlineMs, GetTailFinalizationDeadline(note, goodMs));
+                    if (applyCallback != null) entry.applyCallback = applyCallback;
+                    SchedulePendingFinalize(note, false, entry);
                     return true;
                 }
-                pendingTailJudgments.Remove(note);
+                CancelPendingEntry(pendingTailJudgments, note);
             }
 
             if (!allowProtection || payload.result == JudgmentResult.Perfect)
@@ -336,7 +433,7 @@ namespace Judgment
                     #if UNITY_EDITOR || DEVELOPMENT_BUILD
                     try { BuildLogger.Log($"[JProt] ResolveTailJudgment STORE note={note?.name ?? "<null>"} current={currentSongPos} protectionEnd={protectionEnd}"); } catch { }
                     #endif
-                    StorePendingTail(note, payload, protectionEnd, GetTailFinalizationDeadline(note, goodMs));
+                    StorePendingTail(note, payload, protectionEnd, GetTailFinalizationDeadline(note, goodMs), applyCallback);
                     return true;
                 }
             }
@@ -350,32 +447,7 @@ namespace Judgment
         // Process pending judgments whose deadline has passed; invokes applyCallback for each
         public void ProcessPendingJudgments(float songPos, System.Action<JudgmentPayload> applyCallback)
         {
-            if (!ProtectionEnabled) return;
-            headToFinalize.Clear();
-            foreach (var kvp in pendingHeadJudgments) if (songPos >= kvp.Value.finalizationDeadlineMs) headToFinalize.Add(kvp.Key);
-            for (int i = 0; i < headToFinalize.Count; i++)
-            {
-                var note = headToFinalize[i];
-                if (!pendingHeadJudgments.TryGetValue(note, out var entry)) continue;
-                #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                try { BuildLogger.Log($"[JProt] ProcessPending APPLY HEAD note={note?.name ?? "<null>"} res={entry.payload?.result}"); } catch { }
-                #endif
-                applyCallback?.Invoke(entry.payload);
-                pendingHeadJudgments.Remove(note);
-            }
-
-            tailToFinalize.Clear();
-            foreach (var kvp in pendingTailJudgments) if (songPos >= kvp.Value.finalizationDeadlineMs) tailToFinalize.Add(kvp.Key);
-            for (int i = 0; i < tailToFinalize.Count; i++)
-            {
-                var note = tailToFinalize[i];
-                if (!pendingTailJudgments.TryGetValue(note, out var entry)) continue;
-                #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                try { BuildLogger.Log($"[JProt] ProcessPending APPLY TAIL note={note?.name ?? "<null>"} res={entry.payload?.result}"); } catch { }
-                #endif
-                applyCallback?.Invoke(entry.payload);
-                pendingTailJudgments.Remove(note);
-            }
+            // Event-driven mode: pending head/tail finalization is scheduled when entries are stored.
         }
 
         // Flush all pending judgments and apply them via callback without extra allocations
@@ -389,6 +461,7 @@ namespace Judgment
                 var note = headToFinalize[i];
                 if (note == null) continue;
                 if (!pendingHeadJudgments.TryGetValue(note, out var entry)) continue;
+                StopScheduledFinalize(entry);
                 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 try { BuildLogger.Log($"[JProt] FlushPending APPLY HEAD note={note?.name ?? "<null>"} res={entry.payload?.result}"); } catch { }
                 #endif
@@ -403,6 +476,7 @@ namespace Judgment
                 var note = tailToFinalize[i];
                 if (note == null) continue;
                 if (!pendingTailJudgments.TryGetValue(note, out var entry)) continue;
+                StopScheduledFinalize(entry);
                 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 try { BuildLogger.Log($"[JProt] FlushPending APPLY TAIL note={note?.name ?? "<null>"} res={entry.payload?.result}"); } catch { }
                 #endif

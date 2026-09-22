@@ -6,6 +6,10 @@ public class BeatLineController : MonoBehaviour
     public float startTime;
     private float spawnZ;
     private float judgmentZ = -2.0f;
+    // Cached JudgmentLine transform so beat lines converge onto the SAME (possibly camera-anchored) line
+    // as the notes, instead of a hardcoded Z plane. STATIC + shared across all beat lines: GameObject.Find
+    // is expensive, so we resolve it at most once (it becomes Unity-null on scene change → re-resolved).
+    private static Transform _judgmentLine;
     private Conductor conductor;
     private BeatLineSpawner beatLineSpawner;
     private float travelMs = 0f;
@@ -27,6 +31,10 @@ public class BeatLineController : MonoBehaviour
 
     float initialSpeed = (beatLineSpawner != null) ? beatLineSpawner.Speed : 30f;
     float travelSeconds = Mathf.Max(0f, timeToBeatMs) / 1000f;
+        // Resolve the judgment line's Z so we converge onto the same line as the notes. Fall back to the
+        // default plane if the object isn't found.
+        if (_judgmentLine == null) { var jl = GameObject.Find("JudgmentLine"); if (jl != null) _judgmentLine = jl.transform; }
+        if (_judgmentLine != null) judgmentZ = _judgmentLine.position.z;
         // Spawn distance equals time-to-judgment based on actual remaining time when spawned
         this.spawnZ = judgmentZ + travelSeconds * initialSpeed;
     this.travelMs = travelSeconds * 1000f;
@@ -97,24 +105,31 @@ public class BeatLineController : MonoBehaviour
         // early-out if conductor not ready
         if (conductor == null || !conductor.isActive) return;
 
-    float songPos = conductor.GetDspSongPositionMs();
+    // Use the same visual clock as notes/TRACK, including the player's
+    // MusicPlaybackOffset and pause state.
+    float timingSongPos = conductor.effectiveSongPosition;
+    float songPos = conductor.renderSongPosition;
         float currentSpeed = (beatLineSpawner != null) ? beatLineSpawner.Speed : 30f;
 
         // If reached or passed, return to pool
-        if (songPos >= startTime)
+        if (timingSongPos >= startTime)
         {
+            try { JudgmentLineGlow.GetOrCreate()?.TriggerBeatPulse(); } catch { }
             if (beatLineSpawner != null) beatLineSpawner.ReturnBeatLine(gameObject);
             else Destroy(gameObject);
             return;
         }
 
+        // Track the (possibly camera-anchored) judgment line's current Z so beat lines meet it exactly.
+        if (_judgmentLine != null) judgmentZ = _judgmentLine.position.z;
+
         // Calculate the target position directly from DSP timing.
         float timeToStart = startTime - songPos;
         float targetWorldZ = judgmentZ + (timeToStart / 1000f) * currentSpeed;
-        float currentWorldZ = transform.position.z;
-        float maxStep = currentSpeed * Time.deltaTime;
-        float newWorldZ = Mathf.MoveTowards(currentWorldZ, targetWorldZ, maxStep);
-        if (Mathf.Abs(targetWorldZ - newWorldZ) <= 0.0001f) newWorldZ = targetWorldZ;
+        // renderSongPosition is already continuous, so write the deterministic
+        // target directly. A second MoveTowards follower introduces a visible
+        // catch-up/snap cycle on long horizontal lines.
+        float newWorldZ = targetWorldZ;
 
         // Apply the calculated world Z position, adjusting for parent transforms when necessary.
         if (_cachedParent != null)
@@ -132,7 +147,7 @@ public class BeatLineController : MonoBehaviour
         }
 
         // safety: if long past startTime, ensure cleanup
-        if (songPos > startTime + 500f)
+        if (timingSongPos > startTime + 500f)
         {
             if (beatLineSpawner != null) beatLineSpawner.ReturnBeatLine(gameObject);
             else Destroy(gameObject);

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// Centralized hit sound playback with a lightweight singleton. Falls back to an
@@ -44,7 +44,12 @@ public class HitSoundManager : MonoBehaviour
             return;
         }
         Instance = this;
-        if (persistAcrossScenes) DontDestroyOnLoad(gameObject);
+        if (persistAcrossScenes)
+        {
+            // 同上：要跨場景活下來就得先是根物件，否則這一行只會留下一句警告。
+            if (transform.parent != null) transform.SetParent(null);
+            DontDestroyOnLoad(gameObject);
+        }
 
         EnsureSFXManager();
 

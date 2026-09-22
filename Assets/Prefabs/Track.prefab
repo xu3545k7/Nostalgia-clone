@@ -12,6 +12,8 @@ GameObject:
   - component: {fileID: 2533215057209564837}
   - component: {fileID: 369581461325377765}
   - component: {fileID: 1777131143449892445}
+  - component: {fileID: 5732906529137804211}
+  - component: {fileID: 8487920912951003312}
   m_Layer: 0
   m_Name: Track
   m_TagString: Untagged
@@ -112,3 +114,40 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &5732906529137804211
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1617042987424875223}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a51d4efacdad4c13aa2f94c1297f810b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::TrackGuideLineOverlay
+  guideMaterial: {fileID: 2100000, guid: b63a426a3f534b97a748b2d14d8ea3be, type: 2}
+  laneCount: 28
+  majorInterval: 7
+  guideWidthWorld: 0.075
+  borderWidthWorld: 0.22
+  innerBorderInsetWorld: 0.42
+  masterOpacity: 1
+  guideColor: {r: 0.72, g: 0.53, b: 0.23, a: 0.24}
+  centerColor: {r: 0.86, g: 0.67, b: 0.31, a: 0.36}
+  borderColor: {r: 0.82, g: 0.61, b: 0.26, a: 0.58}
+--- !u!114 &8487920912951003312
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1617042987424875223}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b1d4a7d64f64a68a031e32fdc8da431, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::TrackMarbleThemeController
+  trackRenderer: {fileID: 369581461325377765}
+  previewTheme: 0
+  syncScrollWithNotes: 1

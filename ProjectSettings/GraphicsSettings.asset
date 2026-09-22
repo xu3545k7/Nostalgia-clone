@@ -34,6 +34,24 @@ GraphicsSettings:
   - {fileID: 10753, guid: 0000000000000000f000000000000000, type: 0}
   - {fileID: 10770, guid: 0000000000000000f000000000000000, type: 0}
   - {fileID: 10783, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 4800000, guid: 1fb0c364a15936a428dd21a4e490ddc0, type: 3}
+  - {fileID: 4800000, guid: 1769b9da509465c49969d75ac8d03e8b, type: 3}
+  - {fileID: 4800000, guid: c8e00b52c0d64dfba2b2c4bf7d201a47, type: 3}
+  - {fileID: 4800000, guid: 6a1c29329024dda40ac1d97396d7b01c, type: 3}
+  - {fileID: 4800000, guid: 63176e9ea3ca4a7fa23d42fa4c87facf, type: 3}
+  - {fileID: 4800000, guid: 5a2f7d28eeed49bbace037c5bc810967, type: 3}
+  - {fileID: 4800000, guid: 2b823cc3568d81b458e9b02658241465, type: 3}
+  - {fileID: 4800000, guid: d4e7d36d9a52f3c47be6cc44abaa343a, type: 3}
+  - {fileID: 4800000, guid: db46ea9cb58842adb0249a84b7051ec9, type: 3}
+  - {fileID: 4800000, guid: b4f7c2ab48e64c0b92e2f575e98263f9, type: 3}
+  - {fileID: 4800000, guid: afb4ae25a1e8466a9f179391ea909ccb, type: 3}
+  - {fileID: 4800000, guid: 16ea5ff3b18dd844abc6ee50b8c0b6e6, type: 3}
+  - {fileID: 4800000, guid: 2f9ef49a02ec43f495a9cd1f1857ee85, type: 3}
+  - {fileID: 4800000, guid: 3c6d14c7d07a4f2ba777fa3f3b90d728, type: 3}
+  - {fileID: 4800000, guid: 8acec763c3dd189489fe6c41950f375a, type: 3}
+  - {fileID: 4800000, guid: c42df76faf06486c9539525293864b51, type: 3}
+  - {fileID: 4800000, guid: 010481c5686815f4fa358c389956980e, type: 3}
+  - {fileID: 4800000, guid: 092145cd22fc21f4795fd81a64479a67, type: 3}
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: -1
   m_SpritesDefaultMaterial: {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
@@ -59,6 +77,8 @@ GraphicsSettings:
   m_AlbedoSwatchInfos: []
   m_RenderPipelineGlobalSettingsMap:
     UnityEngine.Rendering.Universal.UniversalRenderPipeline: {fileID: 11400000, guid: 18dc0cd2c080841dea60987a38ce93fa, type: 2}
+  m_ShaderBuildSettings:
+    keywordDeclarationOverrides: []
   m_LightsUseLinearIntensity: 1
   m_LightsUseColorTemperature: 1
   m_LogWhenShaderIsCompiled: 0

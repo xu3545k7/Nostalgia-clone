@@ -1,4 +1,4 @@
-
+﻿
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -10,7 +10,8 @@ public class NoteSpawner : MonoBehaviour{
     /// <summary>
     /// 由外部（如 GameManager）呼叫，嘗試判定指定鍵位的 note。
     /// </summary>
-    public void TryHitNote(int keyIndex, float velocity)
+    public void TryHitNote(int keyIndex, float velocity, float songPosOverride = float.NaN,
+        long inputEventId = 0)
     {
         #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"[判定] TryHitNote: key={keyIndex}, 力度={velocity}");
@@ -27,7 +28,12 @@ public class NoteSpawner : MonoBehaviour{
         // 直接呼叫 JudgmentManager 進行判定，確保 MIDI/鍵盤一致
         if (Judgment.JudgmentManager.Instance != null)
         {
-            Judgment.JudgmentManager.Instance.ProcessButtonPress(keyIndex);
+            // 走輸入幀入口而不是直接判定：同一個 16.66ms 內按下的鍵要整組
+            // 一起決定誰有效（判定文件 §5.1）。設定關掉時它會直接轉呼叫原本的
+            // ProcessButtonPress，行為和以前一樣。
+            using (HitchProbe.Measure("buttonPress"))
+                Judgment.JudgmentManager.Instance.EnqueueInputFramePress(
+                    keyIndex, songPosOverride, inputEventId);
         }
         else
         {
@@ -51,6 +57,8 @@ public class NoteSpawner : MonoBehaviour{
     public float travelTimeSeconds = 2f;
     [Tooltip("Multiply lookahead distance for a longer visible runway during pre-roll.")]
     public float runwayFactor = 1.0f;
+    [Tooltip("Maximum notes spawned in one frame when a seek must catch up a dense section.")]
+    public int maxCatchUpSpawnsPerFrame = 512;
     public float speed = 70f; // Add speed property
     [Header("Visual Scale")]
     [Tooltip("Default local scale applied to spawned 2D note instances (use to correct oversized prefabs).")]
@@ -68,16 +76,51 @@ public class NoteSpawner : MonoBehaviour{
     private int nextNoteIndex = 0;
     private bool isInitialized = false;
     private NotePool notePool;
+    private Coroutine poolWarmRoutine;
     // Dev-only: report once why spawning is blocked
     private bool _reportedSpawnBlock = false;
     // Cached corrected local scale computed once for the assigned container/track
     private Vector3 cachedCorrectedLocalScale = Vector3.one;
     private bool cachedScaleValid = false;
 
+    private VelocityWash velocityWash;
+
+    /// <summary>
+    /// Lays the dynamics wash along the runway for the chart just loaded.
+    /// </summary>
+    /// <remarks>
+    /// It belongs to the spawner because it needs exactly what the spawner
+    /// already holds -- the chart, the track's width and the scroll speed -- and
+    /// because there has to be one of it. Built per note it would be several
+    /// hundred overlapping copies of the same field.
+    /// </remarks>
+    private void EnsureVelocityWash()
+    {
+        if (velocityWash == null)
+        {
+            // 不掛在軌道底下。音符是用**世界座標**定位的，色場的頂點也是照世界
+            // 單位算的 —— 掛進一個有縮放或旋轉的父物件，那些長度就會再被乘一次。
+            var host = new GameObject("VelocityWash");
+            velocityWash = host.AddComponent<VelocityWash>();
+        }
+
+        Transform judgment = null;
+        var judgmentGo = GameObject.Find("JudgmentLine");
+        if (judgmentGo != null) judgment = judgmentGo.transform;
+
+        velocityWash.Prepare(chart, this, judgment);
+    }
+
     public void Initialize(Chart chart, Conductor conductor)
     {
+        if (poolWarmRoutine != null)
+        {
+            try { StopCoroutine(poolWarmRoutine); } catch { }
+            poolWarmRoutine = null;
+        }
         this.chart = chart;
         this.conductor = conductor;
+        EnsureVelocityWash();
         // prefer an AudioSync component (authoritative DSP-based time) if available
         try
         {
@@ -119,12 +162,17 @@ public class NoteSpawner : MonoBehaviour{
         // Initialize object pool for notes if we have a prefab
         if (notePrefab2D != null)
         {
-            // Create an initial pool size based on chart density to avoid runtime Instantiate
-            // too-small pools can cause mid-song Instantiate spikes; compute a modest initial
-            // capacity (5% of required, clamped) and warm the remainder asynchronously.
-            int estimatedRequired = (chart != null && chart.notes != null) ? chart.notes.Count : 128;
-            int initialPoolSize = Mathf.Clamp(Mathf.CeilToInt(estimatedRequired * 0.05f) + 8, 32, 512);
-            notePool = new NotePool(notePrefab2D, noteContainer, initialPoolSize);
+            // Pool capacity is based on maximum simultaneous on-screen notes,
+            // not total chart length.  Preloading 105% of a 1,600-note chart
+            // created thousands of GameObjects and HoldTail renderers during
+            // gameplay even though only a few dozen can be visible at once.
+            int estimatedRequired = EstimateRequiredPoolCapacity(chart);
+            // Finish the bounded visible-window pool before gameplay starts.
+            // Spreading Instantiate calls over live frames produced a regular
+            // hitch pattern that was much more visible than one loading pause.
+            notePool = new NotePool(notePrefab2D, noteContainer, estimatedRequired);
+            Debug.Log($"[Note Pool] chartNotes={(chart != null && chart.notes != null ? chart.notes.Count : 0)} " +
+                $"visibleCapacity={estimatedRequired} preRollMs={(conductor != null ? conductor.LastPreRollDurationMs : 0f):F0}");
             // compute and cache corrected local scale for the current container to avoid per-spawn lossyScale math
             Transform parent = (noteContainer != null) ? noteContainer : transform;
             Vector3 parentLossy = parent.lossyScale;
@@ -136,28 +184,66 @@ public class NoteSpawner : MonoBehaviour{
             );
             cachedScaleValid = true;
         }
-        // Preload pool to match chart size. To avoid a single-frame allocation spike,
-        // perform the bulk EnsureCapacity asynchronously (split across frames) when possible.
-        if (chart != null)
-        {
-            // Start async preload if we have a pool; fallback to synchronous PreloadAll if not.
-            if (notePool != null && Application.isPlaying)
-            {
-                int required = (chart.notes != null) ? chart.notes.Count : 0;
-                required = Mathf.CeilToInt(required * 1.05f) + 8;
-                // Use the pool's async EnsureCapacity which instantiates in batches without spawning/despawning
-                // (avoids running per-instance Cleanup/Unregister logic and reduces GC churn).
-                try { StartCoroutine(notePool.EnsureCapacityAsync(required, 64)); } catch { }
-            }
-            else
-            {
-                PreloadAll(chart);
-            }
-        }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     // Development-only diagnostic: report initialization state to help debug missing notes
     BuildLogger.Log($"[NoteSpawner] Initialize: prefabAssigned={(notePrefab2D!=null)}, container={(noteContainer!=null?noteContainer.name:"<null>")}, track={(trackTransform!=null?trackTransform.name:"<null>")}, notesCount={(chart!=null && chart.notes!=null?chart.notes.Count:0)}, conductorPresent={(conductor!=null)}");
 #endif
+    }
+
+    private int EstimateRequiredPoolCapacity(Chart sourceChart)
+    {
+        if (sourceChart == null || sourceChart.notes == null || sourceChart.notes.Count == 0)
+            return 32;
+
+        int count = sourceChart.notes.Count;
+        float baseLookaheadMs = travelTimeSeconds > 0f
+            ? travelTimeSeconds * 1000f
+            : Mathf.Max(1000f, noteSpawnLookahead);
+        // Match the actual runtime spawn window: (travel + remaining pre-roll)
+        // multiplied by runwayFactor. Reserving a whole extra travel window
+        // overestimated dense charts and created objects that could never be visible.
+        float preRollMs = conductor != null ? conductor.LastPreRollDurationMs : 0f;
+        float maximumSpawnLeadMs = (baseLookaheadMs + Mathf.Max(0f, preRollMs)) *
+            Mathf.Max(0.01f, runwayFactor);
+
+        var starts = new float[count];
+        var ends = new float[count];
+        int valid = 0;
+        for (int i = 0; i < count; i++)
+        {
+            NoteData note = sourceChart.notes[i];
+            if (note == null) continue;
+            float start = note.startTime;
+            float end = Mathf.Max(start + 350f, Mathf.Max(start, note.endTime) + 350f);
+            starts[valid] = start - maximumSpawnLeadMs;
+            ends[valid] = end;
+            valid++;
+        }
+        if (valid == 0) return 32;
+
+        System.Array.Sort(starts, 0, valid);
+        System.Array.Sort(ends, 0, valid);
+        int startIndex = 0;
+        int endIndex = 0;
+        int active = 0;
+        int peak = 0;
+        while (startIndex < valid)
+        {
+            if (endIndex >= valid || starts[startIndex] <= ends[endIndex])
+            {
+                active++;
+                if (active > peak) peak = active;
+                startIndex++;
+            }
+            else
+            {
+                active = Mathf.Max(0, active - 1);
+                endIndex++;
+            }
+        }
+
+        int margin = Mathf.Max(12, Mathf.CeilToInt(peak * 0.25f));
+        return Mathf.Clamp(peak + margin, 32, 512);
     }
 
     private System.Collections.IEnumerator WarmPoolAsync(int targetCapacity, int batchSize)
@@ -167,7 +253,7 @@ public class NoteSpawner : MonoBehaviour{
         while (true)
         {
             var stats = notePool.GetStats();
-            int poolSize = stats.Item5;
+            int poolSize = notePool.TotalCapacity;
             if (poolSize >= targetCapacity) yield break;
             int toCreate = Mathf.Min(batchSize, targetCapacity - poolSize);
             for (int i = 0; i < toCreate; i++)
@@ -204,12 +290,47 @@ public class NoteSpawner : MonoBehaviour{
     }
 #endif
 
+    /// <summary>
+    /// Reports the component being switched off while the song is still running.
+    /// </summary>
+    /// <remarks>
+    /// A disabled spawner runs no Update, so it cannot report its own silence —
+    /// and "the chart stops while the music carries on" looks identical whether
+    /// the spawner was disabled or merely blocked. GamePauseManager switches it
+    /// off for the pause overlay and back on afterwards; if a resume path ever
+    /// fails to restore it, this is the only trace that would exist.
+    /// </remarks>
+    void OnDisable()
+    {
+        if (conductor != null && conductor.isActive)
+        {
+            Debug.LogWarning($"[NoteSpawner] Disabled while the song is active: " +
+                $"spawned={nextNoteIndex} songMs={conductor.effectiveSongPosition:F0}");
+        }
+    }
+
+    void OnEnable()
+    {
+        if (conductor != null && conductor.isActive)
+        {
+            Debug.Log($"[NoteSpawner] Re-enabled: spawned={nextNoteIndex} " +
+                $"songMs={conductor.effectiveSongPosition:F0}");
+        }
+    }
+
     void Update()
     {
+        // 生成音符也可能是卡住的那一格的原因。不量的話它會被算進「腳本之外」，
+        // 探針就會把生成誤報成算繪。
+        using var _probe = HitchProbe.Measure("noteSpawn");
         // Use 2D prefab by default. If notePrefab2D is missing, log an error and skip spawning.
         if (!isInitialized || conductor == null || !conductor.isActive || notePrefab2D == null)
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Latched per episode, not for the whole session: this always trips
+            // once during start-up, and the old permanent latch meant a block
+            // that began mid-song — the case where the chart stops while the
+            // music keeps going — was reported by nothing at all. Release builds
+            // need it too; that is where the failure gets seen.
             if (!_reportedSpawnBlock)
             {
                 string why = "";
@@ -217,11 +338,19 @@ public class NoteSpawner : MonoBehaviour{
                 if (conductor == null) why += "conductor=null; ";
                 else if (!conductor.isActive) why += "conductor.isActive=false; ";
                 if (notePrefab2D == null) why += "notePrefab2D=null; ";
-                BuildLogger.LogWarning($"[NoteSpawner] Update blocked: {why} (spawner={gameObject.name})");
+                Debug.LogWarning($"[NoteSpawner] Update blocked: {why}" +
+                    $"spawned={nextNoteIndex} songMs=" +
+                    $"{(conductor != null ? conductor.effectiveSongPosition : float.NaN):F0} " +
+                    $"(spawner={gameObject.name})");
                 _reportedSpawnBlock = true;
             }
-#endif
             return;
+        }
+        if (_reportedSpawnBlock)
+        {
+            _reportedSpawnBlock = false;
+            Debug.Log($"[NoteSpawner] Update resumed: spawned={nextNoteIndex} " +
+                $"songMs={conductor.effectiveSongPosition:F0}");
         }
 
         // Validate chart and notes container prior to indexing to avoid NullReferenceExceptions
@@ -233,7 +362,9 @@ public class NoteSpawner : MonoBehaviour{
         {
             return;
         }
-        if (nextNoteIndex < chart.notes.Count)
+        int spawnedThisFrame = 0;
+        int catchUpBudget = Mathf.Max(1, maxCatchUpSpawnsPerFrame);
+        while (nextNoteIndex < chart.notes.Count && spawnedThisFrame < catchUpBudget)
         {
             // Defensive: ensure index is within range
             if (nextNoteIndex < 0 || nextNoteIndex >= chart.notes.Count)
@@ -245,7 +376,7 @@ public class NoteSpawner : MonoBehaviour{
             if (nextNote == null)
             {
                 nextNoteIndex++;
-                return;
+                continue;
             }
 
             // Use original chart timings; global delay comes from audio start offset
@@ -260,30 +391,14 @@ public class NoteSpawner : MonoBehaviour{
             float spawnWindowMs = (travelLookaheadMs + preRollMs) * Mathf.Max(0.01f, runwayFactor);
             // Spawn when the remaining time to start is within travel-time lookahead
             // Determine current song position in ms. Prefer AudioSync.GetAudioTime() when available
-            float currentSongPosMs = 0f;
-            if (audioSyncComponent != null && audioSync_GetAudioTime_Method != null)
-            {
-                try
-                {
-                    var res = audioSync_GetAudioTime_Method.Invoke(audioSyncComponent, null);
-                    if (res is double d)
-                    {
-                        currentSongPosMs = (float)(d * 1000.0);
-                    }
-                    else if (res is float f)
-                    {
-                        currentSongPosMs = f * 1000f;
-                    }
-                }
-                catch (System.Exception)
-                {
-                    currentSongPosMs = conductor != null ? conductor.effectiveSongPosition : 0f;
-                }
-            }
-            else
-            {
-                currentSongPosMs = conductor != null ? conductor.effectiveSongPosition : 0f;
-            }
+            // Use the SAME clock as note movement and judgment: Conductor.effectiveSongPosition, which is
+            // DSP-based and monotonic. The spawner previously read AudioSync.GetAudioTime() (an
+            // AudioSource.time-based value) via reflection. For long, compressed (Vorbis) clips that source
+            // can drift or freeze in a BUILD while the DSP clock keeps advancing — the spawner's clock then
+            // stalls and stops spawning partway through the song, even though notes keep moving and audio
+            // keeps playing (the "chart goes empty after ~3 min, build only" symptom). Reading the conductor
+            // here keeps the spawner on one authoritative clock.
+            float currentSongPosMs = conductor != null ? conductor.effectiveSongPosition : 0f;
             float timeToStart = effectiveStart - currentSongPosMs;
             if (timeToStart <= spawnWindowMs)
             {
@@ -331,7 +446,13 @@ public class NoteSpawner : MonoBehaviour{
                     noteController.Initialize(nextNote, this, timeToStart);
                 }
                 nextNoteIndex++;
+                spawnedThisFrame++;
+                continue;
             }
+
+            // Notes are time-sorted. Once the first pending note is outside the
+            // lookahead window, every following note can wait for a later frame.
+            break;
         }
     }
 
@@ -382,10 +503,10 @@ public class NoteSpawner : MonoBehaviour{
         );
         cachedScaleValid = true;
 
-        // Determine estimate of required note count: use chart.notes.Count
-        int required = (chart.notes != null) ? chart.notes.Count : 0;
-        // Add some slack to avoid missing in edge cases
-        required = Mathf.CeilToInt(required * 1.05f) + 8;
+        // Preload only the densest visible window. The old implementation used
+        // chart.notes.Count, so a 1,600-note chart created ~1,700 GameObjects (and
+        // renderers) before playback even though only a small window can be alive.
+        int required = EstimateRequiredPoolCapacity(chart);
         if (notePool != null)
         {
             notePool.EnsureCapacity(required);
@@ -393,7 +514,7 @@ public class NoteSpawner : MonoBehaviour{
         else
         {
             // If no pool, optionally pre-instantiate disabled objects into container to warm-up
-            for (int i = 0; i < Mathf.Min(64, required); i++)
+            for (int i = 0; i < Mathf.Min(32, required); i++)
             {
                 var go = Instantiate(notePrefab2D, parent);
                 global::RuntimeDiagnostics.RegisterInstantiate();
@@ -416,21 +537,19 @@ public class NoteSpawner : MonoBehaviour{
             Transform activeParent = (noteContainer != null) ? noteContainer : transform;
             if (activeParent != null)
             {
-                // Iterate children by index to avoid allocating a temporary List
-                for (int i = activeParent.childCount - 1; i >= 0; --i)
+                var activeNotes = new System.Collections.Generic.List<GameObject>();
+                for (int i = 0; i < activeParent.childCount; i++)
                 {
                     Transform child = activeParent.GetChild(i);
                     if (child == null || child.gameObject == null) continue;
                     GameObject go = child.gameObject;
-                    if (notePool != null)
-                    {
-                        notePool.Despawn(go);
-                    }
-                    else
-                    {
-                        Object.Destroy(go);
-                    }
+                    // The pool's inactive reserve uses this same container.
+                    // Returning those objects again duplicates references in the
+                    // stack, so several chart notes later overwrite one GameObject.
+                    if (go.activeSelf && go.GetComponent<NoteController>() != null)
+                        activeNotes.Add(go);
                 }
+                for (int i = 0; i < activeNotes.Count; i++) notePool.Despawn(activeNotes[i]);
                 // Debug info removed: previously logged activeParent childCountAfter for debugging
             }
             return;
@@ -462,7 +581,11 @@ public class NoteSpawner : MonoBehaviour{
         {
             var n = chart.notes[idx];
             if (n == null) { idx++; continue; }
-            if (n.startTime > ms) break;
+            // Keep notes exactly on the seek boundary, and also keep a Hold
+            // whose head is earlier but whose tail still crosses the target.
+            // They will be spawned immediately and resolve against the new clock.
+            float noteEndMs = Mathf.Max(n.startTime, n.endTime);
+            if (noteEndMs >= ms) break;
             idx++;
         }
         nextNoteIndex = Mathf.Clamp(idx, 0, chart.notes.Count);
@@ -475,6 +598,11 @@ public class NoteSpawner : MonoBehaviour{
     /// </summary>
     public void DestroyPool()
     {
+        if (poolWarmRoutine != null)
+        {
+            try { StopCoroutine(poolWarmRoutine); } catch { }
+            poolWarmRoutine = null;
+        }
         try
         {
             if (notePool != null)

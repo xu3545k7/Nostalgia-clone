@@ -1,0 +1,7294 @@
+{
+  "soundfont": "Nice-Steinway-v3.8.sf2",
+  "preset": "Bright Steinway",
+  "preset_number": 1,
+  "sample_rate": 44100,
+  "channels": 1,
+  "resource_folder": "PianoSamples",
+  "lowest_pitch": 21,
+  "highest_pitch": 108,
+  "velocity_gain": [
+    0.0,
+    0.006418,
+    0.012836,
+    0.027166,
+    0.048393,
+    0.075976,
+    0.110043,
+    0.148713,
+    0.196363,
+    0.247471,
+    0.304631,
+    0.370802,
+    0.440887,
+    0.518144,
+    0.602142,
+    0.691458,
+    0.784868,
+    0.88986,
+    1.0,
+    0.33084,
+    0.366544,
+    0.402478,
+    0.441292,
+    0.483342,
+    0.530692,
+    0.575218,
+    0.615635,
+    0.668206,
+    0.715973,
+    0.766264,
+    0.822166,
+    0.880937,
+    0.942813,
+    1.0,
+    0.684134,
+    0.723873,
+    0.767719,
+    0.813153,
+    0.851094,
+    0.90204,
+    0.94448,
+    1.0,
+    0.767308,
+    0.803424,
+    0.840913,
+    0.881025,
+    0.922483,
+    0.954474,
+    1.0,
+    0.668224,
+    0.69141,
+    0.716079,
+    0.749782,
+    0.775792,
+    0.803475,
+    0.841288,
+    0.870473,
+    0.901526,
+    0.933154,
+    0.965851,
+    1.0,
+    0.767327,
+    0.785131,
+    0.812877,
+    0.841375,
+    0.870858,
+    0.891314,
+    0.922561,
+    0.943957,
+    0.97731,
+    1.0,
+    0.785206,
+    0.803644,
+    0.831829,
+    0.851119,
+    0.871098,
+    0.901651,
+    0.922561,
+    0.944211,
+    0.977331,
+    1.0,
+    0.830869,
+    0.851191,
+    0.870937,
+    0.890304,
+    0.912076,
+    0.933234,
+    0.953988,
+    0.977312,
+    1.0,
+    0.811908,
+    0.831751,
+    0.851063,
+    0.869984,
+    0.891243,
+    0.911937,
+    0.921543,
+    0.944056,
+    0.965977,
+    0.987463,
+    1.0,
+    0.841379,
+    0.860603,
+    0.881096,
+    0.89124,
+    0.911603,
+    0.933307,
+    0.944054,
+    0.965625,
+    0.977294,
+    1.0,
+    0.92216,
+    0.933301,
+    0.954989,
+    0.965625,
+    0.988603,
+    1.0,
+    0.850816,
+    0.861088,
+    0.881101,
+    0.890912,
+    0.912094,
+    0.92261,
+    0.933191,
+    0.955078,
+    0.966046,
+    0.988405,
+    1.0
+  ],
+  "velocity_bands": [
+    {
+      "index": 0,
+      "low_velocity": 0,
+      "high_velocity": 18,
+      "reference_velocity": 18,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v0",
+          "seconds": 11.778
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v0",
+          "seconds": 9.239
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v0",
+          "seconds": 10.53
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v0",
+          "seconds": 9.22
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v0",
+          "seconds": 8.207
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v0",
+          "seconds": 10.705
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v0",
+          "seconds": 7.69
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v0",
+          "seconds": 13.453
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v0",
+          "seconds": 14.56
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v0",
+          "seconds": 12.304
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v0",
+          "seconds": 12.351
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v0",
+          "seconds": 10.937
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v0",
+          "seconds": 11.041
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v0",
+          "seconds": 10.619
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v0",
+          "seconds": 11.398
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v0",
+          "seconds": 9.554
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v0",
+          "seconds": 8.44
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v0",
+          "seconds": 6.414
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v0",
+          "seconds": 6.521
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v0",
+          "seconds": 9.312
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v0",
+          "seconds": 10.5
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v0",
+          "seconds": 9.21
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v0",
+          "seconds": 8.173
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v0",
+          "seconds": 5.985
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v0",
+          "seconds": 5.944
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v0",
+          "seconds": 8.526
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v0",
+          "seconds": 9.549
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v0",
+          "seconds": 5.529
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v0",
+          "seconds": 9.563
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v0",
+          "seconds": 10.678
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v0",
+          "seconds": 9.765
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v0",
+          "seconds": 7.334
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v0",
+          "seconds": 9.961
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v0",
+          "seconds": 10.062
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v0",
+          "seconds": 7.588
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v0",
+          "seconds": 5.552
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v0",
+          "seconds": 6.161
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v0",
+          "seconds": 4.297
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v0",
+          "seconds": 4.916
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v0",
+          "seconds": 1.855
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v0",
+          "seconds": 3.889
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v0",
+          "seconds": 4.62
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v0",
+          "seconds": 4.242
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v0",
+          "seconds": 7.36
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v0",
+          "seconds": 5.079
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v0",
+          "seconds": 1.789
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v0",
+          "seconds": 3.317
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v0",
+          "seconds": 2.158
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v0",
+          "seconds": 3.033
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v0",
+          "seconds": 4.267
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v0",
+          "seconds": 4.499
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v0",
+          "seconds": 4.397
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v0",
+          "seconds": 3.836
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v0",
+          "seconds": 3.302
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v0",
+          "seconds": 2.569
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v0",
+          "seconds": 1.571
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v0",
+          "seconds": 1.473
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v0",
+          "seconds": 1.858
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v0",
+          "seconds": 2.001
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v0",
+          "seconds": 0.885
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v0",
+          "seconds": 2.22
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v0",
+          "seconds": 1.684
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v0",
+          "seconds": 1.939
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v0",
+          "seconds": 0.85
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v0",
+          "seconds": 0.758
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v0",
+          "seconds": 0.976
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v0",
+          "seconds": 1.453
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v0",
+          "seconds": 1.359
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v0",
+          "seconds": 0.752
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v0",
+          "seconds": 0.933
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v0",
+          "seconds": 0.64
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v0",
+          "seconds": 0.64
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v0",
+          "seconds": 1.505
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v0",
+          "seconds": 1.058
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v0",
+          "seconds": 0.955
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v0",
+          "seconds": 0.63
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v0",
+          "seconds": 0.811
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v0",
+          "seconds": 1.227
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v0",
+          "seconds": 1.524
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v0",
+          "seconds": 0.562
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v0",
+          "seconds": 1.152
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v0",
+          "seconds": 1.216
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v0",
+          "seconds": 1.016
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v0",
+          "seconds": 0.513
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "low_velocity": 19,
+      "high_velocity": 33,
+      "reference_velocity": 33,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v1",
+          "seconds": 15.843
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v1",
+          "seconds": 15.118
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v1",
+          "seconds": 15.388
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v1",
+          "seconds": 15.274
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v1",
+          "seconds": 14.024
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v1",
+          "seconds": 14.9
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v1",
+          "seconds": 13.244
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v1",
+          "seconds": 14.705
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v1",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v1",
+          "seconds": 14.418
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v1",
+          "seconds": 14.273
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v1",
+          "seconds": 14.126
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v1",
+          "seconds": 13.899
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v1",
+          "seconds": 13.844
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v1",
+          "seconds": 13.68
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v1",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v1",
+          "seconds": 13.395
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v1",
+          "seconds": 12.425
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v1",
+          "seconds": 12.759
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v1",
+          "seconds": 12.338
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v1",
+          "seconds": 12.789
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v1",
+          "seconds": 12.158
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v1",
+          "seconds": 11.969
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v1",
+          "seconds": 12.341
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v1",
+          "seconds": 11.021
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v1",
+          "seconds": 11.136
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v1",
+          "seconds": 11.934
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v1",
+          "seconds": 11.312
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v1",
+          "seconds": 11.689
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v1",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v1",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v1",
+          "seconds": 10.938
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v1",
+          "seconds": 11.111
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v1",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v1",
+          "seconds": 10.819
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v1",
+          "seconds": 10.499
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v1",
+          "seconds": 10.217
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v1",
+          "seconds": 8.536
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v1",
+          "seconds": 7.898
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v1",
+          "seconds": 7.716
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v1",
+          "seconds": 9.068
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v1",
+          "seconds": 9.545
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v1",
+          "seconds": 9.478
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v1",
+          "seconds": 9.369
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v1",
+          "seconds": 7.238
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v1",
+          "seconds": 6.525
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v1",
+          "seconds": 6.828
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v1",
+          "seconds": 5.786
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v1",
+          "seconds": 5.113
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v1",
+          "seconds": 6.782
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v1",
+          "seconds": 7.559
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v1",
+          "seconds": 7.949
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v1",
+          "seconds": 7.767
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v1",
+          "seconds": 7.281
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v1",
+          "seconds": 4.712
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v1",
+          "seconds": 4.104
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v1",
+          "seconds": 6.454
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v1",
+          "seconds": 7.35
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v1",
+          "seconds": 7.116
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v1",
+          "seconds": 6.908
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v1",
+          "seconds": 6.767
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v1",
+          "seconds": 6.518
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v1",
+          "seconds": 6.429
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v1",
+          "seconds": 6.146
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v1",
+          "seconds": 6.013
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v1",
+          "seconds": 6.059
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v1",
+          "seconds": 5.942
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v1",
+          "seconds": 5.785
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v1",
+          "seconds": 5.613
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v1",
+          "seconds": 5.288
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v1",
+          "seconds": 5.302
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v1",
+          "seconds": 5.151
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v1",
+          "seconds": 5.077
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v1",
+          "seconds": 4.929
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v1",
+          "seconds": 4.737
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v1",
+          "seconds": 4.464
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v1",
+          "seconds": 4.329
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v1",
+          "seconds": 4.357
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v1",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v1",
+          "seconds": 3.795
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v1",
+          "seconds": 3.915
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v1",
+          "seconds": 3.74
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v1",
+          "seconds": 3.523
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v1",
+          "seconds": 3.424
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "low_velocity": 34,
+      "high_velocity": 41,
+      "reference_velocity": 41,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v2",
+          "seconds": 15.844
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v2",
+          "seconds": 15.519
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v2",
+          "seconds": 15.417
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v2",
+          "seconds": 15.277
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v2",
+          "seconds": 15.103
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v2",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v2",
+          "seconds": 14.688
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v2",
+          "seconds": 14.706
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v2",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v2",
+          "seconds": 14.418
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v2",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v2",
+          "seconds": 14.126
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v2",
+          "seconds": 13.981
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v2",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v2",
+          "seconds": 13.694
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v2",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v2",
+          "seconds": 13.413
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v2",
+          "seconds": 13.246
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v2",
+          "seconds": 13.112
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v2",
+          "seconds": 12.638
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v2",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v2",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v2",
+          "seconds": 12.551
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v2",
+          "seconds": 12.402
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v2",
+          "seconds": 11.604
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v2",
+          "seconds": 12.118
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v2",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v2",
+          "seconds": 11.828
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v2",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v2",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v2",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v2",
+          "seconds": 11.247
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v2",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v2",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v2",
+          "seconds": 10.827
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v2",
+          "seconds": 10.657
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v2",
+          "seconds": 10.392
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v2",
+          "seconds": 9.808
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v2",
+          "seconds": 8.742
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v2",
+          "seconds": 9.854
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v2",
+          "seconds": 9.773
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v2",
+          "seconds": 9.663
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v2",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v2",
+          "seconds": 9.39
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v2",
+          "seconds": 9.218
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v2",
+          "seconds": 7.078
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v2",
+          "seconds": 8.805
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v2",
+          "seconds": 6.743
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v2",
+          "seconds": 7.605
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v2",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v2",
+          "seconds": 8.368
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v2",
+          "seconds": 8.227
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v2",
+          "seconds": 7.817
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v2",
+          "seconds": 7.949
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v2",
+          "seconds": 7.724
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v2",
+          "seconds": 7.152
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v2",
+          "seconds": 7.516
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v2",
+          "seconds": 7.374
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v2",
+          "seconds": 7.233
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v2",
+          "seconds": 7.056
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v2",
+          "seconds": 6.785
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v2",
+          "seconds": 6.655
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v2",
+          "seconds": 6.507
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v2",
+          "seconds": 6.367
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v2",
+          "seconds": 6.106
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v2",
+          "seconds": 6.085
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v2",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v2",
+          "seconds": 5.787
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v2",
+          "seconds": 5.637
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v2",
+          "seconds": 5.496
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v2",
+          "seconds": 5.344
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v2",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v2",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v2",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v2",
+          "seconds": 4.77
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v2",
+          "seconds": 4.63
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v2",
+          "seconds": 4.492
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v2",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v2",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v2",
+          "seconds": 4.064
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v2",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v2",
+          "seconds": 3.786
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v2",
+          "seconds": 3.637
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v2",
+          "seconds": 3.497
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "low_velocity": 42,
+      "high_velocity": 48,
+      "reference_velocity": 48,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v3",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v3",
+          "seconds": 15.559
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v3",
+          "seconds": 15.418
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v3",
+          "seconds": 15.281
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v3",
+          "seconds": 15.128
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v3",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v3",
+          "seconds": 14.846
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v3",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v3",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v3",
+          "seconds": 14.418
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v3",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v3",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v3",
+          "seconds": 13.988
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v3",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v3",
+          "seconds": 13.697
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v3",
+          "seconds": 13.556
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v3",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v3",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v3",
+          "seconds": 13.124
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v3",
+          "seconds": 12.973
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v3",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v3",
+          "seconds": 12.686
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v3",
+          "seconds": 12.551
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v3",
+          "seconds": 12.402
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v3",
+          "seconds": 12.232
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v3",
+          "seconds": 12.12
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v3",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v3",
+          "seconds": 11.829
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v3",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v3",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v3",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v3",
+          "seconds": 11.258
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v3",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v3",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v3",
+          "seconds": 10.827
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v3",
+          "seconds": 10.677
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v3",
+          "seconds": 10.396
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v3",
+          "seconds": 10.051
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v3",
+          "seconds": 10.095
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v3",
+          "seconds": 9.937
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v3",
+          "seconds": 9.821
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v3",
+          "seconds": 9.669
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v3",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v3",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v3",
+          "seconds": 9.241
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v3",
+          "seconds": 7.526
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v3",
+          "seconds": 8.93
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v3",
+          "seconds": 8.67
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v3",
+          "seconds": 8.255
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v3",
+          "seconds": 8.528
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v3",
+          "seconds": 8.368
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v3",
+          "seconds": 8.227
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v3",
+          "seconds": 8.093
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v3",
+          "seconds": 7.951
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v3",
+          "seconds": 7.754
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v3",
+          "seconds": 7.539
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v3",
+          "seconds": 7.517
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v3",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v3",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v3",
+          "seconds": 7.076
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v3",
+          "seconds": 6.786
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v3",
+          "seconds": 6.657
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v3",
+          "seconds": 6.516
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v3",
+          "seconds": 6.367
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v3",
+          "seconds": 6.187
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v3",
+          "seconds": 6.085
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v3",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v3",
+          "seconds": 5.787
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v3",
+          "seconds": 5.645
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v3",
+          "seconds": 5.505
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v3",
+          "seconds": 5.35
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v3",
+          "seconds": 5.223
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v3",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v3",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v3",
+          "seconds": 4.78
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v3",
+          "seconds": 4.639
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v3",
+          "seconds": 4.496
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v3",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v3",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v3",
+          "seconds": 4.064
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v3",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v3",
+          "seconds": 3.786
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v3",
+          "seconds": 3.643
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v3",
+          "seconds": 3.498
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "low_velocity": 49,
+      "high_velocity": 60,
+      "reference_velocity": 60,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v4",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v4",
+          "seconds": 15.568
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v4",
+          "seconds": 15.421
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v4",
+          "seconds": 15.281
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v4",
+          "seconds": 15.137
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v4",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v4",
+          "seconds": 14.85
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v4",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v4",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v4",
+          "seconds": 14.417
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v4",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v4",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v4",
+          "seconds": 13.988
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v4",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v4",
+          "seconds": 13.7
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v4",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v4",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v4",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v4",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v4",
+          "seconds": 12.98
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v4",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v4",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v4",
+          "seconds": 12.551
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v4",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v4",
+          "seconds": 12.26
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v4",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v4",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v4",
+          "seconds": 11.83
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v4",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v4",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v4",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v4",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v4",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v4",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v4",
+          "seconds": 10.827
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v4",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v4",
+          "seconds": 10.396
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v4",
+          "seconds": 10.242
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v4",
+          "seconds": 10.108
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v4",
+          "seconds": 9.955
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v4",
+          "seconds": 9.821
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v4",
+          "seconds": 9.675
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v4",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v4",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v4",
+          "seconds": 9.243
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v4",
+          "seconds": 9.071
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v4",
+          "seconds": 8.957
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v4",
+          "seconds": 8.816
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v4",
+          "seconds": 8.618
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v4",
+          "seconds": 8.528
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v4",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v4",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v4",
+          "seconds": 8.098
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v4",
+          "seconds": 7.953
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v4",
+          "seconds": 7.791
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v4",
+          "seconds": 7.662
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v4",
+          "seconds": 7.52
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v4",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v4",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v4",
+          "seconds": 7.091
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v4",
+          "seconds": 6.79
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v4",
+          "seconds": 6.657
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v4",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v4",
+          "seconds": 6.367
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v4",
+          "seconds": 6.213
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v4",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v4",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v4",
+          "seconds": 5.79
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v4",
+          "seconds": 5.653
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v4",
+          "seconds": 5.509
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v4",
+          "seconds": 5.363
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v4",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v4",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v4",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v4",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v4",
+          "seconds": 4.647
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v4",
+          "seconds": 4.505
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v4",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v4",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v4",
+          "seconds": 4.068
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v4",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v4",
+          "seconds": 3.786
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v4",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v4",
+          "seconds": 3.498
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "low_velocity": 61,
+      "high_velocity": 70,
+      "reference_velocity": 70,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v5",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v5",
+          "seconds": 15.569
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v5",
+          "seconds": 15.423
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v5",
+          "seconds": 15.281
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v5",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v5",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v5",
+          "seconds": 14.851
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v5",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v5",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v5",
+          "seconds": 14.418
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v5",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v5",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v5",
+          "seconds": 13.988
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v5",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v5",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v5",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v5",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v5",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v5",
+          "seconds": 13.125
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v5",
+          "seconds": 12.98
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v5",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v5",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v5",
+          "seconds": 12.552
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v5",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v5",
+          "seconds": 12.263
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v5",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v5",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v5",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v5",
+          "seconds": 11.689
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v5",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v5",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v5",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v5",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v5",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v5",
+          "seconds": 10.827
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v5",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v5",
+          "seconds": 10.397
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v5",
+          "seconds": 10.252
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v5",
+          "seconds": 10.108
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v5",
+          "seconds": 9.964
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v5",
+          "seconds": 9.821
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v5",
+          "seconds": 9.675
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v5",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v5",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v5",
+          "seconds": 9.244
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v5",
+          "seconds": 9.089
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v5",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v5",
+          "seconds": 8.815
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v5",
+          "seconds": 8.662
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v5",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v5",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v5",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v5",
+          "seconds": 8.097
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v5",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v5",
+          "seconds": 7.809
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v5",
+          "seconds": 7.662
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v5",
+          "seconds": 7.523
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v5",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v5",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v5",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v5",
+          "seconds": 6.804
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v5",
+          "seconds": 6.659
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v5",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v5",
+          "seconds": 6.373
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v5",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v5",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v5",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v5",
+          "seconds": 5.795
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v5",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v5",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v5",
+          "seconds": 5.365
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v5",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v5",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v5",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v5",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v5",
+          "seconds": 4.648
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v5",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v5",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v5",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v5",
+          "seconds": 4.069
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v5",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v5",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v5",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v5",
+          "seconds": 3.499
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "low_velocity": 71,
+      "high_velocity": 80,
+      "reference_velocity": 80,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v6",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v6",
+          "seconds": 15.568
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v6",
+          "seconds": 15.423
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v6",
+          "seconds": 15.28
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v6",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v6",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v6",
+          "seconds": 14.851
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v6",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v6",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v6",
+          "seconds": 14.419
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v6",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v6",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v6",
+          "seconds": 13.988
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v6",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v6",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v6",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v6",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v6",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v6",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v6",
+          "seconds": 12.982
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v6",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v6",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v6",
+          "seconds": 12.552
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v6",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v6",
+          "seconds": 12.263
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v6",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v6",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v6",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v6",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v6",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v6",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v6",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v6",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v6",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v6",
+          "seconds": 10.828
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v6",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v6",
+          "seconds": 10.397
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v6",
+          "seconds": 10.252
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v6",
+          "seconds": 10.109
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v6",
+          "seconds": 9.964
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v6",
+          "seconds": 9.822
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v6",
+          "seconds": 9.676
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v6",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v6",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v6",
+          "seconds": 9.247
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v6",
+          "seconds": 9.1
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v6",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v6",
+          "seconds": 8.815
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v6",
+          "seconds": 8.67
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v6",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v6",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v6",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v6",
+          "seconds": 8.097
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v6",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v6",
+          "seconds": 7.81
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v6",
+          "seconds": 7.662
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v6",
+          "seconds": 7.522
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v6",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v6",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v6",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v6",
+          "seconds": 6.805
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v6",
+          "seconds": 6.66
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v6",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v6",
+          "seconds": 6.374
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v6",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v6",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v6",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v6",
+          "seconds": 5.798
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v6",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v6",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v6",
+          "seconds": 5.365
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v6",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v6",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v6",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v6",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v6",
+          "seconds": 4.649
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v6",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v6",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v6",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v6",
+          "seconds": 4.07
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v6",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v6",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v6",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v6",
+          "seconds": 3.5
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "low_velocity": 81,
+      "high_velocity": 89,
+      "reference_velocity": 89,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v7",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v7",
+          "seconds": 15.568
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v7",
+          "seconds": 15.425
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v7",
+          "seconds": 15.282
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v7",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v7",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v7",
+          "seconds": 14.85
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v7",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v7",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v7",
+          "seconds": 14.419
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v7",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v7",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v7",
+          "seconds": 13.989
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v7",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v7",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v7",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v7",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v7",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v7",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v7",
+          "seconds": 12.983
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v7",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v7",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v7",
+          "seconds": 12.551
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v7",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v7",
+          "seconds": 12.263
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v7",
+          "seconds": 12.12
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v7",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v7",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v7",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v7",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v7",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v7",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v7",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v7",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v7",
+          "seconds": 10.828
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v7",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v7",
+          "seconds": 10.396
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v7",
+          "seconds": 10.252
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v7",
+          "seconds": 10.109
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v7",
+          "seconds": 9.965
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v7",
+          "seconds": 9.822
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v7",
+          "seconds": 9.678
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v7",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v7",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v7",
+          "seconds": 9.247
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v7",
+          "seconds": 9.102
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v7",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v7",
+          "seconds": 8.816
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v7",
+          "seconds": 8.672
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v7",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v7",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v7",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v7",
+          "seconds": 8.098
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v7",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v7",
+          "seconds": 7.81
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v7",
+          "seconds": 7.666
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v7",
+          "seconds": 7.523
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v7",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v7",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v7",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v7",
+          "seconds": 6.805
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v7",
+          "seconds": 6.661
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v7",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v7",
+          "seconds": 6.373
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v7",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v7",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v7",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v7",
+          "seconds": 5.799
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v7",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v7",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v7",
+          "seconds": 5.365
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v7",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v7",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v7",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v7",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v7",
+          "seconds": 4.649
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v7",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v7",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v7",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v7",
+          "seconds": 4.074
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v7",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v7",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v7",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v7",
+          "seconds": 3.5
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "low_velocity": 90,
+      "high_velocity": 100,
+      "reference_velocity": 100,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v8",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v8",
+          "seconds": 15.568
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v8",
+          "seconds": 15.425
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v8",
+          "seconds": 15.281
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v8",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v8",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v8",
+          "seconds": 14.85
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v8",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v8",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v8",
+          "seconds": 14.42
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v8",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v8",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v8",
+          "seconds": 13.988
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v8",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v8",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v8",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v8",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v8",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v8",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v8",
+          "seconds": 12.983
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v8",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v8",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v8",
+          "seconds": 12.552
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v8",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v8",
+          "seconds": 12.264
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v8",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v8",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v8",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v8",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v8",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v8",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v8",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v8",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v8",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v8",
+          "seconds": 10.828
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v8",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v8",
+          "seconds": 10.396
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v8",
+          "seconds": 10.253
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v8",
+          "seconds": 10.109
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v8",
+          "seconds": 9.965
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v8",
+          "seconds": 9.822
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v8",
+          "seconds": 9.678
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v8",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v8",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v8",
+          "seconds": 9.247
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v8",
+          "seconds": 9.103
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v8",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v8",
+          "seconds": 8.816
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v8",
+          "seconds": 8.672
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v8",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v8",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v8",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v8",
+          "seconds": 8.098
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v8",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v8",
+          "seconds": 7.81
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v8",
+          "seconds": 7.667
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v8",
+          "seconds": 7.523
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v8",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v8",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v8",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v8",
+          "seconds": 6.805
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v8",
+          "seconds": 6.661
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v8",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v8",
+          "seconds": 6.374
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v8",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v8",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v8",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v8",
+          "seconds": 5.799
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v8",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v8",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v8",
+          "seconds": 5.368
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v8",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v8",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v8",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v8",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v8",
+          "seconds": 4.649
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v8",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v8",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v8",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v8",
+          "seconds": 4.075
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v8",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v8",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v8",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v8",
+          "seconds": 3.5
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "low_velocity": 101,
+      "high_velocity": 110,
+      "reference_velocity": 110,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v9",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v9",
+          "seconds": 15.569
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v9",
+          "seconds": 15.425
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v9",
+          "seconds": 15.281
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v9",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v9",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v9",
+          "seconds": 14.851
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v9",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v9",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v9",
+          "seconds": 14.419
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v9",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v9",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v9",
+          "seconds": 13.989
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v9",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v9",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v9",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v9",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v9",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v9",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v9",
+          "seconds": 12.983
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v9",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v9",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v9",
+          "seconds": 12.552
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v9",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v9",
+          "seconds": 12.264
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v9",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v9",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v9",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v9",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v9",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v9",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v9",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v9",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v9",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v9",
+          "seconds": 10.828
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v9",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v9",
+          "seconds": 10.397
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v9",
+          "seconds": 10.253
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v9",
+          "seconds": 10.109
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v9",
+          "seconds": 9.966
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v9",
+          "seconds": 9.822
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v9",
+          "seconds": 9.678
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v9",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v9",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v9",
+          "seconds": 9.247
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v9",
+          "seconds": 9.103
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v9",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v9",
+          "seconds": 8.816
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v9",
+          "seconds": 8.672
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v9",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v9",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v9",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v9",
+          "seconds": 8.097
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v9",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v9",
+          "seconds": 7.81
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v9",
+          "seconds": 7.667
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v9",
+          "seconds": 7.523
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v9",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v9",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v9",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v9",
+          "seconds": 6.805
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v9",
+          "seconds": 6.661
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v9",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v9",
+          "seconds": 6.374
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v9",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v9",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v9",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v9",
+          "seconds": 5.799
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v9",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v9",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v9",
+          "seconds": 5.368
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v9",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v9",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v9",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v9",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v9",
+          "seconds": 4.649
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v9",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v9",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v9",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v9",
+          "seconds": 4.075
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v9",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v9",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v9",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v9",
+          "seconds": 3.5
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "low_velocity": 111,
+      "high_velocity": 116,
+      "reference_velocity": 116,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v10",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v10",
+          "seconds": 15.568
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v10",
+          "seconds": 15.425
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v10",
+          "seconds": 15.282
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v10",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v10",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v10",
+          "seconds": 14.851
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v10",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v10",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v10",
+          "seconds": 14.42
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v10",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v10",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v10",
+          "seconds": 13.989
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v10",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v10",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v10",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v10",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v10",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v10",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v10",
+          "seconds": 12.983
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v10",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v10",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v10",
+          "seconds": 12.552
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v10",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v10",
+          "seconds": 12.263
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v10",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v10",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v10",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v10",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v10",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v10",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v10",
+          "seconds": 11.258
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v10",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v10",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v10",
+          "seconds": 10.828
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v10",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v10",
+          "seconds": 10.397
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v10",
+          "seconds": 10.253
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v10",
+          "seconds": 10.109
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v10",
+          "seconds": 9.965
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v10",
+          "seconds": 9.822
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v10",
+          "seconds": 9.678
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v10",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v10",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v10",
+          "seconds": 9.247
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v10",
+          "seconds": 9.102
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v10",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v10",
+          "seconds": 8.816
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v10",
+          "seconds": 8.672
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v10",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v10",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v10",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v10",
+          "seconds": 8.098
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v10",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v10",
+          "seconds": 7.81
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v10",
+          "seconds": 7.667
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v10",
+          "seconds": 7.523
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v10",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v10",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v10",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v10",
+          "seconds": 6.805
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v10",
+          "seconds": 6.661
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v10",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v10",
+          "seconds": 6.374
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v10",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v10",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v10",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v10",
+          "seconds": 5.799
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v10",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v10",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v10",
+          "seconds": 5.368
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v10",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v10",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v10",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v10",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v10",
+          "seconds": 4.649
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v10",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v10",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v10",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v10",
+          "seconds": 4.075
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v10",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v10",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v10",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v10",
+          "seconds": 3.5
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "low_velocity": 117,
+      "high_velocity": 127,
+      "reference_velocity": 127,
+      "zones": [
+        {
+          "low_key": 21,
+          "high_key": 23,
+          "root_key": 22,
+          "sample": "piano_k022_v11",
+          "seconds": 15.856
+        },
+        {
+          "low_key": 24,
+          "high_key": 24,
+          "root_key": 24,
+          "sample": "piano_k024_v11",
+          "seconds": 15.569
+        },
+        {
+          "low_key": 25,
+          "high_key": 25,
+          "root_key": 25,
+          "sample": "piano_k025_v11",
+          "seconds": 15.425
+        },
+        {
+          "low_key": 26,
+          "high_key": 26,
+          "root_key": 26,
+          "sample": "piano_k026_v11",
+          "seconds": 15.282
+        },
+        {
+          "low_key": 27,
+          "high_key": 27,
+          "root_key": 27,
+          "sample": "piano_k027_v11",
+          "seconds": 15.138
+        },
+        {
+          "low_key": 28,
+          "high_key": 28,
+          "root_key": 28,
+          "sample": "piano_k028_v11",
+          "seconds": 14.994
+        },
+        {
+          "low_key": 29,
+          "high_key": 29,
+          "root_key": 29,
+          "sample": "piano_k029_v11",
+          "seconds": 14.851
+        },
+        {
+          "low_key": 30,
+          "high_key": 30,
+          "root_key": 30,
+          "sample": "piano_k030_v11",
+          "seconds": 14.707
+        },
+        {
+          "low_key": 31,
+          "high_key": 31,
+          "root_key": 31,
+          "sample": "piano_k031_v11",
+          "seconds": 14.563
+        },
+        {
+          "low_key": 32,
+          "high_key": 32,
+          "root_key": 32,
+          "sample": "piano_k032_v11",
+          "seconds": 14.419
+        },
+        {
+          "low_key": 33,
+          "high_key": 33,
+          "root_key": 33,
+          "sample": "piano_k033_v11",
+          "seconds": 14.276
+        },
+        {
+          "low_key": 34,
+          "high_key": 34,
+          "root_key": 34,
+          "sample": "piano_k034_v11",
+          "seconds": 14.132
+        },
+        {
+          "low_key": 35,
+          "high_key": 35,
+          "root_key": 35,
+          "sample": "piano_k035_v11",
+          "seconds": 13.989
+        },
+        {
+          "low_key": 36,
+          "high_key": 36,
+          "root_key": 36,
+          "sample": "piano_k036_v11",
+          "seconds": 13.845
+        },
+        {
+          "low_key": 37,
+          "high_key": 37,
+          "root_key": 37,
+          "sample": "piano_k037_v11",
+          "seconds": 13.701
+        },
+        {
+          "low_key": 38,
+          "high_key": 38,
+          "root_key": 38,
+          "sample": "piano_k038_v11",
+          "seconds": 13.557
+        },
+        {
+          "low_key": 39,
+          "high_key": 39,
+          "root_key": 39,
+          "sample": "piano_k039_v11",
+          "seconds": 13.414
+        },
+        {
+          "low_key": 40,
+          "high_key": 40,
+          "root_key": 40,
+          "sample": "piano_k040_v11",
+          "seconds": 13.27
+        },
+        {
+          "low_key": 41,
+          "high_key": 41,
+          "root_key": 41,
+          "sample": "piano_k041_v11",
+          "seconds": 13.126
+        },
+        {
+          "low_key": 42,
+          "high_key": 42,
+          "root_key": 42,
+          "sample": "piano_k042_v11",
+          "seconds": 12.983
+        },
+        {
+          "low_key": 43,
+          "high_key": 43,
+          "root_key": 43,
+          "sample": "piano_k043_v11",
+          "seconds": 12.839
+        },
+        {
+          "low_key": 44,
+          "high_key": 44,
+          "root_key": 44,
+          "sample": "piano_k044_v11",
+          "seconds": 12.695
+        },
+        {
+          "low_key": 45,
+          "high_key": 45,
+          "root_key": 45,
+          "sample": "piano_k045_v11",
+          "seconds": 12.552
+        },
+        {
+          "low_key": 46,
+          "high_key": 46,
+          "root_key": 46,
+          "sample": "piano_k046_v11",
+          "seconds": 12.408
+        },
+        {
+          "low_key": 47,
+          "high_key": 47,
+          "root_key": 47,
+          "sample": "piano_k047_v11",
+          "seconds": 12.264
+        },
+        {
+          "low_key": 48,
+          "high_key": 48,
+          "root_key": 48,
+          "sample": "piano_k048_v11",
+          "seconds": 12.121
+        },
+        {
+          "low_key": 49,
+          "high_key": 49,
+          "root_key": 49,
+          "sample": "piano_k049_v11",
+          "seconds": 11.977
+        },
+        {
+          "low_key": 50,
+          "high_key": 50,
+          "root_key": 50,
+          "sample": "piano_k050_v11",
+          "seconds": 11.833
+        },
+        {
+          "low_key": 51,
+          "high_key": 51,
+          "root_key": 51,
+          "sample": "piano_k051_v11",
+          "seconds": 11.69
+        },
+        {
+          "low_key": 52,
+          "high_key": 52,
+          "root_key": 52,
+          "sample": "piano_k052_v11",
+          "seconds": 11.546
+        },
+        {
+          "low_key": 53,
+          "high_key": 53,
+          "root_key": 53,
+          "sample": "piano_k053_v11",
+          "seconds": 11.402
+        },
+        {
+          "low_key": 54,
+          "high_key": 54,
+          "root_key": 54,
+          "sample": "piano_k054_v11",
+          "seconds": 11.259
+        },
+        {
+          "low_key": 55,
+          "high_key": 55,
+          "root_key": 55,
+          "sample": "piano_k055_v11",
+          "seconds": 11.115
+        },
+        {
+          "low_key": 56,
+          "high_key": 56,
+          "root_key": 56,
+          "sample": "piano_k056_v11",
+          "seconds": 10.971
+        },
+        {
+          "low_key": 57,
+          "high_key": 57,
+          "root_key": 57,
+          "sample": "piano_k057_v11",
+          "seconds": 10.828
+        },
+        {
+          "low_key": 58,
+          "high_key": 59,
+          "root_key": 58,
+          "sample": "piano_k058_v11",
+          "seconds": 10.684
+        },
+        {
+          "low_key": 60,
+          "high_key": 60,
+          "root_key": 60,
+          "sample": "piano_k060_v11",
+          "seconds": 10.396
+        },
+        {
+          "low_key": 61,
+          "high_key": 61,
+          "root_key": 61,
+          "sample": "piano_k061_v11",
+          "seconds": 10.253
+        },
+        {
+          "low_key": 62,
+          "high_key": 62,
+          "root_key": 62,
+          "sample": "piano_k062_v11",
+          "seconds": 10.109
+        },
+        {
+          "low_key": 63,
+          "high_key": 63,
+          "root_key": 63,
+          "sample": "piano_k063_v11",
+          "seconds": 9.965
+        },
+        {
+          "low_key": 64,
+          "high_key": 64,
+          "root_key": 64,
+          "sample": "piano_k064_v11",
+          "seconds": 9.822
+        },
+        {
+          "low_key": 65,
+          "high_key": 65,
+          "root_key": 65,
+          "sample": "piano_k065_v11",
+          "seconds": 9.678
+        },
+        {
+          "low_key": 66,
+          "high_key": 66,
+          "root_key": 66,
+          "sample": "piano_k066_v11",
+          "seconds": 9.534
+        },
+        {
+          "low_key": 67,
+          "high_key": 67,
+          "root_key": 67,
+          "sample": "piano_k067_v11",
+          "seconds": 9.391
+        },
+        {
+          "low_key": 68,
+          "high_key": 68,
+          "root_key": 68,
+          "sample": "piano_k068_v11",
+          "seconds": 9.247
+        },
+        {
+          "low_key": 69,
+          "high_key": 69,
+          "root_key": 69,
+          "sample": "piano_k069_v11",
+          "seconds": 9.103
+        },
+        {
+          "low_key": 70,
+          "high_key": 70,
+          "root_key": 70,
+          "sample": "piano_k070_v11",
+          "seconds": 8.96
+        },
+        {
+          "low_key": 71,
+          "high_key": 71,
+          "root_key": 71,
+          "sample": "piano_k071_v11",
+          "seconds": 8.816
+        },
+        {
+          "low_key": 72,
+          "high_key": 72,
+          "root_key": 72,
+          "sample": "piano_k072_v11",
+          "seconds": 8.672
+        },
+        {
+          "low_key": 73,
+          "high_key": 73,
+          "root_key": 73,
+          "sample": "piano_k073_v11",
+          "seconds": 8.529
+        },
+        {
+          "low_key": 74,
+          "high_key": 74,
+          "root_key": 74,
+          "sample": "piano_k074_v11",
+          "seconds": 8.385
+        },
+        {
+          "low_key": 75,
+          "high_key": 75,
+          "root_key": 75,
+          "sample": "piano_k075_v11",
+          "seconds": 8.241
+        },
+        {
+          "low_key": 76,
+          "high_key": 76,
+          "root_key": 76,
+          "sample": "piano_k076_v11",
+          "seconds": 8.098
+        },
+        {
+          "low_key": 77,
+          "high_key": 77,
+          "root_key": 77,
+          "sample": "piano_k077_v11",
+          "seconds": 7.954
+        },
+        {
+          "low_key": 78,
+          "high_key": 78,
+          "root_key": 78,
+          "sample": "piano_k078_v11",
+          "seconds": 7.81
+        },
+        {
+          "low_key": 79,
+          "high_key": 79,
+          "root_key": 79,
+          "sample": "piano_k079_v11",
+          "seconds": 7.667
+        },
+        {
+          "low_key": 80,
+          "high_key": 80,
+          "root_key": 80,
+          "sample": "piano_k080_v11",
+          "seconds": 7.523
+        },
+        {
+          "low_key": 81,
+          "high_key": 81,
+          "root_key": 81,
+          "sample": "piano_k081_v11",
+          "seconds": 7.379
+        },
+        {
+          "low_key": 82,
+          "high_key": 82,
+          "root_key": 82,
+          "sample": "piano_k082_v11",
+          "seconds": 7.236
+        },
+        {
+          "low_key": 83,
+          "high_key": 84,
+          "root_key": 83,
+          "sample": "piano_k083_v11",
+          "seconds": 7.092
+        },
+        {
+          "low_key": 85,
+          "high_key": 85,
+          "root_key": 85,
+          "sample": "piano_k085_v11",
+          "seconds": 6.805
+        },
+        {
+          "low_key": 86,
+          "high_key": 86,
+          "root_key": 86,
+          "sample": "piano_k086_v11",
+          "seconds": 6.661
+        },
+        {
+          "low_key": 87,
+          "high_key": 87,
+          "root_key": 87,
+          "sample": "piano_k087_v11",
+          "seconds": 6.517
+        },
+        {
+          "low_key": 88,
+          "high_key": 88,
+          "root_key": 88,
+          "sample": "piano_k088_v11",
+          "seconds": 6.374
+        },
+        {
+          "low_key": 89,
+          "high_key": 89,
+          "root_key": 89,
+          "sample": "piano_k089_v11",
+          "seconds": 6.23
+        },
+        {
+          "low_key": 90,
+          "high_key": 90,
+          "root_key": 90,
+          "sample": "piano_k090_v11",
+          "seconds": 6.086
+        },
+        {
+          "low_key": 91,
+          "high_key": 91,
+          "root_key": 91,
+          "sample": "piano_k091_v11",
+          "seconds": 5.943
+        },
+        {
+          "low_key": 92,
+          "high_key": 92,
+          "root_key": 92,
+          "sample": "piano_k092_v11",
+          "seconds": 5.799
+        },
+        {
+          "low_key": 93,
+          "high_key": 93,
+          "root_key": 93,
+          "sample": "piano_k093_v11",
+          "seconds": 5.655
+        },
+        {
+          "low_key": 94,
+          "high_key": 94,
+          "root_key": 94,
+          "sample": "piano_k094_v11",
+          "seconds": 5.511
+        },
+        {
+          "low_key": 95,
+          "high_key": 95,
+          "root_key": 95,
+          "sample": "piano_k095_v11",
+          "seconds": 5.368
+        },
+        {
+          "low_key": 96,
+          "high_key": 96,
+          "root_key": 96,
+          "sample": "piano_k096_v11",
+          "seconds": 5.224
+        },
+        {
+          "low_key": 97,
+          "high_key": 97,
+          "root_key": 97,
+          "sample": "piano_k097_v11",
+          "seconds": 5.08
+        },
+        {
+          "low_key": 98,
+          "high_key": 98,
+          "root_key": 98,
+          "sample": "piano_k098_v11",
+          "seconds": 4.937
+        },
+        {
+          "low_key": 99,
+          "high_key": 99,
+          "root_key": 99,
+          "sample": "piano_k099_v11",
+          "seconds": 4.793
+        },
+        {
+          "low_key": 100,
+          "high_key": 100,
+          "root_key": 100,
+          "sample": "piano_k100_v11",
+          "seconds": 4.649
+        },
+        {
+          "low_key": 101,
+          "high_key": 101,
+          "root_key": 101,
+          "sample": "piano_k101_v11",
+          "seconds": 4.506
+        },
+        {
+          "low_key": 102,
+          "high_key": 102,
+          "root_key": 102,
+          "sample": "piano_k102_v11",
+          "seconds": 4.362
+        },
+        {
+          "low_key": 103,
+          "high_key": 103,
+          "root_key": 103,
+          "sample": "piano_k103_v11",
+          "seconds": 4.218
+        },
+        {
+          "low_key": 104,
+          "high_key": 104,
+          "root_key": 104,
+          "sample": "piano_k104_v11",
+          "seconds": 4.075
+        },
+        {
+          "low_key": 105,
+          "high_key": 105,
+          "root_key": 105,
+          "sample": "piano_k105_v11",
+          "seconds": 3.931
+        },
+        {
+          "low_key": 106,
+          "high_key": 106,
+          "root_key": 106,
+          "sample": "piano_k106_v11",
+          "seconds": 3.787
+        },
+        {
+          "low_key": 107,
+          "high_key": 107,
+          "root_key": 107,
+          "sample": "piano_k107_v11",
+          "seconds": 3.644
+        },
+        {
+          "low_key": 108,
+          "high_key": 108,
+          "root_key": 108,
+          "sample": "piano_k108_v11",
+          "seconds": 3.5
+        }
+      ]
+    }
+  ]
+}
