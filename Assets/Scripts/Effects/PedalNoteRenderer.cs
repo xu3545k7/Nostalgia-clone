@@ -136,8 +136,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     [SerializeField] private bool logPedalBeam = true;
     [Tooltip("How tall the release beam stands off the track, as a share of the track's width.")]
     [SerializeField, Range(0.005f, 1.5f)] private float pedalBeamShare = 0.042f;
-    [Tooltip("How tall the release needles reach, as a share of the track's width.")]
-    [SerializeField, Range(0.02f, 1f)] private float pedalNeedleShare = 0.26f;
 
     /// <summary>Cue width with both edges tucked safely under the track.</summary>
     private float CueWidth(float trackWidth)
@@ -281,6 +279,10 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     private static readonly int HeadAlphaId = Shader.PropertyToID("_HeadAlpha");
     private static readonly int IdleAlphaId = Shader.PropertyToID("_IdleAlpha");
     private static readonly int TailAlphaId = Shader.PropertyToID("_TailAlpha");
+    // 拋物線：由這裡直接寫進每個踏板音符自己的 property block。
+    // 曾經改用全域值（Shader.SetGlobalFloat），但那要另一個元件去場景裡找判定線
+    // 與 spawner，找不到或找到舊的就會整根用同一個高度——看起來就是「一下卡在
+    // 上面、一下卡在下面，而且還是平的」。這裡本來就知道 judgmentZ 和速度。
     private static readonly int TMinId = Shader.PropertyToID("_TMin");
     private static readonly int TMaxId = Shader.PropertyToID("_TMax");
     private static readonly int EdgeColorId = Shader.PropertyToID("_EdgeColor");
@@ -540,7 +542,12 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             return;
         }
 
-        float farZ = judgmentZ + leadSeconds * speed;
+        // 拋物線模式下，踏板和音符用同一個生成距離——不然音符還沒出現，
+        // 踏板已經在跑道深處了。
+        SettingsManager arcSettings = SettingsManager.Instance;
+        float farZ = (arcSettings != null && arcSettings.EffectiveNoteArcHeight > 0f)
+            ? judgmentZ + arcSettings.ArcSpawnWorldUnits()
+            : judgmentZ + leadSeconds * speed;
         currentSpeed = speed;
 
         int used = 0;
@@ -558,7 +565,8 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             if (tailZ - Mathf.Max(headZ, judgmentZ) <= 0f) continue;
 
             bool snappedPress = i < playableSnapped.Count && playableSnapped[i];
-            Place(Rent(used), span, headZ, tailZ, judgmentZ, songMs, speed, snappedPress);
+            Place(Rent(used), span, headZ, tailZ, judgmentZ, songMs, speed, snappedPress,
+                  spawner.travelTimeSeconds);
             used++;
         }
 
@@ -610,7 +618,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
 
 
     private void Place(Visual visual, PedalSpan span, float headZ, float tailZ, float judgmentZ,
-        float songMs, float speed, bool snappedPress)
+        float songMs, float speed, bool snappedPress, float travelSeconds)
     {
         float lengthZ = tailZ - headZ;
         float noteLengthMs = span.end_ms - span.start_ms;
@@ -643,6 +651,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         visual.BodyBlock.SetFloat(TailAlphaId, tuning.tailAlpha);
         visual.BodyBlock.SetFloat(TMinId, tMin);
         visual.BodyBlock.SetFloat(TMaxId, 1f);
+        ApplyArcBlock(visual.BodyBlock, judgmentZ, speed, travelSeconds);
         visual.BodyBlock.SetColor(EdgeColorId, cueEdgeColor);
         visual.BodyBlock.SetColor(DarkColorId, cueReleaseColor);
         visual.BodyBlock.SetFloat(EdgeGlowId, cueEdgeGlow);
@@ -670,7 +679,8 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         visual.HeadRenderer.enabled = false;
         visual.LineRenderer.enabled = false;
 
-        PlaceBracket(visual, headZ, tailZ, judgmentZ, songMs, pressBarAlpha, snappedPress);
+        PlaceBracket(visual, headZ, tailZ, judgmentZ, songMs, pressBarAlpha, snappedPress,
+                     speed, travelSeconds);
     }
 
     // ── 讓開音符 ──────────────────────────────────────────────────────────────
@@ -711,6 +721,17 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         public float Hi;
         public float ZNear;
         public float ZFar;
+        /// <summary>
+        /// 這一組音符**查弧線用的**世界 Z：音符頭的前緣。
+        /// </summary>
+        /// <remarks>
+        /// 音符是一片平躺的貼圖，整片用「前緣」那一點的位移剛性地抬起來
+        /// （NoteController.LeadingEdgeZ）。包圈若照自己每個頂點的 z 去彎，
+        /// 中心就落在 z 中點的高度、遠邊還會再翹起來 —— 半個音符高在弧線陡的
+        /// 地方就是看得見的落差，看起來就是圈浮在音符上面。所以包圈也要剛性地
+        /// 用同一個參考點。
+        /// </remarks>
+        public float RefZ;
         /// <summary>這一組和那條線實際疊到多少：0 剛好擦邊，1 完全疊住。</summary>
         public float Strength;
         /// <summary>包圈要在範圍外再讓多少。範圍已經含力度光暈時是 0。</summary>
@@ -751,6 +772,14 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         if (cachedJudgmentLine == null) ResolveJudgmentZ();
         if (cachedJudgmentLine == null) return surfaceY;
         float y = cachedJudgmentLine.position.y + NoteLayerYOffset;
+
+        // 拋物線模式下**不量**：這個量法抓的是「隨便找到的一條小節線」的世界高度，
+        // 而弧線會把小節線抬高或壓低好幾百個單位，抓到哪一條就差多少。兩秒重量一次
+        // 的結果就是踏板每兩秒跳一次——那就是「踏板位置不穩定」。弧線模式下小節線
+        // 和踏板本來就查同一張表，不會互相穿透，這個保護也不需要。
+        SettingsManager layerSettings = SettingsManager.Instance;
+        if (layerSettings != null && layerSettings.EffectiveNoteArcHeight > 0f)
+            return y;
 
         // 小節線的高度是它自己的容器決定的（掛在 Track 底下、local y 0.1），和判定線
         // 無關，所以實際量一次。兩秒量一次就夠：它不會在歌曲中途換高度。
@@ -895,6 +924,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 Hi = shell.max.x - trackCenterX,
                 ZNear = shell.min.z,
                 ZFar = shell.max.z,
+                RefZ = head.min.z,
                 HaloBand = 0f,
                 Strength = Mathf.Clamp01(overlap / full),
             });
@@ -913,6 +943,8 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 current.Hi = Mathf.Max(current.Hi, next.Hi);
                 current.ZNear = Mathf.Min(current.ZNear, next.ZNear);
                 current.ZFar = Mathf.Max(current.ZFar, next.ZFar);
+                // 一個和弦的音符在同一個 z 上，取最近的那一顆當參考點就夠。
+                current.RefZ = Mathf.Min(current.RefZ, next.RefZ);
                 // 合成一圈之後取最強的那一顆：一個和弦是一個東西，不該因為裡面
                 // 某一顆剛好擦邊就整圈變淡。
                 current.Strength = Mathf.Max(current.Strength, next.Strength);
@@ -1735,16 +1767,38 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     private readonly System.Collections.Generic.List<Vector2> beamUV =
         new System.Collections.Generic.List<Vector2>(256);
 
+    /// <summary>
+    /// 網格裡「不跟著自己的 z 彎、整段用同一個參考點抬起來」的那幾段頂點。
+    /// </summary>
+    /// <remarks>
+    /// 框、光暈、火星都是沿著跑道躺的東西，逐頂點彎才對。包圈不是：它圍著的
+    /// 音符是一片剛性的貼圖（見 WrapGroup.RefZ）。範圍一定是照 Start 遞增加進來的
+    /// （頂點只會往後長），所以套用的時候一路往前走就好，不必查表。
+    /// </remarks>
+    private struct ArcRigidRange
+    {
+        public int Start;
+        public int End;
+        public float Distance;   // 離判定線多遠（網格座標）
+    }
+
+    private readonly System.Collections.Generic.List<ArcRigidRange> frameRigid =
+        new System.Collections.Generic.List<ArcRigidRange>(16);
+
     /// <param name="pressBarAlpha">
     /// 踩下那條橫桿的殘量。放開之後它會淡掉，而淡掉的同時放開的那一條正好抵達
     /// —— 兩條接得上，中間不會有一格什麼都沒有。
     /// </param>
     /// <param name="snappedPress">這一段的踩下是節奏踏板、已經吸到和弦上：畫包圈。</param>
     private void PlaceBracket(Visual visual, float headZ, float tailZ, float judgmentZ,
-        float songMs, float pressBarAlpha, bool snappedPress)
+        float songMs, float pressBarAlpha, bool snappedPress,
+        float speedForArc, float travelSecondsForArc)
     {
         if (visual.BodyRenderer != null) visual.BodyRenderer.enabled = false;
         if (visual.Bracket == null || visual.BracketMesh == null) return;
+        SettingsManager arcSettings = SettingsManager.Instance;
+        bool arcActive = arcSettings != null && arcSettings.EffectiveNoteArcHeight > 0f
+                         && travelSecondsForArc > 0f && speedForArc > 0.0001f;
 
         // 停住的時候要**看起來**落在判定線上。橫桿有自己的厚度，而判定線的
         // 圖形和 ResolveJudgmentZ() 也未必在同一個 z 上，所以留一個可調的位移，
@@ -1769,6 +1823,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         vertices.Clear();
         colours.Clear();
         triangles.Clear();
+        frameRigid.Clear();
 
         var emberV = emberVertices;
         var emberC = emberColours;
@@ -1798,16 +1853,37 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             WrapFade(tailZ, judgmentZ, noteHeight),
             releaseWrapGroups, releaseGaps);
 
+        // 框的兩條長邊。**拋物線模式要沿路切段**：一整片四頂點的四邊形只有兩端
+        // 會被抬到弧線上，中間是一條直線（弦），整個框就被拉成一片斜平面——那正是
+        // 「左右的裝飾線還是直線」的樣子。切段的成本只在有弧線時才付。
+        float railSegmentWorld = 2f;
+        int RailSteps(float a, float b)
+        {
+            if (!arcActive) return 1;
+            float length = Mathf.Abs(b - a);
+            return Mathf.Clamp(Mathf.CeilToInt(length / railSegmentWorld), 1, 64);
+        }
+
         void Rail(float x0, float x1, float a, float b, Color near, Color far)
         {
-            int at = vertices.Count;
-            vertices.Add(new Vector3(x0, a, 0f));
-            vertices.Add(new Vector3(x1, a, 0f));
-            vertices.Add(new Vector3(x1, b, 0f));
-            vertices.Add(new Vector3(x0, b, 0f));
-            colours.Add(near); colours.Add(near); colours.Add(far); colours.Add(far);
-            triangles.Add(at); triangles.Add(at + 1); triangles.Add(at + 2);
-            triangles.Add(at); triangles.Add(at + 2); triangles.Add(at + 3);
+            int steps = RailSteps(a, b);
+            for (int s = 0; s < steps; s++)
+            {
+                float t0 = (float)s / steps;
+                float t1 = (float)(s + 1) / steps;
+                float za = Mathf.Lerp(a, b, t0);
+                float zb = Mathf.Lerp(a, b, t1);
+                Color ca = Color.Lerp(near, far, t0);
+                Color cb = Color.Lerp(near, far, t1);
+                int at = vertices.Count;
+                vertices.Add(new Vector3(x0, za, 0f));
+                vertices.Add(new Vector3(x1, za, 0f));
+                vertices.Add(new Vector3(x1, zb, 0f));
+                vertices.Add(new Vector3(x0, zb, 0f));
+                colours.Add(ca); colours.Add(ca); colours.Add(cb); colours.Add(cb);
+                triangles.Add(at); triangles.Add(at + 1); triangles.Add(at + 2);
+                triangles.Add(at); triangles.Add(at + 2); triangles.Add(at + 3);
+            }
         }
 
         // 一條橫過軌道的細邊，在有音符的地方斷開。
@@ -1904,6 +1980,14 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                     colours.Add(c);
                 }
             }
+            // 整圈用音符自己的參考點抬高、橫向也用同一個倍率 —— 它圍著的是一片
+            // 剛性的貼圖，不是沿跑道躺著的長條。
+            frameRigid.Add(new ArcRigidRange
+            {
+                Start = at,
+                End = vertices.Count,
+                Distance = g.RefZ - judgmentZ,
+            });
             for (int layer = 0; layer < 2; layer++)
             {
                 int a = at + layer * 6;
@@ -2294,6 +2378,10 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             }
         }
 
+        // 框也是每幀在 C# 生的（body 那片四邊形在這個模式下是關掉的），所以
+        // 弧線要在這裡加，不是在 shader 裡。
+        ApplyArcToVertices(vertices, judgmentZ, speedForArc, travelSecondsForArc, true,
+                           colours, frameRigid);
         visual.BracketMesh.Clear();
         visual.BracketMesh.SetVertices(vertices);
         visual.BracketMesh.SetColors(colours);
@@ -2305,13 +2393,15 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         // 那就變成一個預告，而這道光要講的是「現在正踩著」。
         float wallStrength = headZ <= judgmentZ ? pressBarAlpha : 0f;
         PlaceReleaseBeam(visual, headZ, tailZ, judgmentZ, songMs, headDraw, pressBarAlpha,
-            wallStrength);
+            wallStrength, speedForArc, travelSecondsForArc);
 
         if (visual.Embers != null && visual.EmberMesh != null)
         {
             visual.EmberMesh.Clear();
             if (emberT.Count > 0)
             {
+                ApplyArcToVertices(emberV, judgmentZ, speedForArc, travelSecondsForArc, true,
+                                   emberC);
                 visual.EmberMesh.SetVertices(emberV);
                 visual.EmberMesh.SetColors(emberC);
                 visual.EmberMesh.SetUVs(0, emberUV);
@@ -2353,7 +2443,8 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     /// surface, not a panel hanging in the air.
     /// </remarks>
     private void PlaceReleaseBeam(Visual visual, float headZ, float tailZ, float judgmentZ,
-        float songMs, float pressBarZ, float pressBarAlpha, float wallStrength)
+        float songMs, float pressBarZ, float pressBarAlpha, float wallStrength,
+        float speedForArc, float travelSecondsForArc)
     {
         if (visual.Beam == null || visual.BeamMesh == null) return;
 
@@ -2379,35 +2470,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
 
         // 放開的那條線在網格裡的深度。整個網格錨在判定線上，所以這是相對值。
         float beamZ = tailZ - judgmentZ;
-
-        // 一片立著的光，底部最亮、往上淡出：光是從軌道面發出來的，不是一塊掛在
-        // 空中的板子。
-        //
-        // 三排直行，不是兩排。只有左右兩側的話，兩邊的 uv.x 都是 1、都被衰減
-        // 成透明，細長的針會整根消失 —— 中間必須有一排 uv.x = 0 的芯。
-        void Upright(float x, float wide, float tall, float z, Color bottom)
-        {
-            Color fade = new Color(bottom.r, bottom.g, bottom.b, 0f);
-            int at = beamVertices.Count;
-            for (int col = 0; col < 3; col++)
-            {
-                float offset = (col - 1) * wide;
-                float across = col == 1 ? 0f : 1f;
-                beamVertices.Add(new Vector3(x + offset, 0f, z));
-                beamColours.Add(bottom);
-                beamUV.Add(new Vector2(across, 0f));
-                beamVertices.Add(new Vector3(x + offset, tall, z));
-                beamColours.Add(fade);
-                beamUV.Add(new Vector2(across, 1f));
-            }
-            for (int col = 0; col < 2; col++)
-            {
-                int a = at + col * 2;
-                int b = a + 2;
-                beamTriangles.Add(a); beamTriangles.Add(a + 1); beamTriangles.Add(b + 1);
-                beamTriangles.Add(a); beamTriangles.Add(b + 1); beamTriangles.Add(b);
-            }
-        }
 
         // 放開那一刻的橫向光牆。不是一塊平整的板：沿寬度分段，每一段的高度各自
         // 不同，等高就是一條齊頭的線 —— 整齊的矩形讀起來是「一個物件」，參差才
@@ -2446,30 +2508,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 int b = a + 2;
                 beamTriangles.Add(a); beamTriangles.Add(a + 1); beamTriangles.Add(b + 1);
                 beamTriangles.Add(a); beamTriangles.Add(b + 1); beamTriangles.Add(b);
-            }
-        }
-
-        // 針：只在這一段光被正確放開的時候長出來，而且只在通過判定線前後的那一
-        // 小段時間裡。它是**回饋**不是裝飾 —— 每次都出現的話就什麼都沒說。
-        float needleWindow = trackWidth * 0.45f;
-        float needleNear = releasePending
-            ? 1f - Mathf.Clamp01(beamZ / Mathf.Max(0.01f, needleWindow))
-            : 0f;
-        if (needleNear > 0.01f && ReleasedCleanly())
-        {
-            const int Needles = 26;
-            float reach = trackWidth * pedalNeedleShare;
-            for (int i = 0; i < Needles; i++)
-            {
-                // 長短不一：一樣高就是一道柵欄。
-                float spread = (i + 0.5f) / Needles * 2f - 1f;
-                float vary = 0.35f + 0.65f * Mathf.Repeat(i * 0.7548777f, 1f);
-                float needleX = spread * halfWidth * 0.96f;
-                float clear = Clearance(needleX, releaseGaps);
-                if (clear < 0.02f) continue;
-                Upright(needleX, trackWidth * 0.0016f,
-                    reach * vary * needleNear * clear, beamZ,
-                    new Color(3.2f, 2.6f, 1.8f, 0.85f * needleNear * clear));
             }
         }
 
@@ -2884,11 +2922,17 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         {
             Debug.Log(string.Format(
                 "[pedal beam] held={0:F3} climb={1:F3} trackWidth={2:F3} " +
-                "wall+needles={3} sparks={4} glow={5} x=±{6:F3}",
+                "wall={3} sparks={4} glow={5} x=±{6:F3}",
                 held, climb, trackWidth, beforeSpark,
                 beforeGlow - beforeSpark, beamVertices.Count - beforeGlow,
                 sideInner + sideBand * 0.5f));
         }
+
+        // 這片光是每幀在 C# 生出來的網格，不走 PedalNote 那個 shader，所以弧線
+        // 要在這裡加。頂點是以判定線為原點的區域座標（beam.position.z = judgmentZ、
+        // 沒有旋轉縮放），所以世界 Z 就是 judgmentZ + v.z。
+        ApplyArcToVertices(beamVertices, judgmentZ, speedForArc, travelSecondsForArc, false,
+                           beamColours);
 
         visual.BeamMesh.Clear();
         visual.BeamMesh.SetVertices(beamVertices);
@@ -3002,29 +3046,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             wallSpeed[i] = v;
             wallHeight[i] = Mathf.Clamp(h + v * dt, 0f, High * 1.35f);
         }
-    }
-
-    /// <summary>
-    /// Is the pedal actually up, when the player is the one working it.
-    /// </summary>
-    /// <remarks>
-    /// The needles are a reward for letting go on time, so they have to be able
-    /// to *not* appear. When the chart plays its own pedal there is nobody to get
-    /// it wrong and they always show; when the player owns it, the check is
-    /// simply whether their foot is off the pedal as the release passes -- which
-    /// is the whole of what "released correctly" means here.
-    /// </remarks>
-    private bool ReleasedCleanly()
-    {
-        try
-        {
-            var settings = SettingsManager.Instance;
-            if (settings == null) return true;
-            if (settings.CurrentPianoPedalSource != PianoPedalSource.Player) return true;
-            var midi = MIDIInputManager.Instance;
-            return midi == null || !midi.SustainPedalDown;
-        }
-        catch { return true; }
     }
 
     /// <summary>
@@ -3188,25 +3209,141 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         return material;
     }
 
+    /// <summary>
+    /// 沿 Z 切成幾段的長條。段數要夠，拋物線模式才彎得出弧線。
+    /// </summary>
+    /// <remarks>
+    /// 拋物線是在 vertex shader 裡做的（NoteArcCurve.hlsl），只有四個角的話，
+    /// 兩端被抬起來、中間會是一條直線——那是弦不是弧，長的踏板音符看起來會
+    /// 穿過弧線。32 段在最長的踏板上也看不出折角，而這是每個踏板共用的一份
+    /// 網格，多出來的頂點只有一次成本。
+    /// </remarks>
+    private const int QuadSegments = 32;
+
+    /// <summary>
+    /// 把一串「以判定線為原點」的頂點抬到弧線上。給每幀自己生網格的東西用
+    /// （光幕、火星），那些不走 PedalNote 的 vertex shader。
+    /// </summary>
+    /// <param name="flatOnTrack">
+    /// 這片網格是不是「躺在軌道上」的那種——它的 transform 帶著 Euler(90,0,0)，
+    /// 所以**區域 +y 對到世界 +z**（距離存在 y），而世界的「上」是區域 −z。
+    /// 框、火星是這種；那道光幕沒有旋轉，距離在 z、上就是 y。
+    /// 弄錯軸的話，判定線那一點的位移不會是 0，看起來就是整片浮在高空。
+    /// </param>
+    /// <param name="colours">
+    /// 一起淡入的頂點色（可以是 null）。逐頂點做，長踏板才會是一條漸層而不是
+    /// 整塊一起變淡。
+    /// </param>
+    /// <param name="rigid">
+    /// 不照自己的 z 彎、整段共用一個參考距離的頂點範圍（包圈）。範圍必須照
+    /// Start 遞增。
+    /// </param>
+    private void ApplyArcToVertices(List<Vector3> vertices, float judgmentZ,
+                                    float speed, float travelSeconds, bool flatOnTrack,
+                                    List<Color> colours = null,
+                                    List<ArcRigidRange> rigid = null)
+    {
+        if (vertices == null || vertices.Count == 0) return;
+        PrepareArc(judgmentZ, speed, travelSeconds);
+        if (!NoteArcScreen.Active) return;
+        int rigidAt = 0;
+        for (int i = 0; i < vertices.Count; i++)
+        {
+            Vector3 v = vertices[i];
+            // 距離是「離判定線多遠」（網格原點就在判定線上）。
+            float distance = flatOnTrack ? v.y : v.z;
+            if (rigid != null)
+            {
+                while (rigidAt < rigid.Count && i >= rigid[rigidAt].End) rigidAt++;
+                if (rigidAt < rigid.Count && i >= rigid[rigidAt].Start)
+                    distance = rigid[rigidAt].Distance;
+            }
+            float offset = NoteArcScreen.OffsetAtZ(judgmentZ + distance);
+            v.x *= NoteArcScreen.LateralAtZ(judgmentZ + distance);
+            if (colours != null && i < colours.Count)
+            {
+                Color c = colours[i];
+                c.a *= NoteArcScreen.FadeAtZ(judgmentZ + distance);
+                colours[i] = c;
+            }
+            if (flatOnTrack) v.z -= offset;      // 區域 −z ＝ 世界 +y
+            else v.y += offset;
+            vertices[i] = v;
+        }
+    }
+
+    /// <summary>
+    /// 每幀備妥那張「世界 Z → 該抬多高」的表。和音符查的是同一張。
+    /// </summary>
+    /// <remarks>
+    /// 條件只看「有沒有開拋物線」。曾經還看自己的 travelSeconds 和 speed——那是
+    /// 弧線長度還來自各自的 spawner 時留下的。那兩個值在載譜的空檔會是 0，於是
+    /// 踏板那一幀自己放棄、音符卻照算，踏板就平掉一幀再彈回來。
+    /// </remarks>
+    private void PrepareArc(float judgmentZ, float speed, float travelSeconds)
+    {
+        SettingsManager settings = SettingsManager.Instance;
+        float share = settings != null ? settings.EffectiveNoteArcHeight : 0f;
+        if (share <= 0f)
+        {
+            NoteArcScreen.Disable();
+            return;
+        }
+        NoteArcScreen.Prepare(Camera.main, judgmentZ,
+                              settings.ArcTravelWorldUnits(),
+                              ResolveNoteLayerY(),
+                              settings.JudgmentLineScreenHeight,
+                              share,
+                              settings.ArcSpawnWorldUnits());
+    }
+
+    /// <summary>
+    /// 把拋物線那張表寫進 property block。傾斜模式寫 0 筆，shader 就不位移。
+    /// </summary>
+    private void ApplyArcBlock(MaterialPropertyBlock block, float judgmentZ, float speed,
+                               float travelSeconds)
+    {
+        if (block == null) return;
+        PrepareArc(judgmentZ, speed, travelSeconds);
+        NoteArcScreen.ApplyTo(block);
+    }
+
     private static Mesh Quad(string name, float minZ, float maxZ)
     {
         var mesh = new Mesh { name = name, hideFlags = HideFlags.DontSave };
-        mesh.SetVertices(new List<Vector3>
+        var vertices = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var colors = new List<Color>();
+        var triangles = new List<int>();
+        for (int i = 0; i <= QuadSegments; i++)
         {
-            new Vector3(-0.5f, 0f, minZ), new Vector3(0.5f, 0f, minZ),
-            new Vector3(-0.5f, 0f, maxZ), new Vector3(0.5f, 0f, maxZ),
-        });
-        // uv.y is the position along the note, which is what the shader shades by.
-        mesh.SetUVs(0, new List<Vector2>
-        {
-            new Vector2(0f, 0f), new Vector2(1f, 0f),
-            new Vector2(0f, 1f), new Vector2(1f, 1f),
-        });
-        // Unused by the real shaders, but the fallbacks shade by vertex colour and a
-        // mesh without one draws nothing at all — which looks exactly like a bug
-        // somewhere else.
-        mesh.SetColors(new List<Color> { Color.white, Color.white, Color.white, Color.white });
-        mesh.SetTriangles(new[] { 0, 2, 1, 1, 2, 3 }, 0, true);
+            float t = (float)i / QuadSegments;
+            float z = Mathf.Lerp(minZ, maxZ, t);
+            vertices.Add(new Vector3(-0.5f, 0f, z));
+            vertices.Add(new Vector3(0.5f, 0f, z));
+            // uv.y is the position along the note, which is what the shader shades by.
+            uvs.Add(new Vector2(0f, t));
+            uvs.Add(new Vector2(1f, t));
+            // Unused by the real shaders, but the fallbacks shade by vertex colour and a
+            // mesh without one draws nothing at all — which looks exactly like a bug
+            // somewhere else.
+            colors.Add(Color.white);
+            colors.Add(Color.white);
+            if (i > 0)
+            {
+                int b0 = (i - 1) * 2;
+                triangles.Add(b0);
+                triangles.Add(b0 + 2);
+                triangles.Add(b0 + 1);
+                triangles.Add(b0 + 1);
+                triangles.Add(b0 + 2);
+                triangles.Add(b0 + 3);
+            }
+        }
+        mesh.SetVertices(vertices);
+        mesh.SetUVs(0, uvs);
+        mesh.SetColors(colors);
+        mesh.SetTriangles(triangles, 0, true);
         mesh.RecalculateBounds();
         return mesh;
     }

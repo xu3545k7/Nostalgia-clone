@@ -118,6 +118,8 @@ public class UIManager : MonoBehaviour
                     GameManager.Instance.BeatLineSpawner.Speed = currentSpeed;
                 }
             }
+            // 拋物線模式的生成距離是**絕對長度**，換算成秒數要用新的速度。
+            try { SettingsManager.Instance?.ApplyArcSpawnDistance(); } catch { }
         }
     }
 

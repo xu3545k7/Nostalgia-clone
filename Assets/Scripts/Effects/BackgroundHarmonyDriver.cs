@@ -300,6 +300,7 @@ namespace Effects
             // 玻璃化和歌曲進度無關，所以放在 conductor 檢查之前——不然在選曲畫面
             // 或還沒開始播的時候拉滑桿，會完全沒有反應。
             ApplyTrackGlass();
+            ApplyTrackHidden();
             ApplyTrackJudgmentClip();
             FollowVideoTexture();
             RetryCoverIfMissing();
@@ -596,6 +597,45 @@ namespace Effects
             glassFloorOpacity = Mathf.Clamp(floorOpacity, 0.2f, 1f);
             trackRenderers.Clear();          // 換歌後軌道可能是新的物件
             appliedGlass = -1f;              // 逼下一幀重套
+        }
+
+        /// <summary>軌道整個不畫（拋物線模式）。玻璃是「透出背景」，這個是真的不存在。</summary>
+        private bool trackHidden;
+        private bool appliedTrackHidden;
+
+        public void SetTrackHidden(bool hidden)
+        {
+            if (trackHidden == hidden) return;
+            trackHidden = hidden;
+            trackRenderers.Clear();          // 重找，順便讓下一幀重套
+            appliedTrackHidden = !hidden;
+            appliedGlass = -1f;
+        }
+
+        /// <summary>
+        /// 把「不畫軌道」推到軌道的 Renderer 上。
+        /// </summary>
+        /// <remarks>
+        /// 用 `renderer.enabled` 而不是把材質調成透明：軌道的 shader 是不透明的，
+        /// 調 alpha 只會變黑（玻璃那條路就是這樣才要推天空色）。整個關掉最乾淨，
+        /// 而且切回傾斜模式時原封不動地開回來。
+        /// </remarks>
+        private void ApplyTrackHidden()
+        {
+            if (appliedTrackHidden == trackHidden && trackRenderers.Count > 0) return;
+            if (trackRenderers.Count == 0)
+            {
+                if (Time.unscaledTime - lastSearchTime < 0.5f) return;
+                lastSearchTime = Time.unscaledTime;
+                CollectTrackRenderers();
+            }
+            if (trackRenderers.Count == 0) return;
+            for (int i = 0; i < trackRenderers.Count; i++)
+            {
+                var r = trackRenderers[i];
+                if (r != null) r.enabled = !trackHidden;
+            }
+            appliedTrackHidden = trackHidden;
         }
 
         /// <summary>

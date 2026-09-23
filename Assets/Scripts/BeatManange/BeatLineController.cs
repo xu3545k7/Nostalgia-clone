@@ -131,19 +131,64 @@ public class BeatLineController : MonoBehaviour
         // catch-up/snap cycle on long horizontal lines.
         float newWorldZ = targetWorldZ;
 
+        // 拋物線模式：拍子線和音符查**同一張表**（NoteArcScreen）。那張表是從
+        // 「這一刻該出現在畫面的哪個高度」反解出來的；各自用世界座標算的話，
+        // 音符就會離開自己的格線。
+        float arcOffset = 0f;
+        float arcLateral = 1f;
+        SettingsManager arcSettings = SettingsManager.Instance;
+        float arcShare = arcSettings != null ? arcSettings.EffectiveNoteArcHeight : 0f;
+        if (arcShare > 0f)
+        {
+            if (!_hasArcBaseY)
+            {
+                _arcBaseY = transform.position.y;
+                _arcBaseScaleX = transform.localScale.x;
+                _hasArcBaseY = true;
+            }
+            // 長度用設定裡的，不是這一條自己的生成距離——每一條拍子線生成時
+            // 離判定線的距離都不一樣，各自帶各自的會讓這張共用表每幀跳來跳去。
+            NoteArcScreen.Prepare(Camera.main, judgmentZ,
+                                  arcSettings.ArcTravelWorldUnits(), _arcBaseY,
+                                  arcSettings.JudgmentLineScreenHeight, arcShare,
+                                  arcSettings.ArcSpawnWorldUnits());
+            if (NoteArcScreen.Active)
+            {
+                arcOffset = NoteArcScreen.OffsetAtZ(targetWorldZ);
+                ApplyArcFade(targetWorldZ);
+                // 拍子線橫跨整個跑道，音符被橫向補正拉寬多少，它也要拉寬多少，
+                // 不然音符會跑到線的外面去。
+                arcLateral = NoteArcScreen.LateralAtZ(targetWorldZ);
+            }
+        }
+
         // Apply the calculated world Z position, adjusting for parent transforms when necessary.
         if (_cachedParent != null)
         {
             float localZ = (_cachedParentScaleZ != 0f) ? (newWorldZ - _cachedParent.position.z) / _cachedParentScaleZ : 0f;
             Vector3 localPos = transform.localPosition;
             localPos.z = localZ;
+            if (_hasArcBaseY)
+            {
+                float parentY = _cachedParent.position.y;
+                float scaleY = _cachedParent.lossyScale.y;
+                if (Mathf.Abs(scaleY) > 0.0001f)
+                    localPos.y = (_arcBaseY + arcOffset - parentY) / scaleY;
+            }
             transform.localPosition = localPos;
         }
         else
         {
             Vector3 worldPos = transform.position;
             worldPos.z = newWorldZ;
+            if (_hasArcBaseY) worldPos.y = _arcBaseY + arcOffset;
             transform.position = worldPos;
+        }
+        if (_hasArcBaseY)
+        {
+            Vector3 scale = transform.localScale;
+            scale.x = _arcBaseScaleX * arcLateral;
+            transform.localScale = scale;
         }
 
         // safety: if long past startTime, ensure cleanup
@@ -153,6 +198,39 @@ public class BeatLineController : MonoBehaviour
             else Destroy(gameObject);
         }
     }
+
+    private SpriteRenderer _arcSprite;
+    private bool _arcSpriteResolved;
+    private float _arcFadeWritten = -1f;
+    private float _arcFadeBaseAlpha = 1f;
+
+    /// <summary>拍子線也跟著淡入，不然它會比音符早一截憑空出現。</summary>
+    private void ApplyArcFade(float worldZ)
+    {
+        if (!_arcSpriteResolved)
+        {
+            _arcSpriteResolved = true;
+            _arcSprite = GetComponentInChildren<SpriteRenderer>(true);
+        }
+        if (_arcSprite == null) return;
+        float fade = NoteArcScreen.FadeAtZ(worldZ);
+        Color c = _arcSprite.color;
+        if (_arcFadeWritten < 0f || Mathf.Abs(c.a - _arcFadeWritten) > 0.001f)
+            _arcFadeBaseAlpha = c.a;
+        float a = _arcFadeBaseAlpha * fade;
+        if (Mathf.Abs(c.a - a) > 0.001f)
+        {
+            c.a = a;
+            _arcSprite.color = c;
+        }
+        _arcFadeWritten = a;
+    }
+
+    /// <summary>拍子線沒有弧線時該在的 Y（第一次套用弧線前記起來）。</summary>
+    private float _arcBaseY;
+    /// <summary>同理的 X 縮放。橫向補正是乘上去的，所以不能就地累乘。</summary>
+    private float _arcBaseScaleX = 1f;
+    private bool _hasArcBaseY;
 
     // Pending position fields for deferred transform writes
     private Vector3 _pendingLocalPosition;

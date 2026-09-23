@@ -214,6 +214,11 @@ public partial class SimpleCarouselSettings : MonoBehaviour
     private const int TouchAlignmentIndex = 52;
     private const int StrikeCueHeightIndex = 53;
     private const int ApplyArcadeIndex = 54;
+    private const int NoteArcHeightIndex = 55;
+    private const int NoteFallModeIndex = 56;
+    private const int NoteArcLengthIndex = 57;
+    private const int NoteArcCurveIndex = 58;
+    private const int NoteArcSpawnIndex = 59;
 
     /// <summary>
     /// 只有在判定預設是「自訂」的時候才看得到的那幾項。
@@ -461,7 +466,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         previewNextSongButton.transform.SetAsLastSibling();
         // Full-screen gameplay is the base layer; the rail and chrome sit above it.
         frame.SetAsFirstSibling();
-        ConfigurePreviewSong(false);
+        ConfigurePreviewSong(true);
         gameplayPreview.RefreshNow();
     }
 
@@ -508,6 +513,10 @@ public partial class SimpleCarouselSettings : MonoBehaviour
 
     private void ConfigurePreviewSong(bool resetToCurrent)
     {
+        // 設定裡的預覽要自己出聲，所以練習室那份試聽得先閉嘴。它是練習室自己的
+        // AudioSource、不歸 Conductor 管，沒人停它就會和預覽疊在一起。這裡停而
+        // 不是只在預覽真的開起來時停——預覽開不起來時更不該留著另一首在播。
+        try { PracticeRoomScreen.StopPreviewAudio(); } catch { }
         SongSelectionManager manager = SongSelectionManager.Instance;
         if (manager == null || manager.PreviewSongCount <= 0)
         {
@@ -520,9 +529,28 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             gameplayPreview?.SetPreviewSong(null);
             return;
         }
+        SongSelectionManager.SongOption song = null;
         if (resetToCurrent || settingsPreviewSongIndex < 0 || settingsPreviewSongIndex >= manager.PreviewSongCount)
-            settingsPreviewSongIndex = manager.CurrentSongIndexForPreview;
-        SongSelectionManager.SongOption song = manager.GetSongForSettingsPreview(settingsPreviewSongIndex);
+        {
+            // 依序問三個地方，第一個答得出來的就是「使用者現在看著的那一首」：
+            //   1. 練習室（它的選擇是自己的欄位，和轉盤無關）
+            //   2. 真的載入在遊戲裡的譜面
+            //   3. 選歌轉盤實際停在哪一張
+            SongSelectionManager.SongOption practice =
+                PracticeRoomScreen.CurrentSelectionForPreview();
+            if (practice != null)
+            {
+                song = practice;
+                int index = manager.IndexOfPreviewOption(practice);
+                settingsPreviewSongIndex = index >= 0 ? index : 0;
+            }
+            else
+            {
+                int playing = manager.PlayingSongIndexForPreview();
+                settingsPreviewSongIndex = playing >= 0 ? playing : manager.CurrentSongIndexForPreview;
+            }
+        }
+        if (song == null) song = manager.GetSongForSettingsPreview(settingsPreviewSongIndex);
         gameplayPreview?.SetPreviewSong(song);
         if (gameplayPreviewTitle != null)
         {
@@ -671,7 +699,32 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 step = 0.1f, unit = "x" },
             // 一鍵套用本家：判定切類原型，能對應本家的設定一次改好。見
             // SettingsManager.ApplyArcadeSettings。
-            new SettingData { title = "Apply Arcade Settings", isAction = true }
+            new SettingData { title = "Apply Arcade Settings", isAction = true },
+            // 音符落下的拋物線高度。本家的音符是先被往上拋、再落到判定線上
+            // （曲線見 NoteArc）。0 = 直線落下，也就是這個 clone 原本的樣子。
+            new SettingData { title = "Note Arc", value = 0.45f, min = 0f, max = 1f,
+                step = 0.05f, unit = "%", isPercentage = true },
+            // 音符怎麼落下。傾斜＝原本的直線，高度由鏡頭俯角決定；
+            // 拋物線＝本家的做法，先上拋再落到判定線。
+            // 這兩個模式各自用一個滑桿：選傾斜時露出「傾斜角度」，
+            // 選拋物線時那一列換成「拋物線頂點」（見 RefreshNoteFallVisibility）。
+            new SettingData { title = "Note Fall", value = 1f, min = 0f, max = 1f,
+                step = 1f, unit = "",
+                discreteLabels = new[] { "Tilt", "Arc" } },
+            // 弧線的長度（世界單位），也就是拋物線模式的生成距離。用絕對長度
+            // 而不是秒數：秒數會被下落速度放大，調快速度整條跑道就變形。
+            // 音符、拍子線、踏板都照這一個值生成，三邊才會在同一條弧線上。
+            new SettingData { title = "Arc Length", value = 160f, min = 20f, max = 800f,
+                step = 10f, unit = "" },
+            // 用哪一條落下曲線。本家那條不是拋物線（是 cos(π(p²−0.5))），頂點在
+            // 行程 29%、落地很陡；真的二次函數頂點在 56%、落地平一些。
+            new SettingData { title = "Arc Curve", value = 0f, min = 0f, max = 1f,
+                step = 1f, unit = "",
+                discreteLabels = new[] { "Arcade", "Parabola" } },
+            // 音符從離判定線多遠開始生成。曲線本身不動——距離短就是從路線上
+            // 比較靠近判定線的那一點開始，不是把整條曲線壓進來。
+            new SettingData { title = "Spawn Distance", value = 160f, min = 20f, max = 800f,
+                step = 10f, unit = "" }
         };
 
         groupMembers.Clear();
@@ -703,8 +756,13 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             KeyChatterGuardIndex);
 
         // 顯示 ------------------------------------------------------------
+        // 落下方式和它的那一個數值擺在一起，而且緊接著彼此：選傾斜時第二列是
+        // 「傾斜角度」，選拋物線時同一個位置換成「拋物線頂點」，看起來就是
+        // 那一列改了意思（實際上是兩列輪流露出，見 RefreshNoteFallVisibility）。
         SetGroup(SettingsCategory.Visual, SettingsGroup.Track,
-            CameraRotXIndex, VisualLayoutModeIndex, TrackMarbleThemeIndex,
+            NoteFallModeIndex, CameraRotXIndex, NoteArcHeightIndex, NoteArcLengthIndex,
+            NoteArcSpawnIndex, NoteArcCurveIndex,
+            VisualLayoutModeIndex, TrackMarbleThemeIndex,
             TrackGuideLineOpacityIndex, TrackGlassIndex, TrackGlassFloorIndex,
             KeyboardScreenBottomIndex);
         SetGroup(SettingsCategory.Visual, SettingsGroup.Notes,
@@ -839,6 +897,28 @@ public partial class SimpleCarouselSettings : MonoBehaviour
     /// 某個值剛好和某個預設一樣就被認定成那個預設。預設是一個選擇，不是一組值
     /// 的比對結果。
     /// </remarks>
+    /// <summary>
+    /// 落下模式決定「傾斜角度」和「拋物線頂點」哪一個露出來。
+    ///
+    /// 兩者是同一件事的兩種講法——音符的高度從哪裡來——所以同時擺出來只會讓人
+    /// 以為可以一起用。選了哪個模式就只留哪一個。
+    /// </summary>
+    private void RefreshNoteFallVisibility()
+    {
+        if (settings == null || settings.Length <= NoteFallModeIndex) return;
+        bool arc = Mathf.RoundToInt(settings[NoteFallModeIndex].value) == 1;
+        if (NoteArcHeightIndex < settings.Length && settings[NoteArcHeightIndex] != null)
+            settings[NoteArcHeightIndex].isHidden = !arc;
+        if (NoteArcLengthIndex < settings.Length && settings[NoteArcLengthIndex] != null)
+            settings[NoteArcLengthIndex].isHidden = !arc;
+        if (NoteArcCurveIndex < settings.Length && settings[NoteArcCurveIndex] != null)
+            settings[NoteArcCurveIndex].isHidden = !arc;
+        if (NoteArcSpawnIndex < settings.Length && settings[NoteArcSpawnIndex] != null)
+            settings[NoteArcSpawnIndex].isHidden = !arc;
+        if (CameraRotXIndex < settings.Length && settings[CameraRotXIndex] != null)
+            settings[CameraRotXIndex].isHidden = arc;
+    }
+
     private void RefreshJudgmentDetailVisibility()
     {
         if (settings == null || settings.Length <= JudgmentPresetIndex) return;
@@ -959,6 +1039,12 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         settings[JudgmentPresetIndex].value = (int)manager.CurrentJudgmentPreset;
         settings[TouchAlignmentIndex].value = manager.TouchAlignment;
         settings[StrikeCueHeightIndex].value = manager.StrikeCueHeight;
+        settings[NoteArcHeightIndex].value = manager.NoteArcHeight;
+        settings[NoteFallModeIndex].value = manager.NoteFallMode;
+        settings[NoteArcLengthIndex].value = manager.ArcTravelWorldUnits();
+        settings[NoteArcCurveIndex].value = manager.NoteArcCurve;
+        settings[NoteArcSpawnIndex].value = manager.ArcSpawnWorldUnits();
+        RefreshNoteFallVisibility();
         RefreshJudgmentDetailVisibility();
         settings[TrackVideoDimmerIndex].value = manager.TrackVideoDimmer;
         settings[VisualLayoutModeIndex].value = manager.CurrentVisualLayoutMode == VisualLayoutMode.Piano88 ? 1f : 0f;
@@ -1091,6 +1177,22 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 break;
             case StrikeCueHeightIndex:
                 manager.SetStrikeCueHeight(settings[StrikeCueHeightIndex].value);
+                break;
+            case NoteArcHeightIndex:
+                manager.SetNoteArcHeight(settings[NoteArcHeightIndex].value);
+                break;
+            case NoteArcLengthIndex:
+                manager.SetNoteArcLength(settings[NoteArcLengthIndex].value);
+                break;
+            case NoteArcCurveIndex:
+                manager.SetNoteArcCurve(Mathf.RoundToInt(settings[NoteArcCurveIndex].value));
+                break;
+            case NoteArcSpawnIndex:
+                manager.SetNoteArcSpawn(settings[NoteArcSpawnIndex].value);
+                break;
+            case NoteFallModeIndex:
+                manager.SetNoteFallMode(Mathf.RoundToInt(settings[NoteFallModeIndex].value));
+                RefreshNoteFallVisibility();
                 break;
             case JudgmentPresetIndex:
                 manager.SetJudgmentPreset((JudgmentPreset)Mathf.Clamp(
@@ -1429,6 +1531,26 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         settings[StrikeCueHeightIndex].title = simplified ? "按键提示长度"
             : zh ? "按鍵提示長度" : "Key Cue Length";
 
+        settings[NoteArcHeightIndex].title = simplified ? "抛物线顶点"
+            : zh ? "拋物線頂點" : "Arc Height";
+        settings[NoteArcLengthIndex].title = simplified ? "弧线全长"
+            : zh ? "弧線全長" : "Arc Span";
+        settings[NoteArcSpawnIndex].title = simplified ? "生成距离"
+            : zh ? "生成距離" : "Spawn Distance";
+        settings[NoteArcCurveIndex].title = simplified ? "落下曲线"
+            : zh ? "落下曲線" : "Arc Curve";
+        settings[NoteArcCurveIndex].discreteLabels = simplified
+            ? new[] { "本家", "抛物线" }
+            : zh
+                ? new[] { "本家", "拋物線" }
+                : new[] { "Arcade", "Parabola" };
+        settings[NoteFallModeIndex].title = simplified ? "落下方式"
+            : zh ? "落下方式" : "Note Fall";
+        settings[NoteFallModeIndex].discreteLabels = simplified
+            ? new[] { "倾斜", "抛物线" }
+            : zh
+                ? new[] { "傾斜", "拋物線" }
+                : new[] { "Tilt", "Arc" };
         settings[ApplyArcadeIndex].title = simplified ? "一键套用本家"
             : zh ? "一鍵套用本家" : "Apply Arcade Settings";
 

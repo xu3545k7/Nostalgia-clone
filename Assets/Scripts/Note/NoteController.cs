@@ -114,13 +114,52 @@ public class NoteController : MonoBehaviour
     private float slideNearWidthWorld;
     private float slideFarWidthWorld;
     private float slideConnectorLengthWorld;
+    /// <summary>到下一個節點的間隔（毫秒）。長度要每幀用**現在的**速度換算，
+    /// 不能拿生成那一瞬間的速度烤死——速度一變連結就接不到下一顆。</summary>
+    private float slideConnectorSpanMs;
     private float lastSlideConnectorRatio = -1f;
-    private readonly Vector3[] slideConnectorVertices = new Vector3[4];
-    private static readonly Vector2[] SlideConnectorUvs =
+    /// <summary>連結段沿 Z 切幾段。</summary>
+    /// <remarks>
+    /// 它本來是四個頂點的梯形，平躺在軌道上時那樣就夠。拋物線模式下弧線是在
+    /// vertex shader 裡照世界 Z 算的，四個角只會讓**兩端**被抬到弧線上、中間是
+    /// 一條弦——連結段於是從弧線底下鑽過去，兩頭接不上它連的那兩顆音符。
+    /// </remarks>
+    private const int SlideConnectorSegments = 12;
+
+    /// <summary>
+    /// 横向切四欄：兩邊暗、中間亮。
+    /// </summary>
+    /// <remarks>
+    /// 連結段改成**光束**（加法混合）之後，亮度分布全靠頂點色。
+    /// 兩欄只能畫出硬邊緣的帶子，四欄才有內核和向外收束的境。
+    /// </remarks>
+    private const int SlideConnectorColumns = 4;
+    /// <summary>內核離中心多遠（佔半寬的比例）。</summary>
+    private const float SlideBeamCoreShare = 0.34f;
+    private static readonly float[] SlideBeamColumnX =
+        { -1f, -SlideBeamCoreShare, SlideBeamCoreShare, 1f };
+    /// <summary>每一欄的亮度：外緣 0，內核 1。</summary>
+    private static readonly float[] SlideBeamColumnGlow = { 0f, 1f, 1f, 0f };
+
+    private const int SlideConnectorVertexCount =
+        (SlideConnectorSegments + 1) * SlideConnectorColumns;
+
+    private readonly Vector3[] slideConnectorVertices =
+        new Vector3[SlideConnectorVertexCount];
+    private static readonly Vector2[] SlideConnectorUvs = BuildSlideConnectorUvs();
+
+    private static Vector2[] BuildSlideConnectorUvs()
     {
-        new Vector2(0f, 0f), new Vector2(1f, 0f),
-        new Vector2(0f, 1f), new Vector2(1f, 1f)
-    };
+        var uvs = new Vector2[SlideConnectorVertexCount];
+        for (int i = 0; i <= SlideConnectorSegments; i++)
+        {
+            float t = (float)i / SlideConnectorSegments;
+            for (int c = 0; c < SlideConnectorColumns; c++)
+                uvs[i * SlideConnectorColumns + c] =
+                    new Vector2((SlideBeamColumnX[c] + 1f) * 0.5f, t);
+        }
+        return uvs;
+    }
     /// <summary>
     /// 連結段自己的頂點色。**四個頂點一律相同。**
     /// </summary>
@@ -135,12 +174,86 @@ public class NoteController : MonoBehaviour
     ///
     /// 沿著連結不做任何明暗變化，兩端才會各自消失在它連的那顆音符裡。
     /// </remarks>
-    private static readonly Color[] SlideConnectorColors =
+    /// <summary>
+    /// 逐頂點的亮度。加法混合（Blend One One）不看 alpha，所以收束要乘進 RGB。
+    /// </summary>
+    private readonly Color[] slideConnectorColors = new Color[SlideConnectorVertexCount];
+    /// <summary>
+    /// 光束比音符頭寬幾倍。
+    /// </summary>
+    /// <remarks>
+    /// 略寬一點點，外緣的收束才有地方放；太寬就變成一片霧。
+    /// </remarks>
+    private const float SlideBeamWidthScale = 1.15f;
+
+    /// <summary>光束的強度。拉到 1 以上才過得了 bloom 的閘值。</summary>
+    private const float SlideBeamIntensity = 2.6f;
+
+    /// <summary>
+    /// 光束的顏色：右手深紅、左手深藍。
+    /// </summary>
+    /// <remarks>
+    /// 不走 ResolveGestureColor（主題色是 1, 0.18, 0.18 那種偏粉的紅）。加法混合下，
+    /// 沒被壓低的綠藍兩個通道一累加就往白跑，看起來是淡紅而不是深紅。
+    /// 把綠藍壓到十分之一以下、主通道維持滿值，才會是一條深而飽和的光束——
+    /// 而且主通道沒降，可視度和之前一樣。
+    /// </remarks>
+    private static readonly Color SlideBeamRightColor = new Color(1f, 0.06f, 0.10f, 1f);
+    private static readonly Color SlideBeamLeftColor = new Color(0.10f, 0.20f, 1f, 1f);
+
+    /// <summary>這一顆的光束顏色。hand == 0 是右手（見 ResolveGestureColor）。</summary>
+    private Color ResolveSlideBeamColor()
     {
-        new Color(1f, 1f, 1f, 0.92f), new Color(1f, 1f, 1f, 0.92f),
-        new Color(1f, 1f, 1f, 0.92f), new Color(1f, 1f, 1f, 0.92f)
-    };
-    private static readonly int[] SlideConnectorTriangles = { 0, 2, 1, 2, 3, 1 };
+        bool rightHand = noteData != null && noteData.hand == 0;
+        return rightHand ? SlideBeamRightColor : SlideBeamLeftColor;
+    }
+    private static readonly int SlideBeamEmissionId = Shader.PropertyToID("_EmissionColor");
+
+    private static Material cachedSlideBeamMaterial;
+
+    /// <summary>
+    /// 連結段的光束材質：**加法混合**，只往上加亮。
+    /// </summary>
+    /// <remarks>
+    /// 以前用和長按同一張 alpha 混合的材質，而連結段有九成埋在兩顆音符頭
+    /// 底下（節點 26 ms 一顆、中心距 2.08，而音符頭本身就 2.00 深），剩下那一成
+    /// 又是深色配黑底 —— 實測畫出來了、位置全對、alpha 0.92，使用者就是看不到。
+    ///
+    /// 加法混合沒有這個問題：它不取代背景、只累加，所以暗的東西蓋不掉它，
+    /// 而且值拉到 1 以上就會被 bloom 採到，從音符邊緣溢出來。
+    /// </remarks>
+    private static Material ResolveSlideBeamMaterial()
+    {
+        if (cachedSlideBeamMaterial != null) return cachedSlideBeamMaterial;
+        Shader shader = Shader.Find("Custom/UnlitAdditiveEmission");
+        if (shader == null) return null;
+        cachedSlideBeamMaterial = new Material(shader)
+        {
+            name = "SlideConnectorBeam",
+            hideFlags = HideFlags.DontSave,
+        };
+        return cachedSlideBeamMaterial;
+    }
+
+    private static readonly int[] SlideConnectorTriangles = BuildSlideConnectorTriangles();
+
+    private static int[] BuildSlideConnectorTriangles()
+    {
+        int quads = SlideConnectorSegments * (SlideConnectorColumns - 1);
+        var tris = new int[quads * 6];
+        int at = 0;
+        for (int i = 0; i < SlideConnectorSegments; i++)
+        {
+            for (int c = 0; c < SlideConnectorColumns - 1; c++)
+            {
+                int a = i * SlideConnectorColumns + c;
+                int b = a + SlideConnectorColumns;
+                tris[at++] = a; tris[at++] = b; tris[at++] = a + 1;
+                tris[at++] = b; tris[at++] = b + 1; tris[at++] = a + 1;
+            }
+        }
+        return tris;
+    }
 
     /// <summary>
     /// 連結相對於音符的繪製順序。**一定要是負的。**
@@ -154,6 +267,22 @@ public class NoteController : MonoBehaviour
     /// 做不到的事。
     /// </remarks>
     private const int GestureTailOrderOffset = -1;
+
+    /// <summary>
+    /// 滑奧的光束畫在音符頭**前面**。
+    /// </summary>
+    /// <remarks>
+    /// 連結段中心連中心，而滑奧節點的中心距（2.08）跟音符頭的深度（2.00）
+    /// 差不多 —— 畫在後面的話它幾乎整根都在兩顆頭的 quad 底下。實測：同一根
+    /// 幾何、同一個顏色，排在後面看不到，排到前面就出現。
+    ///
+    /// 畫在前面不會遮住音符：它是**加法混合**，只能把背後的東西加亮、
+    /// 永遠不會把它變暗。這也是連結段必須是光束而不是實體的理由：
+    /// 實體排在前面會把金色的音符切成兩半。
+    /// </remarks>
+    private const int SlideBeamOrderOffset = 2;
+
+    private int GestureTailOrder => isSlideCached ? SlideBeamOrderOffset : GestureTailOrderOffset;
     private float streamingMeshLengthWorld;
     private float trillArrowRepeatWorldLength;
     private float streamingVisibleLengthWorld;
@@ -171,6 +300,8 @@ public class NoteController : MonoBehaviour
     private static readonly int HoldTailEdgeGlowId = Shader.PropertyToID("_EdgeGlow");
     private static readonly int HoldTailFadeStrengthId = Shader.PropertyToID("_TailFadeStrength");
     private static readonly int HoldTailWorldClipEnabledId = Shader.PropertyToID("_WorldClipEnabled");
+    // 拋物線走 NoteArcScreen.ApplyTo，不走全域值——全域值要另一個元件去場景裡找
+    // 判定線與 spawner，找不到或找到舊的就會整根用同一個高度。
     private static readonly int HoldTailWorldClipMinZId = Shader.PropertyToID("_WorldClipMinZ");
     private static readonly int HoldTailWorldClipMaxZId = Shader.PropertyToID("_WorldClipMaxZ");
     private static readonly int HoldGlassRodId = Shader.PropertyToID("_GlassRod");
@@ -261,6 +392,221 @@ public class NoteController : MonoBehaviour
     private float cachedWorldWidth = 1f;
     [Header("Fixed Note Visual Height")]
     [SerializeField, Min(0.05f)] private float fixedNoteWorldHeight = 2f;
+
+    /// <summary>
+    /// 音符貼圖一律平躺（繞 X 轉 −90°）。
+    ///
+    /// 曾經在拋物線模式下把它立起來，那是配合「鏡頭完全正面」的做法；現在拋物線
+    /// 模式改成「鍵盤貼著弧線的切線、鏡頭垂直看鍵盤」，鏡頭仍然是俯視的，平躺的
+    /// 貼圖才看得清楚。留著這個函式當單一出口，之後要再改只動這裡。
+    /// </summary>
+    private static Quaternion NoteSpriteRotation()
+    {
+        return Quaternion.Euler(-90f, 0f, 0f);
+    }
+
+    /// <summary>
+    /// 讓平躺的貼圖跟著弧線傾斜，貼圖的平面才含著行進方向。
+    /// </summary>
+    /// <remarks>
+    /// −90° 是平躺（貼圖的 +z 朝世界的 +y）。再繞 X 轉 −atan(斜率)，貼圖朝 +z
+    /// 的那一邊就抬到切線上。不做這件事的話，弧線末端那一段很陡，一片水平的
+    /// 貼圖會像浮在判定線上方的盤子——即使它的前緣高度是對的。
+    /// </remarks>
+    /// <remarks>
+    /// 曾經照弧線的世界斜率把貼圖轉過去。那個斜率在畫面座標映射下不是玩家看到的
+    /// 斜率——它是反解出來的副產物，遠端動輒每單位 Z 掉一兩個單位 Y，貼圖會整片
+    /// 立起來變成一條線。音符在畫面上走的本來就是本家那條路徑，貼圖平躺就好。
+    /// </remarks>
+    private void UpdateSpriteTilt(float worldZ)
+    {
+        if (runtimeSpriteRenderer == null) return;
+        runtimeSpriteRenderer.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+    }
+
+    /// <summary>音符沒有弧線時該在的 Y（判定線所在的平面）。初始化時記起來。</summary>
+    private float baseY;
+    /// <summary>同理的 X（鍵道中心）。橫向補正是乘上去的，所以不能就地累乘。</summary>
+    private float baseX;
+    /// <summary>這一幀實際套上去的橫向補正。尾巴要拿它當錨點。</summary>
+    private float appliedArcLateral = 1f;
+    private bool hasBaseY;
+
+    /// <summary>
+    /// 這顆音符現在該被「拋」多高。本家的音符是先上拋再落到判定線上，
+    /// 曲線在 NoteArc（反組譯本家得到的）。0 = 關掉，照舊直線落下。
+    ///
+    /// 長押、滑奏、顫音的尾巴是在 vertex shader 裡沿著同一條弧線彎的
+    /// （Shaders/NoteArcCurve.hlsl），所以它們的頭也要用這個位移，兩者才對得上。
+    /// </summary>
+    /// <param name="speedWorld">
+    /// 世界單位／秒。用來把「音符前緣離中心多遠」換算成時間：貼圖是平躺的一片，
+    /// **前緣**才是要碰到判定線的那一邊（見 NoteNearEdgeLocalOffsetZ）。照中心的
+    /// 時間抬高的話，弧線末端那一段很陡，半個音符長度就會變成看得出來的高度差
+    /// ——音符浮在線上方，特效卻在線上。0 = 不修正。
+    /// </param>
+    /// <summary>
+    /// 這一顆現在該被抬多高。**由畫面高度反解**（見 NoteArcScreen）：本家那條
+    /// 曲線是螢幕座標，直接加在世界 Y 上會和透視重複算一次。
+    /// </summary>
+    /// <param name="worldZ">音符**前緣**的世界 Z——前緣才是碰到判定線的那一邊。</param>
+    private float CurrentArcOffset(float worldZ)
+    {
+        PrepareArcScreen();
+        return NoteArcScreen.Active ? NoteArcScreen.OffsetAtZ(worldZ) : 0f;
+    }
+
+    /// <summary>
+    /// 把弧線套到音符本體上：高度、橫向補正、貼圖寬度、淡入。
+    /// </summary>
+    /// <remarks>
+    /// **四件事必須一起做。** 少做淡入，音符就在生成處憑空出現；少做橫向補正，
+    /// 音符整段偏向畫面中央、快到判定線才掃回自己那一鍵。
+    ///
+    /// 有長條的音符更嚴格：尾巴是 shader 照**同一張表**逐頂點算的，而它四件事
+    /// 全都做。頭少做哪一件，尾巴就在那一件上和頭分家 —— 滑奏的頭原本只抬高度，
+    /// 所以連結段照著表淡掉了、音符頭卻還是全亮，看起來就是「有些連結線不見了」。
+    /// </remarks>
+    private void ApplyArcToHead(ref Vector3 pos)
+    {
+        if (!hasBaseY) return;
+        float edge = LeadingEdgeZ(pos.z);
+        pos.y = baseY + CurrentArcOffset(edge);
+        appliedArcLateral = CurrentArcLateral(edge);
+        pos.x = baseX * appliedArcLateral;
+        ApplyArcLateralWidth();
+        ApplyArcFade(edge);
+    }
+
+    /// <summary>
+    /// 把弧線那張表寫進長條的 property block。
+    /// </summary>
+    /// <remarks>
+    /// 音符本體的 Y 已經是 baseY + 弧線位移，長條是它的子物件、跟著被抬過一次，
+    /// 所以要把那一段當錨點扣掉，再讓 shader 逐頂點重算。
+    /// </remarks>
+    private void WriteArcTo(MaterialPropertyBlock block)
+    {
+        PrepareArcScreen();
+        NoteArcScreen.ApplyTo(block,
+                              hasBaseY ? transform.position.y - baseY : 0f,
+                              transform.position.x,
+                              hasBaseY ? baseX : transform.position.x);
+    }
+
+    /// <summary>
+    /// 只更新長條的弧線參數，其餘的外觀不動。
+    /// </summary>
+    /// <remarks>
+    /// **每一種長條、每一幀都要送。** `_Arc*` 這幾個 uniform 沒有宣告在 shader 的
+    /// Properties 裡，材質給不出預設值——某一次 draw call 沒送，它就沿用常數緩衝區
+    /// 裡上一次同一個 shader 留下來的值，也就是**別顆音符的**錨點與淡入範圍。
+    ///
+    /// 滑奏本來完全沒送過：它走的是 UpdateSlideConnectorMesh，而寫這張表的是
+    /// UpdateStreamingLongVisual（只有長押和顫音會呼叫）。於是連結段的高度取決於
+    /// 它前面剛好畫了誰——畫面上長押多一根少一根、順序一變，它就**跳一下**；
+    /// 而淡入範圍沿用別人的，連顏色也會比自己的音符深一點。
+    /// </remarks>
+    private void ApplyTailArcBlock()
+    {
+        if (holdTailRenderer == null) return;
+        if (holdTailPropertyBlock == null) holdTailPropertyBlock = new MaterialPropertyBlock();
+        holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+        // 滑奏的弧線已經烤進頂點了（UpdateSlideConnectorMesh），shader 這邊
+        // 要**明確關掉**：不寫的話它會沿用上一個同 shader 的 draw call
+        // 留在常數緩衝區裡的錨點與淡入範圍，等於再位移一次。
+        // 滑奧的光束走自己的 shader，弧線已經烤進頂點，沒有 _Arc* 要送。
+        if (isSlideCached) return;
+        WriteArcTo(holdTailPropertyBlock);
+        holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+    }
+
+
+    /// <summary>沒有橫向補正時貼圖該有的寬度。補正是乘上去的，不能就地累乘。</summary>
+    private float spriteBaseScaleX = 1f;
+    private bool hasSpriteBaseScaleX;
+    private float arcFadeWritten = -1f;
+    private float arcFadeBaseAlpha = 1f;
+
+    /// <summary>
+    /// 生成處全透明、到頂點全不透明。
+    /// </summary>
+    /// <remarks>
+    /// 貼圖的 alpha 還有別人會寫（判定後的淡出之類），所以記著自己上次寫進去的
+    /// 值：對不上就表示別人改過，把那個值當成新的基準，不要把別人的淡出吃掉。
+    /// </remarks>
+    /// <summary>
+    /// 貼圖的寬度也要跟著橫向補正走。
+    /// </summary>
+    /// <remarks>
+    /// 補正的意思是「整條跑道的水平縮放」：位置乘了，寬度就得跟著乘，不然音符
+    /// 在畫面上會比自己那一鍵窄（遠處差到一半），而長押尾巴和踏板（在 shader／
+    /// 逐頂點裡連寬度一起乘了）看起來就比音符頭寬一截。
+    /// </remarks>
+    private void ApplyArcLateralWidth()
+    {
+        if (!hasSpriteBaseScaleX || runtimeSpriteRenderer == null) return;
+        Transform sprite = runtimeSpriteRenderer.transform;
+        Vector3 s = sprite.localScale;
+        float want = spriteBaseScaleX * appliedArcLateral;
+        if (Mathf.Abs(s.x - want) > 0.0001f)
+        {
+            s.x = want;
+            sprite.localScale = s;
+        }
+    }
+
+    private void ApplyArcFade(float worldZ)
+    {
+        if (runtimeSpriteRenderer == null) return;
+        float fade = NoteArcScreen.Active ? NoteArcScreen.FadeAtZ(worldZ) : 1f;
+        Color c = runtimeSpriteRenderer.color;
+        if (arcFadeWritten < 0f || Mathf.Abs(c.a - arcFadeWritten) > 0.001f)
+            arcFadeBaseAlpha = c.a;
+        float a = arcFadeBaseAlpha * fade;
+        if (Mathf.Abs(c.a - a) > 0.001f)
+        {
+            c.a = a;
+            runtimeSpriteRenderer.color = c;
+        }
+        arcFadeWritten = a;
+    }
+
+    /// <summary>
+    /// 這一顆的世界 X 要乘多少。垂直修正把音符推遠、在畫面上往中間縮，不乘回去
+    /// 的話音符整段都偏向畫面中央，快到判定線才掃回自己的鍵上。
+    /// </summary>
+    private float CurrentArcLateral(float worldZ)
+    {
+        PrepareArcScreen();
+        return NoteArcScreen.Active ? NoteArcScreen.LateralAtZ(worldZ) : 1f;
+    }
+
+    /// <summary>音符前緣的世界 Z（貼圖是平躺的一片，往後推了半個音符高）。</summary>
+    private float LeadingEdgeZ(float centreZ)
+    {
+        return centreZ - ResolveNoteWorldHeight() * 0.5f;
+    }
+
+    /// <summary>每幀準備一次那張「世界 Z → 該抬多高」的表。</summary>
+    private void PrepareArcScreen()
+    {
+        SettingsManager settings = SettingsManager.Instance;
+        float share = settings != null ? settings.EffectiveNoteArcHeight : 0f;
+        if (share <= 0f)
+        {
+            NoteArcScreen.Disable();
+            return;
+        }
+        // 長度由設定決定，不是由自己的 spawner——三邊要查同一張表，而且條件也要
+        // 一樣，否則會有人在某些幀是平的。
+        float travelZ = settings.ArcTravelWorldUnits();
+        float lineViewY = settings != null ? settings.JudgmentLineScreenHeight : 0.28f;
+        float spawnZ = settings != null ? settings.ArcSpawnWorldUnits() : travelZ;
+        NoteArcScreen.Prepare(Camera.main, judgmentZ, travelZ,
+                              hasBaseY ? baseY : transform.position.y, lineViewY, share,
+                              spawnZ);
+    }
 
     private float ResolveNoteWorldHeight()
     {
@@ -648,6 +994,19 @@ public class NoteController : MonoBehaviour
         if (withHalo && velocityHaloRenderer != null && velocityHaloRenderer.enabled
             && velocityHaloRenderer.gameObject.activeInHierarchy)
             bounds.Encapsulate(velocityHaloRenderer.bounds);
+        // **還原**橫向補正，理由和 TryGetVisibleCorridor 一樣：這個框是給踏板
+        // 圍著音符畫包圈、挖缺口用的，而踏板是把整片網格逐頂點乘上同一個補正
+        // 才畫出來的。交出已經乘過的座標，那邊會再乘一次 —— 補正在遠處可以小
+        // 到 0.6，於是包圈畫在音符和軌道中心的中間，一路差到一個音符寬以上。
+        // 走廊那邊修過了，音符頭這邊漏掉，所以框「還是」沒對準。
+        float unscale = 1f / Mathf.Max(0.0001f, appliedArcLateral);
+        if (Mathf.Abs(unscale - 1f) > 0.0001f)
+        {
+            Vector3 min = bounds.min, max = bounds.max;
+            min.x *= unscale;
+            max.x *= unscale;
+            bounds.SetMinMax(min, max);
+        }
         return true;
     }
 
@@ -658,8 +1017,12 @@ public class NoteController : MonoBehaviour
         if (holdTailRenderer == null || !holdTailRenderer.enabled || holdTailObject == null
             || !holdTailObject.activeInHierarchy) return false;
         Bounds b = holdTailRenderer.bounds;
-        minX = b.min.x;
-        maxX = b.max.x;
+        // **還原**橫向補正。這個框是給踏板挖空隙用的，而踏板是把整片網格逐頂點
+        // 乘上同一個補正才畫出來的——這裡若交出已經乘過的座標，那邊會再乘一次，
+        // 空隙就和音符對不上了。
+        float unscale = 1f / Mathf.Max(0.0001f, appliedArcLateral);
+        minX = b.min.x * unscale;
+        maxX = b.max.x * unscale;
         minZ = b.min.z;
         maxZ = b.max.z;
         // 串流長條的網格比看得到的長，超出的部分由 shader 依世界 z 裁掉。
@@ -784,28 +1147,39 @@ public class NoteController : MonoBehaviour
             {
                 name = "HoldTailQuad"
             };
-            sharedHoldTailQuad.vertices = new Vector3[]
+            // 沿 Z 切段：拋物線是在 vertex shader 裡做的，只有四個角的話兩端
+            // 被抬起來、中間是一條直線（弦不是弧），長的長押會穿過弧線。
+            // 這是所有長押共用的一份網格，段數的成本只付一次。
+            const int tailSegments = 48;
+            var tailVerts = new Vector3[(tailSegments + 1) * 2];
+            var tailUvs = new Vector2[tailVerts.Length];
+            var tailColors = new Color[tailVerts.Length];
+            var tailTris = new int[tailSegments * 6];
+            for (int i = 0; i <= tailSegments; i++)
             {
-                new Vector3(-0.5f, 0f, 0f),
-                new Vector3(0.5f, 0f, 0f),
-                new Vector3(-0.5f, 0f, 1f),
-                new Vector3(0.5f, 0f, 1f)
-            };
-            sharedHoldTailQuad.uv = new Vector2[]
-            {
-                new Vector2(0f, 0f),
-                new Vector2(1f, 0f),
-                new Vector2(0f, 1f),
-                new Vector2(1f, 1f)
-            };
-            sharedHoldTailQuad.colors = new Color[]
-            {
-                new Color(1f, 1f, 1f, 1f),
-                new Color(1f, 1f, 1f, 1f),
-                new Color(1f, 1f, 1f, 1f),
-                new Color(1f, 1f, 1f, 1f)
-            };
-            sharedHoldTailQuad.triangles = new int[] { 0, 2, 1, 2, 3, 1 };
+                float t = (float)i / tailSegments;
+                tailVerts[i * 2] = new Vector3(-0.5f, 0f, t);
+                tailVerts[i * 2 + 1] = new Vector3(0.5f, 0f, t);
+                tailUvs[i * 2] = new Vector2(0f, t);
+                tailUvs[i * 2 + 1] = new Vector2(1f, t);
+                tailColors[i * 2] = new Color(1f, 1f, 1f, 1f);
+                tailColors[i * 2 + 1] = new Color(1f, 1f, 1f, 1f);
+                if (i > 0)
+                {
+                    int b0 = (i - 1) * 2;
+                    int tri = (i - 1) * 6;
+                    tailTris[tri] = b0;
+                    tailTris[tri + 1] = b0 + 2;
+                    tailTris[tri + 2] = b0 + 1;
+                    tailTris[tri + 3] = b0 + 2;
+                    tailTris[tri + 4] = b0 + 3;
+                    tailTris[tri + 5] = b0 + 1;
+                }
+            }
+            sharedHoldTailQuad.vertices = tailVerts;
+            sharedHoldTailQuad.uv = tailUvs;
+            sharedHoldTailQuad.colors = tailColors;
+            sharedHoldTailQuad.triangles = tailTris;
             sharedHoldTailQuad.RecalculateBounds();
         }
 
@@ -877,12 +1251,26 @@ public class NoteController : MonoBehaviour
     /// </remarks>
     public static bool PreviewBuildMode;
 
+    /// <summary>這一顆是檢視器生的靜態預覽音符，不是遊戲裡的。</summary>
+    private bool isStaticPreview;
+
     private NoteData FindNextSlideNode()
     {
         if (noteData == null || noteData.param2 < 0) return null;
         try
         {
-            var notes = PreviewChartOverride != null
+            // **只有檢視器自己生的音符才可以讀覆寫。**
+            //
+            // PreviewChartOverride 是静態的，而静態跨場景活著：只要檢視器那個
+            // 協程被中途打斷、或者 Clear() 沒跑到（場景換掉、中間丟例外），
+            // 它就會帶著選曲畫面那份譜一路進到遊戲裡。接下來每一顆滑奏都去
+            // **別份譜**裡找下一個節點 —— index 只是整數，所以往往真的會抄到
+            // 一顆，只是完全不相干：間隔算出來是負的（長度掍到下限 0.02）、鍵道
+            // 差却是隨便一個值，連結段就變成一條**極矮極寬的橫向薄片**，
+            // 看起來就像連結消失了、需底多了幾條質感不明的細線。
+            //
+            // 改成看這一顆自己是不是檢視器生的，静態有沒有被清掉就不重要了。
+            var notes = isStaticPreview && PreviewChartOverride != null
                 ? PreviewChartOverride.notes
                 : (GameManager.Instance != null && GameManager.Instance.CurrentChart != null
                     ? GameManager.Instance.CurrentChart.notes
@@ -921,34 +1309,106 @@ public class NoteController : MonoBehaviour
             ? (spanMs / 1000f) * speedWorldUnits
             : lengthWorld;
         slideConnectorLengthWorld = Mathf.Max(minimumHoldTailVisualLength, spanWorld);
+        slideConnectorSpanMs = spanMs > 0f ? spanMs : 0f;
         lastSlideConnectorRatio = -1f;
         UpdateSlideConnectorMesh(1f);
         return true;
     }
 
+
+    /// <summary>
+    /// 連結段的網格。**弧線在這裡用 C# 算好、烤進頂點**，不走 shader。
+    /// </summary>
+    /// <remarks>
+    /// 其他長條是把 NoteArcScreen 那張表送進 shader、由 vertex shader 位移的。
+    /// 連結段不行：它走的是完全獨立的一條更新路徑，`_Arc*` 那幾個 uniform 又沒有
+    /// 宣告在 Properties 裡（材質給不出預設值），於是「有沒有送到」「錨點對不對」
+    /// 都變成要靠呼叫順序保證的事——中間漏一環，整段就飛到別的高度或被淡成透明。
+    ///
+    /// 這裡改成查同一組函式（OffsetAtZ / LateralAtZ / FadeAtZ），在**世界座標**算出
+    /// 每一列該在哪，最後用這個物件本人的 worldToLocal 換回去。弧線關掉時位移是 0、
+    /// 倍率是 1、淡入是 1，退化成原本平躺的梯形。
+    ///
+    /// 代價是每幀重建一次網格（26 個頂點），所以原本那個「比例沒變就不重建」的快取
+    /// 拿掉了——音符每幀都在動，弧線的差值每幀都不一樣。
+    /// </remarks>
     private void UpdateSlideConnectorMesh(float remainingRatio)
     {
         if (gestureTailMesh == null || !isSlideCached) return;
+        if (holdTailObject == null) return;
         remainingRatio = Mathf.Clamp01(remainingRatio);
-        if (Mathf.Abs(remainingRatio - lastSlideConnectorRatio) < 0.0005f) return;
         lastSlideConnectorRatio = remainingRatio;
-        Vector3 scale = transform.lossyScale;
-        float sx = Mathf.Max(0.0001f, Mathf.Abs(scale.x));
-        float sz = Mathf.Max(0.0001f, Mathf.Abs(scale.z));
-        float nearHalf = slideNearWidthWorld * 0.5f / sx;
-        float farWidth = Mathf.Lerp(slideNearWidthWorld, slideFarWidthWorld, remainingRatio);
-        float farHalf = farWidth * 0.5f / sx;
-        float farCenter = slideFarCenterOffsetWorld * remainingRatio / sx;
-        float farZ = slideConnectorLengthWorld * remainingRatio / sz;
 
-        slideConnectorVertices[0] = new Vector3(-nearHalf, 0f, 0f);
-        slideConnectorVertices[1] = new Vector3( nearHalf, 0f, 0f);
-        slideConnectorVertices[2] = new Vector3(farCenter - farHalf, 0f, farZ);
-        slideConnectorVertices[3] = new Vector3(farCenter + farHalf, 0f, farZ);
+        // 先在**世界座標**把每一列該在哪算出來，最後才用這個物件本人的 worldToLocal
+        // 換回去。上一版是自己拿 lossyScale 去除、並且假設音符根的 X 已經乘過橫向
+        // 補正——音符的 prefab 縮放是 (1, 0.1, 0.2)，而那個假設又只在 ApplyArcToHead
+        // 確實跑過的那一幀才成立。用矩陣就沒有任何假設：算出來的世界位置是什麼，
+        // 畫出來就是什麼。
+        Vector3 root = transform.position;
+        float plane = hasBaseY ? baseY : root.y;
+        float unscaledRootX = hasBaseY ? baseX : root.x;
+        // 長度用現在的捲動速度換算，不用生成時烤的那一個。
+        float liveSpeed = noteSpawner != null ? noteSpawner.speed : 0f;
+        float spanWorldNow = slideConnectorSpanMs > 0f && liveSpeed > 0.0001f
+            ? (slideConnectorSpanMs / 1000f) * liveSpeed
+            : slideConnectorLengthWorld;
+        spanWorldNow = Mathf.Max(minimumHoldTailVisualLength, spanWorldNow);
+        // 連結段比音符平面高一點點：照它自己實際被擺到哪裡量，不再推算。
+        float liftWorld = holdTailObject.transform.position.y - root.y;
+        Matrix4x4 worldToLocal = holdTailObject.transform.worldToLocalMatrix;
+        bool arc = NoteArcScreen.Active;
+
+        float nearHalfWorld = slideNearWidthWorld * 0.5f;
+        float farHalfWorld = Mathf.Lerp(slideNearWidthWorld, slideFarWidthWorld, remainingRatio) * 0.5f;
+        float farCentreWorld = slideFarCenterOffsetWorld * remainingRatio;
+        float lengthWorld = spanWorldNow * remainingRatio;
+
+        // **跟長條一模一樣：每一列用自己的世界 Z 查同一張表。**
+        //
+        // 長押、滑奏、顫音的尾巴都是在 vertex shader 裡用 worldPos.z 查 NoteArcScreen
+        // 那張表彎的（NoteArcCurve.hlsl）。連結段只是改在 C# 算、烤進頂點（理由見上面），
+        // 但查的必須是同一個函式、同一個參數，否則它和別的長條就走在兩條不同的弧線上。
+        //
+        // 曾經改成「兩端錨在兩顆頭、中間拉直線」——那是弦不是弧，與長條不一致。
+
+        // 兩端必須**埋進兩顆音符頭裡**，不能往內縮。
+        //
+        // 量過：這個曲庫的滑奏節點約 26 ms 一顆，速度 80 時中心距 2.08 個世界
+        // 單位，而音符頭本身就有 2.00 深 —— 兩顆頭之間只差 0.08。往內縮的話
+        // 連結段就變成一小截浮在中間、兩端都接不到（實測：「沒接好」）。
+        // 中心到中心才能讓兩端各自消失在它連的那顆音符裡。
+        Color beam = ResolveSlideBeamColor();
+        for (int i = 0; i <= SlideConnectorSegments; i++)
+        {
+            float t = (float)i / SlideConnectorSegments;
+            float worldZ = root.z + lengthWorld * t;
+            float centre = unscaledRootX + farCentreWorld * t;
+            float half = Mathf.Lerp(nearHalfWorld, farHalfWorld, t) * SlideBeamWidthScale;
+            float lateral = arc ? NoteArcScreen.LateralAtZ(worldZ) : 1f;
+            float worldY = plane + (arc ? NoteArcScreen.OffsetAtZ(worldZ) : 0f) + liftWorld;
+            float fade = arc ? NoteArcScreen.FadeAtZ(worldZ) : 1f;
+
+            for (int col = 0; col < SlideConnectorColumns; col++)
+            {
+                int at = i * SlideConnectorColumns + col;
+                float x = centre + half * SlideBeamColumnX[col];
+                slideConnectorVertices[at] = worldToLocal.MultiplyPoint3x4(
+                    new Vector3(x * lateral, worldY, worldZ));
+                // 加法混合不看 alpha，亮度全部乘進 RGB。
+                float glow = SlideBeamColumnGlow[col] * fade;
+                slideConnectorColors[at] = new Color(beam.r * glow, beam.g * glow, beam.b * glow, 1f);
+            }
+        }
+
+        // uv 與三角形是定的，只有網格剛被清掉時才需要重建。
+        bool rebuildTopology = gestureTailMesh.vertexCount != slideConnectorVertices.Length;
         gestureTailMesh.vertices = slideConnectorVertices;
-        gestureTailMesh.uv = SlideConnectorUvs;
-        gestureTailMesh.colors = SlideConnectorColors;
-        gestureTailMesh.triangles = SlideConnectorTriangles;
+        if (rebuildTopology)
+        {
+            gestureTailMesh.uv = SlideConnectorUvs;
+            gestureTailMesh.triangles = SlideConnectorTriangles;
+        }
+        gestureTailMesh.colors = slideConnectorColors;
         gestureTailMesh.RecalculateBounds();
     }
 
@@ -1101,6 +1561,7 @@ public class NoteController : MonoBehaviour
     public void ConfigureStaticPreview(NoteData data, NoteSpawner spawner, float speedWorldUnits,
         Vector3 worldOffset)
     {
+        isStaticPreview = true;
         PreviewBuildMode = true;
         try
         {
@@ -1178,6 +1639,9 @@ public class NoteController : MonoBehaviour
             SetHoldTailActive(true);
             holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
             holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId, 0f);
+            // 俯視檢視器不走弧線，但必須**明講**：不寫的話這次 draw call
+            // 會沿用常數緩衝區裡上一次同 shader 留下來的表。
+            NoteArcScreen.ClearOn(holdTailPropertyBlock);
             holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
             if (gestureEndCapObject != null) gestureEndCapObject.SetActive(false);
             return;
@@ -1219,6 +1683,7 @@ public class NoteController : MonoBehaviour
         holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
         // 不裁切：檢視器把整首攤開，跑道範圍在這裡沒有意義。
         holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId, 0f);
+        NoteArcScreen.ClearOn(holdTailPropertyBlock);
         float repeatWorld = isTrillCached
             ? Mathf.Max(0.25f, trillArrowRepeatWorldLength)
             : Mathf.Max(0.25f, streamingTailRepeatWorldLength);
@@ -1494,6 +1959,16 @@ public class NoteController : MonoBehaviour
         if (holdTailPropertyBlock == null) holdTailPropertyBlock = new MaterialPropertyBlock();
 
         holdTailPropertyBlock.Clear();
+        if (isSlideCached)
+        {
+            // 光束走的是另一支 shader（Custom/UnlitAdditiveEmission），長條那一堆參數
+            // 它一個都不認得。亮度分布在頂點色裡，這裡只給強度。
+            holdTailPropertyBlock.SetColor(HoldTailColorId, Color.white);
+            holdTailPropertyBlock.SetColor(SlideBeamEmissionId, Color.white * SlideBeamIntensity);
+            holdTailPropertyBlock.SetTexture(HoldTailMainTexId, Texture2D.whiteTexture);
+            holdTailRenderer.SetPropertyBlock(holdTailPropertyBlock);
+            return;
+        }
         Color tailColor = (isSlideCached || isTrillCached)
             ? ResolveGestureColor()
             : (isRightHand ? rightTailTint : leftTailTint);
@@ -1527,13 +2002,23 @@ public class NoteController : MonoBehaviour
         // 上（所以它刻意不做明暗），顫音是深色中心的扁平帶 —— 各有各的理由。
         holdTailPropertyBlock.SetFloat(HoldGlassRodId, IsGlassRodHold ? 1f : 0f);
         holdTailPropertyBlock.SetFloat(HoldTailSmoothBodyId, 1f);
-        holdTailPropertyBlock.SetFloat(HoldTailCoreWidthId, 0.25f);
-        holdTailPropertyBlock.SetFloat(HoldTailCoreGlowId, 0.65f);
+        // **滑奏不要深色中心核。**
+        //
+        // 那個核是給一般長條用的：未判定時把中心 25% 壓成 `_Color × 0.22`，
+        // 讓它讀起來像一根深色玻璃棒。但滑奏的連結段只有一顆音符高那麼長、
+        // 兩端還埋在音符頭底下，把中間壓成深紅之後，**在黑底上就等於不存在**——
+        // 實測連結段 85×21 px、alpha 0.92、位置全對，使用者却完全看不到它；
+        // 漆成亮綠色就立刻出現。
+        //
+        // 旁邊那句註解寫著「滑奏刻意不做明暗」，而這三個參數正好相反，
+        // 一直沒人發現：深色核、以及尾端 0.3 的縱向淡出。兩個都關掉。
+        holdTailPropertyBlock.SetFloat(HoldTailCoreWidthId, isSlideCached ? 0.02f : 0.25f);
+        holdTailPropertyBlock.SetFloat(HoldTailCoreGlowId, isSlideCached ? 0f : 0.65f);
         holdTailPropertyBlock.SetFloat(HoldTailCoreJudgedBoostId, 1.45f);
         holdTailPropertyBlock.SetFloat(HoldTailEmissionId, isTrillCached ? 1.1f : (isSlideCached ? 1.65f : 1.2f));
         holdTailPropertyBlock.SetFloat(HoldTailEdgeGlowId, isTrillCached ? 1.4f : (isSlideCached ? 1.35f : 0.9f));
         holdTailPropertyBlock.SetFloat(HoldTailFadeStrengthId,
-            isTrillCached ? 0f : (isSlideCached ? 0.3f : 1f));
+            (isTrillCached || isSlideCached) ? 0f : 1f);
         holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId,
             (isTrillCached || (noteData != null && noteData.type == "hold")) ? 1f : 0f);
         if (isTrillCached)
@@ -1713,6 +2198,9 @@ public class NoteController : MonoBehaviour
             : judgmentZ + ((visualEndTime - songPos) / 1000f) * speedWorldUnits + visualSmoothOffset;
         Vector3 notePos = transform.position;
         notePos.z = headZ;
+        // 頭和尾巴走同一條弧線：尾巴是 shader 依世界 Z 彎的，頭這裡用同一條曲線，
+        // 依「頭現在在哪個 Z」換算回剩餘時間。
+        ApplyArcToHead(ref notePos);
         transform.position = notePos;
 
         // A judged Hold keeps its exact head visible on the judgment line. Only
@@ -1794,6 +2282,8 @@ public class NoteController : MonoBehaviour
         }
 
         holdTailRenderer.GetPropertyBlock(holdTailPropertyBlock);
+        // 尾巴要和頭走同一條弧線：送的是音符頭自己用的那張表，不是另外算一次。
+        WriteArcTo(holdTailPropertyBlock);
         holdTailPropertyBlock.SetFloat(HoldTailWorldClipEnabledId, 1f);
         holdTailPropertyBlock.SetFloat(HoldTailWorldClipMinZId, clipMinZ - 0.002f);
         holdTailPropertyBlock.SetFloat(HoldTailWorldClipMaxZId, clipMaxZ);
@@ -2073,7 +2563,7 @@ public class NoteController : MonoBehaviour
                         GameObject child = new GameObject("RuntimeSprite");
                         child.transform.SetParent(transform, false);
                         // Rotate so the sprite's local Y maps to world Z (lay flat)
-                        child.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                        child.transform.localRotation = NoteSpriteRotation();
                         runtimeSpriteRenderer = child.AddComponent<SpriteRenderer>();
                         // Debug.Log($"NoteController.Initialize: Created child SpriteRenderer '{child.name}' for note on GameObject '{gameObject.name}'.");
                     }
@@ -2096,7 +2586,7 @@ public class NoteController : MonoBehaviour
                             runtimeSpriteRenderer.enabled = false;
                             GameObject child = new GameObject("RuntimeSprite");
                             child.transform.SetParent(transform, false);
-                            child.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                            child.transform.localRotation = NoteSpriteRotation();
                             var childRenderer = child.AddComponent<SpriteRenderer>();
                             childRenderer.sprite = existingSprite;
                             childRenderer.sortingLayerID = sortingLayer;
@@ -2112,7 +2602,7 @@ public class NoteController : MonoBehaviour
                     else
                     {
                         // Already a child SpriteRenderer; ensure the child is rotated to lie flat
-                        runtimeSpriteRenderer.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                        runtimeSpriteRenderer.transform.localRotation = NoteSpriteRotation();
                         // Debug.Log($"NoteController.Initialize: Using existing child SpriteRenderer '{runtimeSpriteRenderer.gameObject.name}' and set rotation to lie flat.");
                     }
                 }
@@ -2227,7 +2717,7 @@ public class NoteController : MonoBehaviour
                         {
                             holdTailRenderer.sortingLayerID = runtimeSpriteRenderer.sortingLayerID;
                             holdTailRenderer.sortingOrder =
-                                runtimeSpriteRenderer.sortingOrder + GestureTailOrderOffset;
+                                runtimeSpriteRenderer.sortingOrder + GestureTailOrder;
                         }
                         if (staccatoIndicatorRenderer != null && runtimeSpriteRenderer != null)
                         {
@@ -2334,6 +2824,11 @@ public class NoteController : MonoBehaviour
                                 try { if (noteSpawner != null && noteSpawner.trackTransform != null) fallbackY = noteSpawner.trackTransform.position.y; } catch { }
                                 transform.position = new Vector3(positionX, fallbackY, spawnZ);
                             }
+                            // 弧線是「離這個平面多高」，所以平面高度要記著；
+                            // 每幀直接寫 Y（而不是累加），音符才不會愈飄愈高。
+                            baseY = transform.position.y;
+                            baseX = transform.position.x;
+                            hasBaseY = true;
 
                             // Cache judgment line renderer sorting information (if available)
                             try
@@ -2400,9 +2895,12 @@ public class NoteController : MonoBehaviour
                 // onto the note parent's Z axis in world space.
                 float childScaleY = desiredWorldHeight /
                     Mathf.Max(0.0001f, authoredSize.y * Mathf.Abs(noteWorldScale.z));
-                runtimeSpriteRenderer.transform.localScale = new Vector3(childScaleX, childScaleY, 1f);
+                spriteBaseScaleX = childScaleX;
+                hasSpriteBaseScaleX = true;
+                runtimeSpriteRenderer.transform.localScale =
+                    new Vector3(childScaleX * appliedArcLateral, childScaleY, 1f);
 
-                runtimeSpriteRenderer.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                runtimeSpriteRenderer.transform.localRotation = NoteSpriteRotation();
 
                 // The note root represents the chart timestamp. Anchor the near edge to that
                 // root so at startTime the visible leading edge, rather than the sprite
@@ -2459,9 +2957,16 @@ public class NoteController : MonoBehaviour
                         holdTailObject.transform.SetParent(this.transform, false);
                         holdTailObject.transform.localPosition = new Vector3(0f, holdTailYOffset, 0f);
                         holdTailObject.transform.localRotation = Quaternion.identity;
+                        // 縮放也要歸位。長按跟顫音每幀寫自己的 localScale，滑奏從來不寫
+                        // （它的形狀全在網格裡）——而這個子物件是跟著音符被回收重用的。
+                        // 上一世是長按的話，這裡還留著 (localWidth, 1, localLength)，滑奏的
+                        // 連結段就會被乘上別人的長度與寬度，整段飛到看不見的地方。
+                        holdTailObject.transform.localScale = Vector3.one;
 
-                        Texture2D resolvedTexture;
-                        Material material = ResolveHoldTailMaterial(noteData.hand == 0, out resolvedTexture);
+                        Texture2D resolvedTexture = null;
+                        Material material = isSlideCached
+                            ? ResolveSlideBeamMaterial()
+                            : ResolveHoldTailMaterial(noteData.hand == 0, out resolvedTexture);
                         if (material != null)
                         {
                             holdTailRenderer.sharedMaterial = material;
@@ -2473,13 +2978,13 @@ public class NoteController : MonoBehaviour
                             holdTailRenderer.sortingLayerID = runtimeSpriteRenderer.sortingLayerID;
                             // Match the note's sorting so the tail is not buried under track/background
                             holdTailRenderer.sortingOrder =
-                                runtimeSpriteRenderer.sortingOrder + GestureTailOrderOffset;
+                                runtimeSpriteRenderer.sortingOrder + GestureTailOrder;
                         }
                         else if (noteRenderer != null)
                         {
                             holdTailRenderer.sortingLayerID = noteRenderer.sortingLayerID;
                             holdTailRenderer.sortingOrder =
-                                noteRenderer.sortingOrder + GestureTailOrderOffset;
+                                noteRenderer.sortingOrder + GestureTailOrder;
                         }
 
                         float tailWidthWorld = Mathf.Max(0.01f,
@@ -2659,6 +3164,8 @@ public class NoteController : MonoBehaviour
     softJudgedPendingRelease = false;
     noteSpawner = null;
     cachedWorldWidth = 1f;
+    appliedArcLateral = 1f;
+    hasSpriteBaseScaleX = false;
         // Reset cached tail length so next Initialize will reapply positions
         lastAppliedTailLength = -1f;
         currentTailLength = 0f;
@@ -2680,10 +3187,12 @@ public class NoteController : MonoBehaviour
         gestureVisualStrength = 1f;
         lastAppliedGestureVisualStrength = -1f;
         lastSlideConnectorRatio = -1f;
+        isStaticPreview = false;
         slideFarCenterOffsetWorld = 0f;
         slideNearWidthWorld = 0f;
         slideFarWidthWorld = 0f;
         slideConnectorLengthWorld = 0f;
+        slideConnectorSpanMs = 0f;
         streamingMeshLengthWorld = 0f;
         trillArrowRepeatWorldLength = 0f;
         streamingVisibleLengthWorld = 0f;
@@ -2936,6 +3445,7 @@ public class NoteController : MonoBehaviour
                 Vector3 gesturePos = transform.position;
                 gesturePos.z = FollowDspVisualTarget(
                     gesturePos.z, targetZGesture, currentSpeed);
+                ApplyArcToHead(ref gesturePos);
                 transform.position = gesturePos;
                 if (holdTailObject != null)
                 {
@@ -2958,6 +3468,8 @@ public class NoteController : MonoBehaviour
             {
                 Vector3 gesturePos = transform.position;
                 gesturePos.z = judgmentZ;
+                // 停在線上的時候也要重算，不然它會留著上一幀的弧線狀態。
+                ApplyArcToHead(ref gesturePos);
                 transform.position = gesturePos;
                 float remaining = Mathf.Max(0f, holdTailAdjustedEndMs - visualSongPos);
                 float ratio = holdDurationMs > 0f ? Mathf.Clamp01(remaining / holdDurationMs) : 0f;
@@ -2979,6 +3491,9 @@ public class NoteController : MonoBehaviour
                 }
                 SetHoldTailActive(currentTailLength > 0.0001f && (!isSlideCached || noteData.param2 >= 0));
             }
+            // 位置定了、SetHoldTailActive（會 Clear 整個 block）也跑完了，最後才送
+            // 弧線的表——順序反過來就等於沒送。
+            ApplyTailArcBlock();
         }
     else if (noteData.type == "tap" || isSoftCached || isStaccatoCached)
         {
@@ -3053,6 +3568,10 @@ public class NoteController : MonoBehaviour
             pos.z = FollowDspVisualTarget(pos.z, targetZ, currentSpeed);
             // Snap if we are within an imperceptible range to guarantee precise alignment.
             if (Mathf.Abs(targetZ - pos.z) <= 0.0001f) pos.z = targetZ;
+            // 本家的拋物線：Z（＝時間）完全不動，只有高度跟著弧線走，
+            // 所以拍子線、判定窗、可讀性都和原本一樣。
+            ApplyArcToHead(ref pos);
+            if (hasBaseY) UpdateSpriteTilt(LeadingEdgeZ(pos.z));
             transform.position = pos;
         }
     else if (noteData.type == "hold")

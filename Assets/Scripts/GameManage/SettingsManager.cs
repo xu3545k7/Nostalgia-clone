@@ -152,6 +152,16 @@ public class GameSettings
     [Range(0.5f, 4f)]
     public float noteVisualHeight = 2f;
 
+    [Tooltip("音符怎麼落下：0 = 傾斜（照鏡頭俯角的直線），1 = 拋物線（本家：先上拋再落到判定線）。")]
+    public int noteFallMode = 1;
+
+    [Tooltip("拋物線的頂點比判定線高出畫面高度的幾成。只有拋物線模式會用到。本家的比例約 0.58。")]
+    [Range(0f, 1f)]
+    public float noteArcHeight = 0.45f;
+    public float noteArcLengthUnits = 160f;
+    public float noteArcSpawnUnits = 160f;
+    public int noteArcCurve = 0;
+
     [Tooltip("練習模式：不計分、不放背景音樂、可以改速度。")]
     public bool practiceMode = false;
 
@@ -849,6 +859,9 @@ public class SettingsManager : MonoBehaviour
                 gameSettings.autoAlignKeyboardToScreenBottom, cam);
         }
 
+        // 落下模式會覆寫上面的鏡頭角度，並決定軌道畫不畫，所以排在後面。
+        ApplyNoteFallMode();
+
         // Apply timing & protection settings to judgment systems (best-effort)
         try
         {
@@ -923,9 +936,23 @@ public class SettingsManager : MonoBehaviour
     /// the music source's own clock, so the track has to keep running -- which is
     /// the same trick the keysound-only songs already use with their silent file.
     /// </remarks>
-    public float GameplayMusicVolume => PracticeMode ? 0f : gameSettings.musicVolume;
+    public float GameplayMusicVolume => PracticeSilencesMusic ? 0f : gameSettings.musicVolume;
 
-    /// <summary>練習模式：不計分、不放背景音樂、速度可調。</summary>
+    /// <summary>
+    /// 練習模式要不要把背景音樂關掉 —— 只有在**速度被改過**的時候才關。
+    /// </summary>
+    /// <remarks>
+    /// 原本是「進練習模式就一律靜音」，理由是拉長／壓縮過的錄音會和譜面對不上。但
+    /// 那個理由只在速度真的被改過時成立：原速練習時錄音和譜面完全同步，關掉它反而
+    /// 讓人少了最重要的參考 —— 這一句本來應該是什麼樣子。
+    ///
+    /// 所以判準改成速度本身。1.00× 就照常放，其餘一律靜音（靜音不是停止：指揮要從
+    /// 音源自己的時鐘讀播放位置，軌道得繼續跑）。
+    /// </remarks>
+    public bool PracticeSilencesMusic =>
+        PracticeMode && !Mathf.Approximately(PracticeSpeed, 1f);
+
+    /// <summary>練習模式：不計分、速度可調；改過速度才會關掉背景音樂。</summary>
     public bool PracticeMode => gameSettings != null && gameSettings.practiceMode;
 
     /// <summary>練習模式的速度倍率。不在練習模式時一律是 1。</summary>
@@ -997,6 +1024,117 @@ public class SettingsManager : MonoBehaviour
 
     public float GameStartDelay => gameSettings.gameStartDelay;
     public float NoteVisualHeight => gameSettings != null ? Mathf.Clamp(gameSettings.noteVisualHeight, 0.5f, 4f) : 2f;
+    /// <summary>弧線頂點比判定線高出**畫面高度**的幾成（不是世界單位）。</summary>
+    public float NoteArcHeight => gameSettings != null ? Mathf.Clamp(gameSettings.noteArcHeight, 0f, 1f) : 0f;
+
+    /// <summary>0 = 本家那條曲線，1 = 真正的二次函數。</summary>
+    public int NoteArcCurve =>
+        gameSettings != null ? Mathf.Clamp(gameSettings.noteArcCurve, 0, 1) : 0;
+
+    public void SetNoteArcCurve(int curve)
+    {
+        if (gameSettings == null) gameSettings = new GameSettings();
+        gameSettings.noteArcCurve = Mathf.Clamp(curve, 0, 1);
+        ApplyArcCurve();
+    }
+
+    /// <summary>把設定裡選的曲線推到 NoteArc（四邊都查那一份）。</summary>
+    public void ApplyArcCurve()
+    {
+        NoteArc.CurrentShape = NoteArcCurve == 1 ? NoteArc.Shape.Parabola
+                                                 : NoteArc.Shape.Arcade;
+    }
+
+    /// <summary>
+    /// 弧線**整條路線**的長度，世界單位。所有查這張表的人都要用這一個值。
+    /// </summary>
+    /// <remarks>
+    /// 本來是用秒數，但秒數會被下落速度放大（長度 = 秒 × 速度），調快速度整條跑道
+    /// 的幾何就跟著變。改成絕對長度之後，速度只決定「走完這段要多久」，畫面上的
+    /// 路徑固定——本家就是這個語意。
+    ///
+    /// 而且它必須是全域唯一的一份：以前音符帶 spawner 的 2 秒、拍子線帶「這一條
+    /// 生成時離判定線還有多久」（每條都不一樣），那張表一幀只算一次、誰先呼叫誰
+    /// 說了算，於是音符和拍子線畫在兩條不同長度的弧線上，互相打架。
+    /// </remarks>
+    public float ArcTravelWorldUnits() =>
+        gameSettings != null ? Mathf.Clamp(gameSettings.noteArcLengthUnits, 20f, 800f) : 160f;
+
+    /// <summary>
+    /// 音符從離判定線多遠的地方開始生成，世界單位。
+    /// </summary>
+    /// <remarks>
+    /// 和上面那個分開，是因為它們是兩件事。路線的長度決定**形狀**——同一條曲線
+    /// 攤在 160 還是 400 個世界單位上，鍵道橫向收斂的比例不同，落地角就不同
+    /// （實測 66° vs 44°）。生成距離只決定音符**從路線上的哪一點出現**：距離短
+    /// 就從靠近判定線的那一段開始，曲線本身和頂點都不動。
+    ///
+    /// 以前兩件事共用一個值，所以調生成距離會把整條曲線壓扁。
+    /// </remarks>
+    public float ArcSpawnWorldUnits() =>
+        gameSettings != null
+            ? Mathf.Clamp(gameSettings.noteArcSpawnUnits, 20f, ArcTravelWorldUnits())
+            : 160f;
+
+    NoteSpawner arcSpawner;
+
+    public void SetNoteArcLength(float worldUnits)
+    {
+        if (gameSettings == null) gameSettings = new GameSettings();
+        gameSettings.noteArcLengthUnits = Mathf.Clamp(worldUnits, 20f, 800f);
+        ApplyArcSpawnDistance();
+    }
+
+    public void SetNoteArcSpawn(float worldUnits)
+    {
+        if (gameSettings == null) gameSettings = new GameSettings();
+        gameSettings.noteArcSpawnUnits = Mathf.Clamp(worldUnits, 20f, 800f);
+        ApplyArcSpawnDistance();
+    }
+
+    // 拋物線模式之前的生成距離，切回傾斜時要還回去。
+    float tiltNoteTravel = -1f;
+    float tiltBeatTravel = -1f;
+
+    /// <summary>
+    /// 拋物線模式下，音符和拍子線都只在弧線的長度內生成。
+    /// </summary>
+    /// <remarks>
+    /// 弧線之外沒有定義，查表會被夾在遠端那一格——東西會擠在弧線起點不動。
+    /// 與其讓它們擠著，不如根本不要生出來：本家也是這樣（可視距離就是生成距離）。
+    ///
+    /// 兩個 spawner 的速度各自獨立，所以是各自換算自己的秒數，讓它們蓋住的
+    /// **距離**一樣。速度改了要再叫一次（見 UIManager 套速度的地方）。
+    /// </remarks>
+    public void ApplyArcSpawnDistance()
+    {
+        try
+        {
+            if (arcSpawner == null) arcSpawner = FindAnyObjectByType<NoteSpawner>();
+            var beats = FindAnyObjectByType<BeatLineSpawner>();
+            bool arc = NoteFallMode == 1;
+            float units = ArcSpawnWorldUnits();
+            if (arcSpawner != null)
+            {
+                if (tiltNoteTravel < 0f) tiltNoteTravel = arcSpawner.travelTimeSeconds;
+                arcSpawner.travelTimeSeconds = arc && arcSpawner.speed > 0.0001f
+                    ? units / arcSpawner.speed : tiltNoteTravel;
+            }
+            if (beats != null)
+            {
+                if (tiltBeatTravel < 0f) tiltBeatTravel = beats.travelTimeSeconds;
+                beats.travelTimeSeconds = arc && beats.Speed > 0.0001f
+                    ? units / beats.Speed : tiltBeatTravel;
+            }
+        }
+        catch { }
+    }
+    public float JudgmentLineScreenHeight =>
+        gameSettings != null ? Mathf.Clamp(gameSettings.judgmentLineScreenHeight, 0.12f, 0.55f) : 0.28f;
+    /// <summary>0 = 傾斜（直線落下），1 = 拋物線。</summary>
+    public int NoteFallMode => gameSettings != null ? Mathf.Clamp(gameSettings.noteFallMode, 0, 1) : 0;
+    /// <summary>拋物線模式下才有弧線；傾斜模式一律 0。</summary>
+    public float EffectiveNoteArcHeight => NoteFallMode == 1 ? NoteArcHeight : 0f;
     public float JudgmentMeshHeight => gameSettings != null ? Mathf.Clamp(gameSettings.judgmentMeshHeight, 0.25f, 4f) : 1f;
     public bool TimingSensitiveJudgmentVisuals => gameSettings == null || gameSettings.timingSensitiveJudgmentVisuals;
     public bool HoldMagicCircleEnabled => gameSettings == null || gameSettings.holdMagicCircleEnabled;
@@ -1071,6 +1209,59 @@ public class SettingsManager : MonoBehaviour
             gameSettings = new GameSettings();
         }
         gameSettings.noteVisualHeight = Mathf.Clamp(height, 0.5f, 4f);
+    }
+
+    public void SetNoteFallMode(int mode)
+    {
+        if (gameSettings == null)
+        {
+            gameSettings = new GameSettings();
+        }
+        gameSettings.noteFallMode = Mathf.Clamp(mode, 0, 1);
+        ApplyNoteFallMode();
+    }
+
+    /// <summary>
+    /// 落下模式的連帶效果：拋物線模式不畫軌道，並把鏡頭放平一點。
+    /// </summary>
+    /// <remarks>
+    /// 拋物線是本家的 2D 表現：深度來自弧線本身，不是 3D 跑道。軌道留著會同時
+    /// 有兩套深度線索、互相打架，所以整個不畫（不是玻璃——玻璃只是透出背景）。
+    /// 鍵盤轉到「弧線落地的切線」角度，音符才是順著落到鍵上而不是撞上去；
+    /// 鏡頭再垂直於鍵盤面看過去（所以俯角 = 90° − 切線角），並且拉近。
+    /// 音符貼圖維持平躺——鏡頭仍然是俯視的。
+    /// </remarks>
+    public void ApplyNoteFallMode()
+    {
+        bool arc = NoteFallMode == 1;
+        try
+        {
+            Effects.BackgroundHarmonyDriver.GetOrCreate()?.SetTrackHidden(arc);
+        }
+        catch { }
+        // 鏡頭與鍵盤**不動**。
+        //
+        // 試過「鍵盤貼切線、鏡頭垂直看它」：實測起來不對，而且軌道上綁著的特效
+        // 全部跟不上。更根本的原因是量出來的——本家那條路徑是直接畫在螢幕座標
+        // 上的（三個 Y 錨點 300/50/470 是常數，高速設定都不影響它），把六個自由度
+        // （俯角、鏡頭高度、距離、FOV、弧高、畫面位移）一起最佳化，最好的一組
+        // 平均誤差還有 87 像素（1280 寬）。透視投影做不出那條路徑，硬湊只會讓
+        // 場景其他東西一起歪掉。所以拋物線模式現在只做兩件事：音符走弧線、
+        // 軌道不畫；視角維持使用者自己的設定。
+        IvoryLaneKeyboard.SetWorldTiltOverride(null);
+        ApplyArcSpawnDistance();
+        ApplyArcCurve();
+    }
+
+    public void SetNoteArcHeight(float height)
+    {
+        if (gameSettings == null)
+        {
+            gameSettings = new GameSettings();
+        }
+        gameSettings.noteArcHeight = Mathf.Clamp(height, 0f, 1f);
+        // shader 端的弧高要馬上跟著改，不然調滑桿時長押與踏板會慢一拍。
+        ApplyNoteFallMode();
     }
 
     public void SetJudgmentMeshHeight(float height)
@@ -1330,9 +1521,9 @@ public class SettingsManager : MonoBehaviour
                 keysoundOnlySongCacheKey = selected;
                 keysoundOnlySongCached = selected != null && selected.noBackgroundMusic;
             }
-            // 練習模式關掉背景音樂，所以它和 keysound-only 的曲子處境一樣：不合成
-            // 的話整局只剩打擊音效。
-            return keysoundOnlySongCached || PracticeMode;
+            // 關掉背景音樂的時候（keysound-only 的曲子，或改過速度的練習）它們處
+            // 境一樣：不合成的話整局只剩打擊音效。原速練習有錄音可聽，就不必強制。
+            return keysoundOnlySongCached || PracticeSilencesMusic;
         }
     }
 

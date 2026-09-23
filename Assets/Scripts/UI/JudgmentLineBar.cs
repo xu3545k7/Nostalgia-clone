@@ -94,6 +94,19 @@ public class JudgmentLineBar : MonoBehaviour
     // Notes read judgmentZ from this line when they spawn, so they converge onto the anchored line too.
     void LateUpdate()
     {
+        PlaceNow();
+    }
+
+    /// <summary>
+    /// 立刻把自己挪到該在的 Z。冪等（結果只和鏡頭有關），重複呼叫沒有副作用。
+    /// </summary>
+    /// <remarks>
+    /// 這件事本來只在 LateUpdate 做，但音符是在 Update 擺位置的——拋物線是照
+    /// 判定線反解出來的，於是變成「用這一幀的鏡頭去瞄上一幀的判定線」，鏡頭一動
+    /// 落點就會晃。所以讓要用它的人可以先把它叫醒。
+    /// </remarks>
+    public void PlaceNow()
+    {
         // Runs in EDIT mode too (ExecuteAlways) so it works whether you change the angle live in the
         // editor or in Play via the settings UI.
         if (!anchorToCameraHeight) { MaybeLog("SKIP: anchorToCameraHeight is OFF"); return; }
@@ -152,6 +165,15 @@ public class JudgmentLineBar : MonoBehaviour
         anchorToCameraHeight = true;
         autoCaptureReferenceHeight = false;
         _capturedHeight = false;
+    }
+
+    /// <summary>這一條現在實際落在畫面的哪個高度。弧線要瞄的是這個，不是設定值。</summary>
+    public float MeasuredViewportY(Camera cam)
+    {
+        if (cam == null) cam = ResolveCamera();
+        if (cam == null) return targetViewportY;
+        Vector3 v = cam.WorldToViewportPoint(transform.position);
+        return v.z > 0.001f ? v.y : targetViewportY;
     }
 
     public void SetScreenHeight(float viewportY)

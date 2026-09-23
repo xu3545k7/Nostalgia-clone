@@ -699,7 +699,10 @@ public partial class SimpleCarouselSettings
         // 收掉那一場遊戲，設定頁上就不會有一首歌在背後偷偷播。
         if (gameplayPreviewFrame != null) gameplayPreviewFrame.SetActive(preview);
         if (chromeRoot != null) chromeRoot.transform.SetAsLastSibling();
-        if (preview) ConfigurePreviewSong(false);
+        // 進預覽就回到**現在選的那一首與那個難度**（GetSongForSettingsPreview 會
+        // 取 selectedVariant）。沿用上次瀏覽過的那一首會讓人在設定裡看著 A 調參數、
+        // 回遊戲打的卻是 B。要看別首還是可以用左右鍵或滾輪翻。
+        if (preview) ConfigurePreviewSong(true);
         RefreshChrome();
         RefreshLists();
         RefreshGameplayPreview();

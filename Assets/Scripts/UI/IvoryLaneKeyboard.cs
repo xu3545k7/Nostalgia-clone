@@ -118,6 +118,22 @@ public sealed class IvoryLaneKeyboard : MonoBehaviour
     private bool capturedConsoleLayout;
     private Quaternion consoleRotationInCameraSpace = Quaternion.identity;
 
+    /// <summary>
+    /// 鍵盤面在世界座標的傾角（度），拋物線模式用。null = 照原本的做法
+    /// （姿態鎖在鏡頭座標系裡，鏡頭轉它就跟著轉）。
+    /// </summary>
+    /// <remarks>
+    /// 拋物線模式要的是「鍵盤貼著弧線落地的切線」——那是一個**世界空間**的角度，
+    /// 和鏡頭無關；鏡頭再垂直看過去。鎖在鏡頭座標系的原做法給不出這件事，所以
+    /// 這裡給一個明確的覆寫，切回傾斜模式時設回 null 就恢復原狀。
+    /// </remarks>
+    private static float? worldTiltOverrideDeg;
+
+    public static void SetWorldTiltOverride(float? degrees)
+    {
+        worldTiltOverrideDeg = degrees;
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
@@ -489,6 +505,15 @@ public sealed class IvoryLaneKeyboard : MonoBehaviour
         }
         Quaternion consoleRotation =
             camera.transform.rotation * consoleRotationInCameraSpace;
+        if (worldTiltOverrideDeg.HasValue)
+        {
+            // 鍵盤面繞 X 轉到切線角度：左右方向（rowForward 的水平分量）保持不變，
+            // 只有前後的仰角被指定。
+            Vector3 flatForward = Vector3.ProjectOnPlane(rowForward, Vector3.up);
+            if (flatForward.sqrMagnitude < 0.0001f) flatForward = Vector3.forward;
+            consoleRotation = Quaternion.AngleAxis(-worldTiltOverrideDeg.Value, Vector3.right)
+                              * Quaternion.LookRotation(flatForward.normalized, Vector3.up);
+        }
         Vector3 consoleNormal = consoleRotation * Vector3.up;
         Vector3 consoleTowardPlayer = consoleRotation * Vector3.back;
 

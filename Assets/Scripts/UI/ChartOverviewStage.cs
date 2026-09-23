@@ -169,6 +169,11 @@ public sealed class ChartOverviewStage : MonoBehaviour
 
     private void OnDestroy()
     {
+        // 這個舊台是被 Destroy(gameObject) 直接掉的（ChartOverviewViewer），Clear()
+        // 不一定跑得到；而生音符的協程是分幀做的，被打斷時它尾巴那行
+        // 「把覆寫清掉」永遠不會執行。静態跨場景活著，於是選曲畫面那份譜
+        // 就一路進到遊戲裡，滑奧全部去別份譜找下一個節點。
+        NoteController.PreviewChartOverride = null;
         RestoreMainCameraMask();
         if (target != null)
         {

@@ -53,6 +53,9 @@ Shader "Nostalgia/Pedal Note"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            // 拋物線模式時，整根踏板音符沿著音符的弧線彎（見 NoteArcCurve.hlsl）。
+            // 幾何是沿 Z 拉長的長條，位置只跟世界 Z 有關，所以直接由 z 算高度。
+            #include "Assets/Shaders/NoteArcCurve.hlsl"
 
             struct Attributes
             {
@@ -79,12 +82,17 @@ Shader "Nostalgia/Pedal Note"
                 half4 _DarkColor;
                 float _EdgeGlow;
                 float _EdgeWidth;
+                float _ArcJudgeZ;
+                float _ArcTravelZ;
             CBUFFER_END
 
             Varyings vert(Attributes input)
             {
                 Varyings output;
-                output.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                positionWS.x = NoteArcMapX(positionWS.x, positionWS.z, _ArcJudgeZ, _ArcTravelZ);
+                positionWS.y += NoteArcOffsetFromTable(positionWS.z, _ArcJudgeZ, _ArcTravelZ);
+                output.positionHCS = TransformWorldToHClip(positionWS);
                 output.uv = input.uv;
                 return output;
             }

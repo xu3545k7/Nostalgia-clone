@@ -652,6 +652,53 @@ public static class ChartAnalysisCache
     /// nothing; leaps, arpeggios, finger runs and hand crossings are all visible
     /// in the pitch line of any chart that carries pitch at all.
     /// </summary>
+    /// <summary>
+    /// 只針對一段時間算一份技法分析。
+    /// </summary>
+    /// <remarks>
+    /// 練習室要標出「這一段難在哪一種」，用的必須是**和譜面分析同一套判準**：同樣
+    /// 的雙音跑動、高速八度、琶音、顫音定義，同樣的門檻。自己另外寫一套近似的指標
+    /// 只會得到兩份互相矛盾的說法 —— 整首說「靠雙音跑動」，某一段卻說「靠和弦」，
+    /// 使用者不知道該信哪一個。
+    ///
+    /// 回傳的分析只填得出技法相關的欄位（密度那幾項需要整首的長度才有意義）。
+    /// </remarks>
+    public static ChartAnalysis AnalyseWindow(IReadOnlyList<NoteData> notes,
+        float fromMs, float toMs)
+    {
+        if (notes == null || notes.Count == 0) return null;
+
+        var analysis = new ChartAnalysis();
+        var times = new List<int>();
+        var hands = new List<byte>();
+        var pitches = new List<int>();
+
+        for (int i = 0; i < notes.Count; i++)
+        {
+            NoteData note = notes[i];
+            if (note == null) continue;
+            if (note.startTime < fromMs || note.startTime >= toMs) continue;
+
+            int pitch = note.pitch >= PianoVisualLayout.PianoMidiMin &&
+                        note.pitch <= PianoVisualLayout.PianoMidiMax
+                ? note.pitch
+                : (note.scale_piano >= 1 && note.scale_piano <= PianoVisualLayout.PianoKeyCount
+                    ? PianoVisualLayout.PianoMidiMin + note.scale_piano - 1
+                    : 0);
+
+            times.Add(Mathf.RoundToInt(note.startTime));
+            hands.Add((byte)(note.hand == 0 ? 0 : 1));
+            pitches.Add(pitch);
+            analysis.noteCount++;
+            if (pitch > 0) analysis.pitchedNoteCount++;
+            if (note.hand == 0) analysis.rightHandCount++; else analysis.leftHandCount++;
+        }
+
+        if (analysis.noteCount == 0) return null;
+        AnalyseTechnique(analysis, times, hands, pitches);
+        return analysis;
+    }
+
     private static void AnalyseTechnique(ChartAnalysis analysis,
         List<int> times, List<byte> hands, List<int> pitches)
     {

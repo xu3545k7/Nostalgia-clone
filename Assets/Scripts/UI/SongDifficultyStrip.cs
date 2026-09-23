@@ -407,6 +407,12 @@ public sealed class SongDifficultyStrip : MonoBehaviour
     /// Master and Real are the same slot: a song has one top chart, whichever
     /// word it chose for it.
     /// </summary>
+    /// <summary>難度名屬於哪一階。練習室要照同一套規則分，不能自己再猜一次。</summary>
+    public static Tier TierOf(string difficultyName) => Classify(difficultyName);
+
+    /// <summary>那一階的顏色。唯一一份配色仍然在 DifficultyVisualPalette。</summary>
+    public static Color ColourOf(Tier tier) => TierColour(tier);
+
     private static Tier Classify(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return Tier.Normal;

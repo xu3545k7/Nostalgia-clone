@@ -554,6 +554,13 @@ public class SongSelectionManager : MonoBehaviour
         return IsTutorialOption(option, out _);
     }
 
+    /// <summary>這一首是不是新手教學的課程。</summary>
+    /// <remarks>
+    /// 練習室要把教學課程從一般曲目裡分出來（它們是課，不是曲子），判斷的依據必須
+    /// 和選曲畫面一致 —— 那裡靠的是 TutorialSession 認得出這份譜，不是看分類名。
+    /// </remarks>
+    public static bool IsTutorialSong(SongOption option) => IsTutorialOption(option);
+
     private static List<SongOption> VariantsOf(SongOption group)
     {
         if (group == null) return null;
@@ -777,14 +784,32 @@ public class SongSelectionManager : MonoBehaviour
         RefreshRecitalToggle();
     }
 
+    /// <summary>
+    /// 模式開關：演奏會 ↔ 練習。它同時也是練習室的入口。
+    /// </summary>
+    /// <remarks>
+    /// 兩個模式各自是一個空間，不是一個勾選框 —— 轉到練習就該進練習室（那裡才有
+    /// 速度、看譜面、難點這些東西），轉回演奏會就回到這張選曲轉盤。所以入口不另外
+    /// 做一顆按鈕，就是這一顆。
+    /// </remarks>
     private void ToggleRecitalMode()
     {
         SettingsManager settings = SettingsManager.Instance;
         if (settings == null) return;
         // 教學曲的模式由課程決定，開關鎖住。
         if (IsTutorialOption(GetSelectedSong())) return;
-        settings.SetRecitalMode(!settings.RecitalMode);
+        bool recital = !settings.RecitalMode;
+        settings.SetRecitalMode(recital);
         RefreshRecitalToggle();
+
+        if (recital)
+        {
+            if (PracticeRoomScreen.Instance != null) PracticeRoomScreen.Instance.Close();
+        }
+        else
+        {
+            PracticeRoomScreen.Open();
+        }
     }
 
     /// <summary>Puts the switch, and the room behind it, in step with the setting.</summary>
@@ -4216,6 +4241,26 @@ public class SongSelectionManager : MonoBehaviour
     public string SelectedSongAuthor => GetSelectedSong()?.author ?? string.Empty;
     public string SelectedSongCategory => GetSelectedSong()?.category ?? string.Empty;
 
+    /// <summary>
+    /// 回到選曲時，讓畫面落在使用者當下的模式上。
+    /// </summary>
+    /// <remarks>
+    /// 兩個模式各自是一個空間（演奏會＝這張轉盤、練習＝練習室），所以「不是演奏會
+    /// 但也不在練習室」這個狀態不該存在 —— 那正是以前那個「演奏會關掉之後的一般
+    /// 模式」，它既沒有演奏會的正式感，也沒有練習室的工具。
+    /// </remarks>
+    private void EnterCurrentMode()
+    {
+        SettingsManager settings = SettingsManager.Instance;
+        bool recital = settings == null || settings.RecitalMode;
+        if (recital)
+        {
+            if (PracticeRoomScreen.Instance != null) PracticeRoomScreen.Instance.Close();
+            return;
+        }
+        if (PracticeRoomScreen.Instance == null) PracticeRoomScreen.Open();
+    }
+
     public void ShowSelection()
     {
         GameplayEntryPresentation.EndGameplay();
@@ -4241,6 +4286,9 @@ public class SongSelectionManager : MonoBehaviour
         {
             GameManager.Instance.SetGameplayRootActive(false);
         }
+
+        // 落回使用者當下的模式（演奏會＝這張轉盤，練習＝練習室）。
+        EnterCurrentMode();
 
         // Stop any background video preview while the player is choosing/difficulty is undecided
         try
@@ -4361,6 +4409,14 @@ public class SongSelectionManager : MonoBehaviour
         }
     }
 
+    /// <summary>整個曲庫（每一首的群組代表，未經分類篩選）。</summary>
+    /// <remarks>
+    /// 練習室要自己列一份清單，而它列的是**全部**，不是轉盤當下的分類篩選結果 ——
+    /// 在練習室裡「換分類才找得到那首歌」沒有道理。只讀不寫：這份名單的組成規則
+    /// 仍然只有一個地方決定。
+    /// </remarks>
+    public IReadOnlyList<SongOption> AllSongs => allSongOptions;
+
     public SongOption GetSelectedSong()
     {
         if (settingsGameplayPreviewRunning && settingsGameplayPreviewOption != null)
@@ -4377,10 +4433,84 @@ public class SongSelectionManager : MonoBehaviour
     /// </summary>
     public int PreviewSongCount => songOptions != null ? songOptions.Count : 0;
 
-    public int CurrentSongIndexForPreview =>
-        songOptions != null && songOptions.Count > 0
-            ? Mathf.Clamp(currentIndex, 0, songOptions.Count - 1)
-            : 0;
+    /// <summary>
+    /// 設定預覽該顯示哪一首：**畫面上正在看的那一首**。
+    /// </summary>
+    /// <remarks>
+    /// 不能只看 `currentIndex`：套用分類／難度篩選時它會被歸零
+    /// （見 ApplyGenreFilter / ApplyLevelFilter 後面那行），於是預覽就跳回第一首。
+    /// 轉盤真正停在哪一張是 songScroller 在管的，有它就以它為準。
+    /// </remarks>
+    public int CurrentSongIndexForPreview
+    {
+        get
+        {
+            if (songOptions == null || songOptions.Count == 0) return 0;
+            int index = songScroller != null && songScroller.Count == songOptions.Count
+                ? songScroller.BaseIndex
+                : currentIndex;
+            return Mathf.Clamp(index, 0, songOptions.Count - 1);
+        }
+    }
+
+    /// <summary>
+    /// 現在**實際載入在遊戲裡**的那一首在清單中的位置；找不到回 -1。
+    /// </summary>
+    /// <remarks>
+    /// 設定是從遊戲中（含練習模式）叫出來的時候，`currentIndex` 不一定還指著它——
+    /// 換過分類或重建清單之後那個值會被歸零，預覽就會跑去第一首。實際在玩的是
+    /// 哪一份譜，只有 GameManager 知道，所以照 chartFileName 反查。
+    /// </remarks>
+    public int PlayingSongIndexForPreview()
+    {
+        if (songOptions == null || songOptions.Count == 0) return -1;
+        GameManager game = GameManager.Instance;
+        // chartFileName 有一個寫死的預設值，沒有真的載入譜面時它仍然是滿的，
+        // 照它去找會match 到一首根本沒在玩的歌。CurrentChart 才是「真的載入了」。
+        if (game == null || game.CurrentChart == null) return -1;
+        string playing = game.chartFileName;
+        if (string.IsNullOrEmpty(playing)) return -1;
+        for (int i = 0; i < songOptions.Count; i++)
+        {
+            SongOption group = songOptions[i];
+            if (group == null) continue;
+            if (MatchesChart(group, playing)) return i;
+            var variants = group.difficultyVariants;
+            if (variants == null) continue;
+            for (int v = 0; v < variants.Count; v++)
+            {
+                if (!MatchesChart(variants[v], playing)) continue;
+                // 難度也要對上：把它設成這一組選中的難度，預覽才會播同一個難度。
+                group.selectedVariant = variants[v];
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static bool MatchesChart(SongOption option, string chartFileName)
+    {
+        return option != null && !string.IsNullOrEmpty(option.chartFileName)
+               && string.Equals(option.chartFileName, chartFileName,
+                                System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>某一首（或它的某個難度）在預覽清單裡的位置；找不到回 -1。</summary>
+    public int IndexOfPreviewOption(SongOption option)
+    {
+        if (option == null || songOptions == null) return -1;
+        for (int i = 0; i < songOptions.Count; i++)
+        {
+            SongOption group = songOptions[i];
+            if (group == null) continue;
+            if (ReferenceEquals(group, option)) return i;
+            var variants = group.difficultyVariants;
+            if (variants == null) continue;
+            for (int v = 0; v < variants.Count; v++)
+                if (ReferenceEquals(variants[v], option)) return i;
+        }
+        return -1;
+    }
 
     public SongOption GetSongForSettingsPreview(int index)
     {
@@ -4400,6 +4530,56 @@ public class SongSelectionManager : MonoBehaviour
     /// Notes, audio, camera compensation, materials, particles and MESH effects
     /// are therefore the same runtime objects as a normal play session.
     /// </summary>
+    /// <summary>
+    /// 讓轉盤的選擇跟著別的畫面（練習室）走。
+    /// </summary>
+    /// <remarks>
+    /// 開始遊戲時有幾樣東西不是從傳進去的 option 拿的，而是回頭問
+    /// <see cref="GetSelectedSong"/> —— 音訊的分段管理、速度事件、混音器設定，還有
+    /// 背景和「這首要不要用合成鋼琴」。練習室自己有一份清單，如果不把轉盤同步過
+    /// 來，那幾項就會套到轉盤當下停的那一首（通常是第一首）身上。
+    ///
+    /// 轉盤可能正套著分類篩選，所以找不到的時候要先把篩選切成「全部」再找一次。
+    /// </remarks>
+    public void SyncSelectionTo(SongOption group, SongOption variant)
+    {
+        if (group == null) return;
+        if (variant != null) group.selectedVariant = variant;
+
+        int index = songOptions.IndexOf(group);
+        if (index < 0)
+        {
+            // 練習室列的是整個曲庫，轉盤這邊可能被篩掉了。切回「全部」再找。
+            for (int i = 0; i < songCategories.Count; i++)
+            {
+                if (!string.Equals(songCategories[i], ExternalSongLibrary.AllCategory)) continue;
+                currentCategoryIndex = i;
+                ApplyCurrentCategoryFilter();
+                break;
+            }
+            index = songOptions.IndexOf(group);
+        }
+        if (index < 0) return;
+
+        currentIndex = index;
+        UpdateCarouselVisuals(false);
+    }
+
+    /// <summary>
+    /// 從別的畫面（練習室）開始一首歌，走的是和選難度的書完全一樣的流程。
+    /// </summary>
+    /// <remarks>
+    /// 不要自己複製那段開場：它除了呼叫 GameManager.StartSong 之外，還要處理
+    /// external 音檔要重載、試聽要停、選曲畫面要收、遊戲根物件要開。漏掉任何一項
+    /// 都會變成很難查的「有時候沒有聲音」。
+    /// </remarks>
+    public void StartSongOption(SongOption option)
+    {
+        if (option == null) return;
+        SongDifficultyStrip.RememberChoice(option);
+        StartChosenSong(option);
+    }
+
     public void StartSettingsGameplayPreview(SongOption option)
     {
         if (option == null || GameManager.Instance == null) return;
@@ -4410,6 +4590,17 @@ public class SongSelectionManager : MonoBehaviour
         }
         settingsGameplayPreviewOption = option;
         settingsGameplayPreviewRunning = true;
+
+        // 先把正在播的那一場停掉。預覽是直接 StartSong 開一場新的，之前那一場
+        // （練習模式也算）的音樂不會自己停，兩首會疊在一起。
+        // 練習室的試聽是它自己的 AudioSource、不歸 Conductor 管，要另外停。
+        try { PracticeRoomScreen.StopPreviewAudio(); } catch { }
+        try
+        {
+            GameManager game = GameManager.Instance;
+            if (game != null && game.Conductor != null) game.Conductor.Stop();
+        }
+        catch { }
 
         AudioClip mainClip = option.audioClip;
         if (mainClip == null && !string.IsNullOrEmpty(option.audioResourcePath))

@@ -45,6 +45,7 @@
             // 刻度和收頭的粗細用 fwidth 換成像素，才會在任何距離下都是同樣的細。
             #pragma target 3.0
             #include "UnityCG.cginc"
+            #include "Assets/Shaders/NoteArcCurve.hlsl"
 
             sampler2D _MainTex;
             float4 _MainTex_ST;
@@ -62,6 +63,8 @@
             float _WorldClipEnabled;
             float _WorldClipMinZ;
             float _WorldClipMaxZ;
+            float _ArcJudgeZ;
+            float _ArcTravelZ;
             float _FlatFill;
             float _SmoothBody;
             float _CoreWidth;
@@ -267,10 +270,17 @@
             v2f vert(appdata v)
             {
                 v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                // 拋物線模式：整根長條沿著音符的弧線走。位置是在**畫面座標**上
+                // 指定的（本家那條曲線就是螢幕座標），所以和音符保證一致。
+                // 裁切與亮暗仍然用世界 Z——那是「走到哪裡了」的依據，和畫面位置
+                // 是兩回事。
+                o.worldPos = worldPos;
+                worldPos.x = NoteArcMapX(worldPos.x, worldPos.z, _ArcJudgeZ, _ArcTravelZ);
+                worldPos.y += NoteArcOffsetFromTable(worldPos.z, _ArcJudgeZ, _ArcTravelZ);
+                o.vertex = UnityWorldToClipPos(float4(worldPos, 1.0));
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.color = v.color;
-                o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 return o;
             }
 
@@ -299,7 +309,7 @@
                 if (_GlassRod > 0.5 && _FlatFill < 0.5)
                 {
                     half4 rod = GlassRod(i.uv, i.worldPos, tex.a, activation);
-                    rod.a *= i.color.a;
+                    rod.a *= i.color.a * NoteArcFade(i.worldPos.z, _ArcJudgeZ);
                     return rod;
                 }
 
@@ -411,6 +421,9 @@
                     // only the broad side regions gain light and transparency.
                     output.a = _Color.a * lerp(0.52, 0.95, sideGlow);
                 }
+                // 生成處全透明、到頂點全不透明（見 NoteArcScreen.FadeAtZ）。
+                // 用的是沒被弧線彎過的世界 Z，那才是「離判定線多遠」。
+                output.a *= NoteArcFade(i.worldPos.z, _ArcJudgeZ);
                 return output;
             }
             ENDCG
