@@ -13,6 +13,7 @@ public static class ClassicalBookUITheme
     private static TMP_FontAsset traditionalCjkFont;
     private static TMP_FontAsset simplifiedCjkFont;
     private static TMP_FontAsset japaneseFont;
+    private static TMP_FontAsset koreanFont;
     private static Sprite paperTextureSprite;
     private static Sprite woodTextureSprite;
     // 深色表面另外一組：同一個場、放大過對比、均值搬到 Pivot。key 是
@@ -200,6 +201,31 @@ public static class ClassicalBookUITheme
             // Centred on the page. The bookmarks used to sit over the right of
             // the cover, so it was pushed left; they now hang off the edge of the
             // book the way a real bookmark does.
+            // **上下的空隙對稱：上面留多少，到曲名就留多少。**
+            //
+            // 縱向改用絕對位移而不是比例錨點。曲名和作者是從卡片底部用絕對像素排
+            // 的，所以曲繪的下緣也必須用同一把尺量 —— 用比例的話，卡片一換尺寸，
+            // 上下兩個空隙就會一個變大一個變小。
+            //
+            // 走過的兩個彎路：原本 0.32–0.88（中心 0.60，整張畫往上頂、底下空一片）；
+            // 改成 0.22–0.78 想置中，但那是對**整張卡**置中，而卡的下半部是字 ——
+            // 畫就壓到曲名上了。要置中的是「字上面那塊空間」，不是整張卡。
+            //
+            // TextTop 是量出來的：SetRect 的 pivot 和 anchor 同為 (0.5, 0)，所以曲名
+            // 的 rect 是往上長的 —— 主卡 135+58=193、側卡 74+58=132。把 pivot 當成
+            // 中心去算，會以為還有餘裕，實際上已經疊上去了。
+            // 曲繪的框。**這一組比例是已知可用的，改之前先量卡片的實際尺寸。**
+            //
+            // 失敗紀錄（2026-11-08，兩次都讓圖衝出卡片）：
+            //  1. 改成 0.22–0.78 想「上下置中」—— 那是對整張卡置中，而卡的下半部是
+            //     曲名和作者，圖就壓到字上面。
+            //  2. 改成絕對位移（offsetMin.y = 曲名頂端 + 30）—— 卡片的尺寸是從場景
+            //     來的（SongSelectionManager 讀 centerSlot.root.sizeDelta），程式裡
+            //     沒有常數可對；卡片不夠高就算出負高度，preserveAspect 拿它去除，
+            //     圖整個炸開。
+            //
+            // 要做「上下空隙對稱」的話，先把卡片的實際高度量出來再說 —— 曲名的頂端
+            // 是 193（主卡）／132（側卡），那是從 SetRect 的 pivot=(0.5,0) 推出來的。
             coverRect.anchorMin = new Vector2(0.11f, 0.32f);
             coverRect.anchorMax = new Vector2(0.89f, 0.88f);
             coverRect.offsetMin = Vector2.zero;
@@ -437,6 +463,12 @@ public static class ClassicalBookUITheme
             resolvedFont = simplifiedCjkFont != null ? simplifiedCjkFont : traditionalCjkFont;
         else if (containsCjk && language == AppLanguage.TraditionalChinese)
             resolvedFont = traditionalCjkFont != null ? traditionalCjkFont : simplifiedCjkFont;
+        // 日文和韓文的介面要用自己的字面：漢字的區域字形不同，拿繁體的字型去排日文
+        // 會像是用別人的字寫自己的話；諺文在其他幾份字型檔裡根本沒有字。
+        else if (containsCjk && language == AppLanguage.Japanese)
+            resolvedFont = japaneseFont != null ? japaneseFont : traditionalCjkFont;
+        else if (containsCjk && language == AppLanguage.Korean)
+            resolvedFont = koreanFont != null ? koreanFont : traditionalCjkFont;
         if (resolvedFont != null) text.font = resolvedFont;
     }
 
@@ -449,12 +481,29 @@ public static class ClassicalBookUITheme
     {
         if (text == null) return;
         TMP_FontAsset resolvedFont = ResolveElegantFont(text.font);
-        if (ContainsJapanese(text.text))
+        if (ContainsKorean(text.text))
+            resolvedFont = koreanFont != null ? koreanFont : resolvedFont;
+        else if (ContainsJapanese(text.text))
             resolvedFont = japaneseFont != null ? japaneseFont : resolvedFont;
         else if (ContainsCjk(text.text))
             resolvedFont = traditionalCjkFont != null ? traditionalCjkFont
                 : simplifiedCjkFont != null ? simplifiedCjkFont : resolvedFont;
         if (resolvedFont != null) text.font = resolvedFont;
+    }
+
+    /// <summary>諺文。音節區塊之外還有字母與相容字母，三段都要認。</summary>
+    private static bool ContainsKorean(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        for (int i = 0; i < value.Length; i++)
+        {
+            int code = value[i];
+            if ((code >= 0xAC00 && code <= 0xD7AF) ||
+                (code >= 0x1100 && code <= 0x11FF) ||
+                (code >= 0x3130 && code <= 0x318F))
+                return true;
+        }
+        return false;
     }
 
     private static bool ContainsJapanese(string value)
@@ -479,7 +528,8 @@ public static class ClassicalBookUITheme
             if ((code >= 0x3400 && code <= 0x9FFF) ||
                 (code >= 0xF900 && code <= 0xFAFF) ||
                 (code >= 0x3040 && code <= 0x30FF) ||
-                (code >= 0x31F0 && code <= 0x31FF))
+                (code >= 0x31F0 && code <= 0x31FF) ||
+                (code >= 0xAC00 && code <= 0xD7AF))
                 return true;
         }
         return false;
@@ -504,21 +554,53 @@ public static class ClassicalBookUITheme
             }
             if (simplifiedCjkFont == null)
             {
-                Font source = Resources.Load<Font>("Fonts & Materials/SourceHanSans-ExtraLight");
+                // **簡體要和繁體同一個字重。** 舊的寫死成 ExtraLight，而繁體是 Bold ——
+                // 同一頁上切語言就像換了一套 UI，粗體標題在簡體下根本看不出是標題。
+                //
+                // 專用的簡體粗體檔不在專案裡，所以這裡排了一條退路：有 SC Bold 就用它；
+                // 沒有就用 TC Bold —— Source Han Sans 各區域版本覆蓋的碼位是同一組，簡體字
+                // 照樣畫得出來，只是少數區域分歧的字（戶／戸、骨、直）會是台灣字形。
+                // 那比「整頁細得看不清」好。把 SC Bold 丟進 Resources 就會自動接手。
+                Font source = Resources.Load<Font>("Fonts & Materials/NotoSansCJKsc-Bold")
+                    ?? Resources.Load<Font>("Fonts & Materials/SourceHanSansSC-Bold")
+                    ?? Resources.Load<Font>("Fonts & Materials/SourceHanSans-Bold")
+                    ?? Resources.Load<Font>("Fonts & Materials/SourceHanSansTC-Bold")
+                    ?? Resources.Load<Font>("Fonts & Materials/SourceHanSans-ExtraLight");
                 simplifiedCjkFont = CreateDynamicFont(source, "Source Han Sans SC (Runtime)");
             }
             if (japaneseFont == null)
             {
-                Font source = Resources.Load<Font>("Fonts & Materials/NotoSansJP-Medium");
-                japaneseFont = CreateDynamicFont(source, "Noto Sans JP (Runtime)");
+                // **日文也要和繁體同一個字重。** 繁體是 Bold、簡體 2026-10-03 已經從
+                // ExtraLight 改成 Bold，只有日文一直留在 Medium —— 同一頁切成日文就像
+                // 整套 UI 換細了一號，粗體標題看不出是標題。和簡體當時完全同一個毛病。
+                //
+                // 源真ゴシック（GenShinGothic）是 Source Han Sans 加 M+ 的衍生字型，
+                // 和繁體的 SourceHanSansTC-Bold 同一套字面，所以兩種語言並排時字形一致；
+                // 漢字用的是日本字形（直／骨／海），那正是日文介面該有的樣子。授權是
+                // SIL OFL，可以內建，授權條文在同一個資料夾的 GenShinGothic-LICENSE.txt。
+                //
+                // 退路留著 NotoSansJP：這條鏈任何一環載不到都還有字可印。
+                Font source = Resources.Load<Font>("Fonts & Materials/GenShinGothic-Bold")
+                    ?? Resources.Load<Font>("Fonts & Materials/NotoSansJP-Medium")
+                    ?? Resources.Load<Font>("Fonts & Materials/NotoSansJP-SemiBold");
+                japaneseFont = CreateDynamicFont(source, "GenShin Gothic (Runtime)");
+            }
+            if (koreanFont == null)
+            {
+                // 諺文在其他幾個字型檔裡都沒有字 —— 少了這一份，韓文曲名會印成一排
+                // 豆腐。Noto Sans CJK 和 Source Han Sans 是同一套設計，字面對得上。
+                Font source = Resources.Load<Font>("Fonts & Materials/NotoSansCJKkr-Bold")
+                    ?? Resources.Load<Font>("Fonts & Materials/NotoSansKR-Bold");
+                koreanFont = CreateDynamicFont(source, "Noto Sans KR (Runtime)");
             }
 
             bool simplified = SettingsManager.Instance != null &&
                 SettingsManager.Instance.CurrentLanguage == AppLanguage.SimplifiedChinese;
             SetFallbackOrder(elegantFont, simplified, fallback);
-            SetCjkFallbackOrder(traditionalCjkFont, simplifiedCjkFont, japaneseFont, elegantFont);
-            SetCjkFallbackOrder(simplifiedCjkFont, traditionalCjkFont, japaneseFont, elegantFont);
-            SetCjkFallbackOrder(japaneseFont, traditionalCjkFont, simplifiedCjkFont, elegantFont);
+            SetCjkFallbackOrder(traditionalCjkFont, simplifiedCjkFont, japaneseFont, koreanFont, elegantFont);
+            SetCjkFallbackOrder(simplifiedCjkFont, traditionalCjkFont, japaneseFont, koreanFont, elegantFont);
+            SetCjkFallbackOrder(japaneseFont, traditionalCjkFont, simplifiedCjkFont, koreanFont, elegantFont);
+            SetCjkFallbackOrder(koreanFont, traditionalCjkFont, simplifiedCjkFont, japaneseFont, elegantFont);
             return elegantFont;
         }
         catch
@@ -1303,6 +1385,15 @@ public static class ClassicalBookUITheme
     /// Left white so the caller can tint it: the category strip wants the same
     /// plate a shade quieter than the mode button beside it, and one sprite
     /// tinted twice keeps them obviously the same object.
+    ///
+    /// **任何一邊都不能小於 40 單位。** 牌面是 64 格、邊框 20 的九宮切片，所以左右
+    /// 的鎏金線腳各吃掉 20。rect 比 40 窄的時候 uGUI 不會報錯，它會把兩條邊框**等比
+    /// 縮小**（<c>Image.GetAdjustedBorders</c>）然後把中間的凹面壓成 0 ——
+    /// 切角和鉚釘互相疊在一起、凹面整個消失，剩下一塊糊掉的銅片。分類列的兩顆箭頭
+    /// （31.7 寬）和分組選單的每一列（38 高）都踩過這一條。
+    ///
+    /// **也不要拿暗色來調它。** 這是乘在貼圖上的，給平塗用的那種 0.1～0.3 會把整張
+    /// 牌乘成近黑。要分出「選中／沒選中」就在白色附近動（例如 1.0 對 0.72）。
     /// </remarks>
     public static void StylePlate(Image image, bool accent)
     {
@@ -1458,11 +1549,12 @@ public static class ClassicalBookUITheme
         }
         if (rect == null) return;
 
-        // 和曲繪同一個中心、緊接在它後面畫。
+        // 緊接在曲繪後面畫。**位置由 CoverEdgeFit 每幀對齊世界中心**，這裡只把
+        // 錨點收成一個點 —— CoverEdgeFit 是用 sizeDelta 當實際大小的，拉伸的錨點
+        // 會讓 sizeDelta 變成「額外大小」，算出來的框就不對。
         RectTransform coverRect = cover.rectTransform;
-        rect.anchorMin = rect.anchorMax = (coverRect.anchorMin + coverRect.anchorMax) * 0.5f;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
         rect.SetSiblingIndex(Mathf.Min(coverRect.GetSiblingIndex() + 1, parent.childCount - 1));
 
         var graphic = rect.GetComponent<EdgeLightGraphic>();
@@ -1498,12 +1590,27 @@ public static class ClassicalBookUITheme
 [AddComponentMenu("UI/Classical Arrow Graphic")]
 public sealed class ClassicalArrowGraphic : MaskableGraphic
 {
-    [SerializeField] private bool pointsUp = true;
+    /// <summary>箭頭指哪一邊。</summary>
+    public enum Facing { Up, Down, Left, Right }
 
+    [SerializeField] private Facing direction = Facing.Up;
+
+    public Facing Direction
+    {
+        get => direction;
+        set
+        {
+            if (direction == value) return;
+            direction = value;
+            SetVerticesDirty();
+        }
+    }
+
+    /// <summary>只有上下的舊介面。</summary>
     public bool PointsUp
     {
-        get => pointsUp;
-        set { pointsUp = value; SetVerticesDirty(); }
+        get => direction != Facing.Down;
+        set => Direction = value ? Facing.Up : Facing.Down;
     }
 
     protected override void OnPopulateMesh(VertexHelper vh)
@@ -1519,12 +1626,12 @@ public sealed class ClassicalArrowGraphic : MaskableGraphic
         };
         for (int i = 0; i < shape.Length; i++)
         {
-            float normalizedY = pointsUp ? shape[i].y : 1f - shape[i].y;
+            Vector2 p = Orient(shape[i]);
             UIVertex vertex = UIVertex.simpleVert;
             vertex.color = color;
             vertex.position = new Vector2(
-                Mathf.Lerp(r.xMin, r.xMax, shape[i].x),
-                Mathf.Lerp(r.yMin, r.yMax, normalizedY));
+                Mathf.Lerp(r.xMin, r.xMax, p.x),
+                Mathf.Lerp(r.yMin, r.yMax, p.y));
             vh.AddVert(vertex);
         }
         vh.AddTriangle(0, 1, 2);
@@ -1532,5 +1639,22 @@ public sealed class ClassicalArrowGraphic : MaskableGraphic
         vh.AddTriangle(0, 5, 6);
         vh.AddTriangle(2, 3, 4);
         vh.AddTriangle(2, 4, 5);
+    }
+
+    /// <summary>把朝上的那份形狀轉到 <see cref="direction"/>。</summary>
+    /// <remarks>
+    /// **轉座標，不轉 RectTransform。** 轉 transform 的話寬高會跟著轉：一顆 56×68
+    /// 的鈕裡會出現一支 68 寬的箭頭，兩頭戳到鈕外面去。這裡是在自己那塊區域裡重新
+    /// 排點，所以指哪一邊都正好填滿同一塊地方。
+    /// </remarks>
+    private Vector2 Orient(Vector2 p)
+    {
+        switch (direction)
+        {
+            case Facing.Down: return new Vector2(p.x, 1f - p.y);
+            case Facing.Left: return new Vector2(1f - p.y, p.x);
+            case Facing.Right: return new Vector2(p.y, 1f - p.x);
+            default: return p;
+        }
     }
 }

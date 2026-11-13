@@ -162,16 +162,16 @@ public static class ExternalSongLibrary
 
         public string ToDisplayText()
         {
-            if (IsValid && warnings.Count == 0) return "驗證成功，檔案可匯入。";
+            if (IsValid && warnings.Count == 0) return Localize.S("驗證成功，檔案可匯入。");
             var lines = new List<string>();
             if (errors.Count > 0)
             {
-                lines.Add("無法匯入：");
+                lines.Add(Localize.S("無法匯入："));
                 lines.AddRange(errors.Select(value => "• " + value));
             }
             if (warnings.Count > 0)
             {
-                lines.Add("提醒：");
+                lines.Add(Localize.S("提醒："));
                 lines.AddRange(warnings.Select(value => "• " + value));
             }
             return string.Join("\n", lines);
@@ -192,6 +192,15 @@ public static class ExternalSongLibrary
             }
             string portable = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "UserSongs"));
             string legacy = Path.Combine(Application.persistentDataPath, "UserSongs");
+            // 手機／平板：App 本體唯讀，曲庫只能放 App 自己的 Documents。
+            // iOS 這個資料夾會出現在「檔案」App 和 iTunes 檔案共享裡（見 iOSBuildPostprocess），
+            // 把 UserSongs 整包丟進去就能玩。
+            if (Application.isMobilePlatform)
+            {
+                Directory.CreateDirectory(legacy);
+                resolvedRootPath = legacy;
+                return resolvedRootPath;
+            }
             try
             {
                 bool portableWasMissing = !Directory.Exists(portable);
@@ -294,31 +303,31 @@ public static class ExternalSongLibrary
         string category = (value ?? string.Empty).Trim();
         if (string.IsNullOrEmpty(category))
         {
-            message = "分類名稱不能空白。";
+            message = Localize.S("分類名稱不能空白。");
             return false;
         }
         if (category.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || category.Length > 40)
         {
-            message = "分類名稱含有不支援的字元，或長度超過 40 個字。";
+            message = Localize.S("分類名稱含有不支援的字元，或長度超過 40 個字。");
             return false;
         }
 
         IndexData index = ReadIndex(null);
         if (string.Equals(category, AllCategory, StringComparison.OrdinalIgnoreCase))
         {
-            message = "ALL 是自動彙整頁，不能建立或指派給單一曲目。";
+            message = Localize.S("ALL 是自動彙整頁，不能建立或指派給單一曲目。");
             return false;
         }
         if (index.categories.Any(item => string.Equals(item, category, StringComparison.OrdinalIgnoreCase)) ||
             string.Equals(category, DefaultCategory, StringComparison.OrdinalIgnoreCase))
         {
-            message = "這個分類已經存在。";
+            message = Localize.S("這個分類已經存在。");
             return false;
         }
 
         index.categories.Add(category);
         WriteIndex(index);
-        message = $"已建立分類「{category}」。";
+        message = Localize.SF("已建立分類「{0}」。", category);
         return true;
     }
 
@@ -335,7 +344,7 @@ public static class ExternalSongLibrary
             string register = Path.Combine(folder, "register.json");
             if (!Directory.Exists(folder) || !File.Exists(register))
             {
-                warnings.Add($"{entry.folderName}：找不到 register.json。");
+                warnings.Add(Localize.SF("{0}：找不到 register.json。", entry.folderName));
                 continue;
             }
 
@@ -364,7 +373,7 @@ public static class ExternalSongLibrary
             }
             catch (Exception ex)
             {
-                warnings.Add($"{entry.folderName}：register.json 無法讀取（{ex.Message}）。");
+                warnings.Add(Localize.SF("{0}：register.json 無法讀取（{1}）。", entry.folderName, ex.Message));
             }
         }
         return result;
@@ -375,20 +384,20 @@ public static class ExternalSongLibrary
         var result = new ValidationResult();
         if (request == null)
         {
-            result.errors.Add("沒有收到曲目資料。");
+            result.errors.Add(Localize.S("沒有收到曲目資料。"));
             return result;
         }
 
-        if (string.IsNullOrWhiteSpace(request.displayName)) result.errors.Add("請輸入曲子名稱。");
-        if (string.IsNullOrWhiteSpace(request.author)) result.errors.Add("請輸入作者。");
-        if (string.IsNullOrWhiteSpace(request.difficultyName)) result.errors.Add("請輸入難度名稱。");
+        if (string.IsNullOrWhiteSpace(request.displayName)) result.errors.Add(Localize.S("請輸入曲子名稱。"));
+        if (string.IsNullOrWhiteSpace(request.author)) result.errors.Add(Localize.S("請輸入作者。"));
+        if (string.IsNullOrWhiteSpace(request.difficultyName)) result.errors.Add(Localize.S("請輸入難度名稱。"));
         if (request.difficultyLevel < 1 || request.difficultyLevel > 99)
-            result.errors.Add("難度等級必須介於 1 到 99。");
+            result.errors.Add(Localize.S("難度等級必須介於 1 到 99。"));
 
-        ValidateFile(result, request.chartPath, "譜面", new[] { ".json", ".xml" }, true);
-        ValidateFile(result, request.audioPath, "歌曲音訊", AudioExtensions, true);
-        ValidateFile(result, request.pianoAudioPath, "鋼琴音訊", AudioExtensions, false);
-        ValidateFile(result, request.coverPath, "曲繪", ImageExtensions, false);
+        ValidateFile(result, request.chartPath, Localize.S("譜面"), new[] { ".json", ".xml" }, true);
+        ValidateFile(result, request.audioPath, Localize.S("歌曲音訊"), AudioExtensions, true);
+        ValidateFile(result, request.pianoAudioPath, Localize.S("鋼琴音訊"), AudioExtensions, false);
+        ValidateFile(result, request.coverPath, Localize.S("曲繪"), ImageExtensions, false);
 
         if (File.Exists(CleanPath(request.chartPath)))
         {
@@ -399,18 +408,18 @@ public static class ExternalSongLibrary
             }
             catch (Exception ex)
             {
-                result.errors.Add("譜面內容無法解析：" + ex.Message);
+                result.errors.Add(Localize.S("譜面內容無法解析：") + ex.Message);
             }
         }
         if (File.Exists(CleanPath(request.audioPath)))
-            ValidateNonEmptyFile(result, CleanPath(request.audioPath), "歌曲音訊");
+            ValidateNonEmptyFile(result, CleanPath(request.audioPath), Localize.S("歌曲音訊"));
         if (File.Exists(CleanPath(request.pianoAudioPath)))
-            ValidateNonEmptyFile(result, CleanPath(request.pianoAudioPath), "鋼琴音訊");
+            ValidateNonEmptyFile(result, CleanPath(request.pianoAudioPath), Localize.S("鋼琴音訊"));
         if (File.Exists(CleanPath(request.coverPath)))
             ValidateImageHeader(result, CleanPath(request.coverPath));
 
         if (string.IsNullOrWhiteSpace(request.coverPath))
-            result.warnings.Add("沒有選擇曲繪，選歌畫面會使用預設圖片。");
+            result.warnings.Add(Localize.S("沒有選擇曲繪，選歌畫面會使用預設圖片。"));
         return result;
     }
 
@@ -465,7 +474,7 @@ public static class ExternalSongLibrary
 
             ValidationResult generatedValidation = ValidateSource(destination);
             if (!generatedValidation.IsValid)
-                throw new InvalidDataException("生成後的曲目結構未通過驗證：\n" +
+                throw new InvalidDataException(Localize.S("生成後的曲目結構未通過驗證：\n") +
                                                generatedValidation.ToDisplayText());
 
             IndexData index = ReadIndex(null);
@@ -483,16 +492,16 @@ public static class ExternalSongLibrary
             WriteIndex(index);
 
             message = validation.warnings.Count == 0
-                ? "匯入成功，已建立曲目資料夾並更新曲庫。\n儲存位置：" + destination
-                : "匯入成功。\n" + string.Join("\n", validation.warnings) +
-                  "\n儲存位置：" + destination;
+                ? Localize.S("匯入成功，已建立曲目資料夾並更新曲庫。\n儲存位置：") + destination
+                : Localize.S("匯入成功。\n") + string.Join("\n", validation.warnings) +
+                  Localize.S("\n儲存位置：") + destination;
             return true;
         }
         catch (Exception ex)
         {
             if (Directory.Exists(destination)) Directory.Delete(destination, true);
             id = null;
-            message = "匯入失敗：" + ex.Message;
+            message = Localize.S("匯入失敗：") + ex.Message;
             return false;
         }
     }
@@ -503,7 +512,7 @@ public static class ExternalSongLibrary
         string register = FindRegisterPath(sourcePath);
         if (string.IsNullOrEmpty(register))
         {
-            result.errors.Add("找不到 register.json。");
+            result.errors.Add(Localize.S("找不到 register.json。"));
             return result;
         }
 
@@ -511,13 +520,13 @@ public static class ExternalSongLibrary
         {
             JObject root = JObject.Parse(File.ReadAllText(register));
             if (string.IsNullOrWhiteSpace((string)root["displayName"]))
-                result.errors.Add("register.json 缺少 displayName。");
+                result.errors.Add(Localize.S("register.json 缺少 displayName。"));
             if (string.IsNullOrWhiteSpace((string)root["author"]))
-                result.errors.Add("register.json 缺少 author。");
+                result.errors.Add(Localize.S("register.json 缺少 author。"));
             JArray difficulties = root["difficulties"] as JArray;
             if (difficulties == null || difficulties.Count == 0)
             {
-                result.errors.Add("register.json 沒有 difficulties。");
+                result.errors.Add(Localize.S("register.json 沒有 difficulties。"));
                 return result;
             }
 
@@ -527,25 +536,26 @@ public static class ExternalSongLibrary
                 JObject diff = difficulties[i] as JObject;
                 if (diff == null)
                 {
-                    result.errors.Add($"難度 {i + 1} 的格式不正確。");
+                    result.errors.Add(Localize.SF("難度 {0} 的格式不正確。", i + 1));
                     continue;
                 }
-                string label = (string)diff["difficultyName"] ?? $"難度 {i + 1}";
+                string label = (string)diff["difficultyName"]
+                    ?? Localize.SF("難度 {0}", i + 1);
                 string chart = ResolveAsset(folder, (string)diff["chartFileName"], new[] { ".json" });
-                RequireAsset(result, folder, (string)diff["chartFileName"], label, "譜面", new[] { ".json" });
-                RequireAsset(result, folder, (string)diff["audioResourcePath"], label, "歌曲音訊", AudioExtensions);
-                OptionalAsset(result, folder, (string)diff["pianoAudioResourcePath"], label, "鋼琴音訊", AudioExtensions);
-                OptionalAsset(result, folder, (string)diff["coverResourcePath"], label, "曲繪", ImageExtensions);
+                RequireAsset(result, folder, (string)diff["chartFileName"], label, Localize.S("譜面"), new[] { ".json" });
+                RequireAsset(result, folder, (string)diff["audioResourcePath"], label, Localize.S("歌曲音訊"), AudioExtensions);
+                OptionalAsset(result, folder, (string)diff["pianoAudioResourcePath"], label, Localize.S("鋼琴音訊"), AudioExtensions);
+                OptionalAsset(result, folder, (string)diff["coverResourcePath"], label, Localize.S("曲繪"), ImageExtensions);
                 if (!string.IsNullOrEmpty(chart))
                 {
                     try { ValidateChartObject(JObject.Parse(File.ReadAllText(chart)), result); }
-                    catch (Exception ex) { result.errors.Add($"{label} 譜面 JSON 無法解析：{ex.Message}"); }
+                    catch (Exception ex) { result.errors.Add(Localize.SF("{0} 譜面 JSON 無法解析：{1}", label, ex.Message)); }
                 }
             }
         }
         catch (Exception ex)
         {
-            result.errors.Add("register.json 無法解析：" + ex.Message);
+            result.errors.Add(Localize.S("register.json 無法解析：") + ex.Message);
         }
         return result;
     }
@@ -580,14 +590,14 @@ public static class ExternalSongLibrary
                 categories = new List<string> { normalizedCategory }
             });
             WriteIndex(index);
-            message = "匯入成功。";
+            message = Localize.S("匯入成功。");
             return true;
         }
         catch (Exception ex)
         {
             if (Directory.Exists(destination)) Directory.Delete(destination, true);
             id = null;
-            message = "匯入失敗：" + ex.Message;
+            message = Localize.S("匯入失敗：") + ex.Message;
             return false;
         }
     }
@@ -599,12 +609,12 @@ public static class ExternalSongLibrary
             string.Equals(item.id, id, StringComparison.OrdinalIgnoreCase));
         if (entry == null)
         {
-            message = "目前選擇的不是可修改的匯入曲目。";
+            message = Localize.S("目前選擇的不是可修改的匯入曲目。");
             return false;
         }
         if (string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(author))
         {
-            message = "曲子名稱與作者不能空白。";
+            message = Localize.S("曲子名稱與作者不能空白。");
             return false;
         }
 
@@ -618,12 +628,12 @@ public static class ExternalSongLibrary
             entry.category = NormalizeCategory(category);
             entry.categories = new List<string> { entry.category };
             WriteIndex(index);
-            message = "曲目資料已更新。";
+            message = Localize.S("曲目資料已更新。");
             return true;
         }
         catch (Exception ex)
         {
-            message = "修改失敗：" + ex.Message;
+            message = Localize.S("修改失敗：") + ex.Message;
             return false;
         }
     }
@@ -638,7 +648,7 @@ public static class ExternalSongLibrary
         JArray difficulties = metadata["difficulties"] as JArray;
         if (difficulties == null)
         {
-            message = "曲目資料沒有 difficulties 陣列。";
+            message = Localize.S("曲目資料沒有 difficulties 陣列。");
             return result;
         }
 
@@ -648,7 +658,8 @@ public static class ExternalSongLibrary
             result.Add(new DifficultyInfo
             {
                 index = i,
-                difficultyName = ((string)difficulty["difficultyName"] ?? $"難度 {i + 1}").Trim(),
+                difficultyName = ((string)difficulty["difficultyName"]
+                    ?? Localize.SF("難度 {0}", i + 1)).Trim(),
                 difficultyLevel = (int?)difficulty["difficultyLevel"] ?? 1,
                 chartPath = ResolveAsset(folder, (string)difficulty["chartFileName"], new[] { ".json" }),
                 audioPath = ResolveAsset(folder, (string)difficulty["audioResourcePath"], AudioExtensions),
@@ -657,7 +668,7 @@ public static class ExternalSongLibrary
             });
         }
 
-        message = result.Count > 0 ? "已載入難度資料。" : "此曲目沒有可用的難度。";
+        message = result.Count > 0 ? Localize.S("已載入難度資料。") : Localize.S("此曲目沒有可用的難度。");
         return result;
     }
 
@@ -672,12 +683,12 @@ public static class ExternalSongLibrary
         JArray difficulties = metadata["difficulties"] as JArray;
         if (difficulties == null || difficulties.Count == 0)
         {
-            message = "曲目至少要先有一個可供繼承音訊的難度。";
+            message = Localize.S("曲目至少要先有一個可供繼承音訊的難度。");
             return false;
         }
         if (HasDifficultyName(difficulties, request.difficultyName, -1))
         {
-            message = "難度名稱已存在，請使用不同名稱。";
+            message = Localize.S("難度名稱已存在，請使用不同名稱。");
             return false;
         }
 
@@ -690,7 +701,7 @@ public static class ExternalSongLibrary
             string audio = CreateOrInheritAsset(folder, request.audioPath, inherited,
                 "audioResourcePath", "audio", AudioExtensions, createdFiles);
             if (string.IsNullOrEmpty(audio))
-                throw new InvalidDataException("請選擇歌曲音訊，或確認原有難度具備歌曲音訊。");
+                throw new InvalidDataException(Localize.S("請選擇歌曲音訊，或確認原有難度具備歌曲音訊。"));
             string piano = CreateOrInheritAsset(folder, request.pianoAudioPath, inherited,
                 "pianoAudioResourcePath", "piano", AudioExtensions, createdFiles);
             string cover = CreateOrInheritAsset(folder, request.coverPath, inherited,
@@ -708,14 +719,15 @@ public static class ExternalSongLibrary
             difficulties.Add(difficulty);
 
             WriteAndValidateRegister(registerPath, folder, metadata);
-            message = $"已新增難度：{request.difficultyName.Trim()} Lv. {request.difficultyLevel}";
+            message = Localize.SF("已新增難度：{0} Lv. {1}", request.difficultyName.Trim(),
+                request.difficultyLevel);
             return true;
         }
         catch (Exception ex)
         {
             File.WriteAllText(registerPath, originalRegister);
             DeleteCreatedFiles(createdFiles);
-            message = "新增難度失敗：" + ex.Message;
+            message = Localize.S("新增難度失敗：") + ex.Message;
             return false;
         }
     }
@@ -733,12 +745,12 @@ public static class ExternalSongLibrary
         if (difficulties == null || difficultyIndex < 0 || difficultyIndex >= difficulties.Count ||
             !(difficulties[difficultyIndex] is JObject difficulty))
         {
-            message = "找不到要修改的難度。";
+            message = Localize.S("找不到要修改的難度。");
             return false;
         }
         if (HasDifficultyName(difficulties, request.difficultyName, difficultyIndex))
         {
-            message = "難度名稱已存在，請使用不同名稱。";
+            message = Localize.S("難度名稱已存在，請使用不同名稱。");
             return false;
         }
 
@@ -763,14 +775,15 @@ public static class ExternalSongLibrary
 
             WriteAndValidateRegister(registerPath, folder, metadata);
             RemoveUnreferencedOwnedAssets(folder, JObject.Parse(originalRegister), metadata);
-            message = $"已修改難度：{request.difficultyName.Trim()} Lv. {request.difficultyLevel}";
+            message = Localize.SF("已修改難度：{0} Lv. {1}", request.difficultyName.Trim(),
+                request.difficultyLevel);
             return true;
         }
         catch (Exception ex)
         {
             File.WriteAllText(registerPath, originalRegister);
             DeleteCreatedFiles(createdFiles);
-            message = "修改難度失敗：" + ex.Message;
+            message = Localize.S("修改難度失敗：") + ex.Message;
             return false;
         }
     }
@@ -785,16 +798,16 @@ public static class ExternalSongLibrary
         if (difficulties == null || difficultyIndex < 0 || difficultyIndex >= difficulties.Count ||
             !(difficulties[difficultyIndex] is JObject difficulty))
         {
-            message = "找不到要刪除的難度。";
+            message = Localize.S("找不到要刪除的難度。");
             return false;
         }
         if (difficulties.Count <= 1)
         {
-            message = "曲目至少必須保留一個難度；若不需要此曲目，請使用「刪除曲目」。";
+            message = Localize.S("曲目至少必須保留一個難度；若不需要此曲目，請使用「刪除曲目」。");
             return false;
         }
 
-        string label = (string)difficulty["difficultyName"] ?? $"難度 {difficultyIndex + 1}";
+        string label = (string)difficulty["difficultyName"] ?? Localize.SF("難度 {0}", difficultyIndex + 1);
         string originalRegister = File.ReadAllText(registerPath);
         try
         {
@@ -802,13 +815,13 @@ public static class ExternalSongLibrary
             difficulties.RemoveAt(difficultyIndex);
             WriteAndValidateRegister(registerPath, folder, metadata);
             RemoveUnreferencedOwnedAssets(folder, before, metadata);
-            message = $"已刪除難度：{label}";
+            message = Localize.SF("已刪除難度：{0}", label);
             return true;
         }
         catch (Exception ex)
         {
             File.WriteAllText(registerPath, originalRegister);
-            message = "刪除難度失敗：" + ex.Message;
+            message = Localize.S("刪除難度失敗：") + ex.Message;
             return false;
         }
     }
@@ -820,7 +833,7 @@ public static class ExternalSongLibrary
             string.Equals(item.id, id, StringComparison.OrdinalIgnoreCase));
         if (position < 0)
         {
-            message = "目前選擇的不是可刪除的匯入曲目。";
+            message = Localize.S("目前選擇的不是可刪除的匯入曲目。");
             return false;
         }
 
@@ -830,12 +843,12 @@ public static class ExternalSongLibrary
             if (Directory.Exists(folder)) Directory.Delete(folder, true);
             index.songs.RemoveAt(position);
             WriteIndex(index);
-            message = "曲目已刪除。";
+            message = Localize.S("曲目已刪除。");
             return true;
         }
         catch (Exception ex)
         {
-            message = "刪除失敗：" + ex.Message;
+            message = Localize.S("刪除失敗：") + ex.Message;
             return false;
         }
     }
@@ -858,7 +871,7 @@ public static class ExternalSongLibrary
             string.Equals(item.id, id, StringComparison.OrdinalIgnoreCase));
         if (entry == null)
         {
-            message = "找不到指定的匯入曲目。";
+            message = Localize.S("找不到指定的匯入曲目。");
             return false;
         }
 
@@ -872,7 +885,7 @@ public static class ExternalSongLibrary
         }
         catch (Exception ex)
         {
-            message = "讀取曲目資料失敗：" + ex.Message;
+            message = Localize.S("讀取曲目資料失敗：") + ex.Message;
             return false;
         }
     }
@@ -883,24 +896,24 @@ public static class ExternalSongLibrary
         var result = new ValidationResult();
         if (request == null)
         {
-            message = "沒有可用的難度資料。";
+            message = Localize.S("沒有可用的難度資料。");
             return false;
         }
         if (string.IsNullOrWhiteSpace(request.difficultyName))
-            result.errors.Add("請輸入難度名稱。");
+            result.errors.Add(Localize.S("請輸入難度名稱。"));
         if (request.difficultyLevel < 1 || request.difficultyLevel > 99)
-            result.errors.Add("難度等級必須介於 1 到 99。");
+            result.errors.Add(Localize.S("難度等級必須介於 1 到 99。"));
 
-        ValidateFile(result, request.chartPath, "譜面", new[] { ".json", ".xml" }, requireChart);
-        ValidateFile(result, request.audioPath, "歌曲音訊", AudioExtensions, false);
-        ValidateFile(result, request.pianoAudioPath, "鋼琴音訊", AudioExtensions, false);
-        ValidateFile(result, request.coverPath, "曲繪", ImageExtensions, false);
+        ValidateFile(result, request.chartPath, Localize.S("譜面"), new[] { ".json", ".xml" }, requireChart);
+        ValidateFile(result, request.audioPath, Localize.S("歌曲音訊"), AudioExtensions, false);
+        ValidateFile(result, request.pianoAudioPath, Localize.S("鋼琴音訊"), AudioExtensions, false);
+        ValidateFile(result, request.coverPath, Localize.S("曲繪"), ImageExtensions, false);
 
         string chartPath = CleanPath(request.chartPath);
         if (!string.IsNullOrEmpty(chartPath) && File.Exists(chartPath))
         {
             try { ValidateChartObject(LoadAndNormalizeChart(chartPath), result); }
-            catch (Exception ex) { result.errors.Add("譜面無法解析：" + ex.Message); }
+            catch (Exception ex) { result.errors.Add(Localize.S("譜面無法解析：") + ex.Message); }
         }
         message = result.ToDisplayText();
         return result.IsValid;
@@ -949,7 +962,7 @@ public static class ExternalSongLibrary
         if (!File.Exists(cleanSource) ||
             !extensions.Any(ext => string.Equals(Path.GetExtension(cleanSource), ext,
                 StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidDataException($"{kind} 檔案不存在或格式不受支援。");
+            throw new InvalidDataException(Localize.SF("{0} 檔案不存在或格式不受支援。", kind));
 
         string assetFolder = Path.Combine(folder, "Assets");
         Directory.CreateDirectory(assetFolder);
@@ -1041,8 +1054,8 @@ public static class ExternalSongLibrary
     private static JObject ConvertXmlChart(string path)
     {
         XDocument document = XDocument.Load(path, LoadOptions.None);
-        XElement root = document.Root ?? throw new InvalidDataException("XML 沒有根節點。");
-        XElement noteData = root.Element("note_data") ?? throw new InvalidDataException("XML 找不到 note_data。");
+        XElement root = document.Root ?? throw new InvalidDataException(Localize.S("XML 沒有根節點。"));
+        XElement noteData = root.Element("note_data") ?? throw new InvalidDataException(Localize.S("XML 找不到 note_data。"));
         double bpm = ReadDouble(root, "header/first_bpm", "header/bpm", "first_bpm", "bpm");
         if (bpm > 10000d) bpm /= 100000d;
         int finish = (int)Math.Round(ReadDouble(root,
@@ -1165,13 +1178,13 @@ public static class ExternalSongLibrary
     {
         double bpm = (double?)chart["first_bpm"] ?? (double?)chart["bpm"] ?? 0d;
         if (bpm > 10000d) bpm /= 100000d;
-        if (bpm <= 0d || bpm > 1000d) result.errors.Add("譜面 BPM 不在合理範圍內。");
+        if (bpm <= 0d || bpm > 1000d) result.errors.Add(Localize.S("譜面 BPM 不在合理範圍內。"));
         int finish = (int?)chart["music_finish_time_msec"] ?? 0;
-        if (finish <= 0) result.errors.Add("譜面缺少有效的 music_finish_time_msec。");
+        if (finish <= 0) result.errors.Add(Localize.S("譜面缺少有效的 music_finish_time_msec。"));
         JArray notes = chart["notes"] as JArray;
         if (notes == null || notes.Count == 0)
         {
-            result.errors.Add("譜面沒有可遊玩的 notes。");
+            result.errors.Add(Localize.S("譜面沒有可遊玩的 notes。"));
             return;
         }
 
@@ -1184,11 +1197,11 @@ public static class ExternalSongLibrary
             int maxLane = (int?)note["endLane"] ?? (int?)note["max_key_index"] ?? minLane;
             if (start < 0 || end < start || minLane < 0 || maxLane < minLane || maxLane > 28) invalid++;
         }
-        if (invalid > 0) result.errors.Add($"譜面有 {invalid} 個音符的時間或鍵位不合法。");
+        if (invalid > 0) result.errors.Add(Localize.SF("譜面有 {0} 個音符的時間或鍵位不合法。", invalid));
 
         JArray beats = chart["beat_timings"] as JArray;
         if (beats == null || beats.Count < 2)
-            result.warnings.Add("譜面沒有完整 beat_timings，變速提示可能無法運作。");
+            result.warnings.Add(Localize.S("譜面沒有完整 beat_timings，變速提示可能無法運作。"));
     }
 
     private static void RewriteAssetPaths(JObject metadata, string songFolder)
@@ -1217,14 +1230,15 @@ public static class ExternalSongLibrary
         string difficulty, string kind, string[] extensions)
     {
         if (string.IsNullOrWhiteSpace(value) || ResolveAsset(folder, value, extensions) == null)
-            result.errors.Add($"{difficulty}：找不到{kind}（{value ?? "未設定"}）。");
+            result.errors.Add(Localize.SF("{0}：找不到{1}（{2}）。", difficulty, kind,
+                value ?? Localize.S("未設定")));
     }
 
     private static void OptionalAsset(ValidationResult result, string folder, string value,
         string difficulty, string kind, string[] extensions)
     {
         if (!string.IsNullOrWhiteSpace(value) && ResolveAsset(folder, value, extensions) == null)
-            result.warnings.Add($"{difficulty}：找不到選填的{kind}（{value}）。");
+            result.warnings.Add(Localize.SF("{0}：找不到選填的{1}（{2}）。", difficulty, kind, value));
     }
 
     private static string ResolveAsset(string folder, string configuredPath, string[] extensions)
@@ -1448,7 +1462,7 @@ public static class ExternalSongLibrary
         }
         catch (Exception ex)
         {
-            warnings?.Add("曲庫索引無法讀取：" + ex.Message);
+            warnings?.Add(Localize.S("曲庫索引無法讀取：") + ex.Message);
             return new IndexData();
         }
     }
@@ -1468,7 +1482,7 @@ public static class ExternalSongLibrary
         string root = Path.GetFullPath(RootPath) + Path.DirectorySeparatorChar;
         string path = Path.GetFullPath(Path.Combine(RootPath, folderName ?? string.Empty));
         if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("曲目資料夾超出玩家曲庫範圍。");
+            throw new InvalidOperationException(Localize.S("曲目資料夾超出玩家曲庫範圍。"));
         return path;
     }
 
@@ -1515,32 +1529,32 @@ public static class ExternalSongLibrary
         string path = CleanPath(value);
         if (string.IsNullOrEmpty(path))
         {
-            if (required) result.errors.Add($"請選擇{label}檔案。");
+            if (required) result.errors.Add(Localize.SF("請選擇{0}檔案。", label));
             return;
         }
         if (!File.Exists(path))
         {
-            result.errors.Add($"{label}檔案不存在。");
+            result.errors.Add(Localize.SF("{0}檔案不存在。", label));
             return;
         }
         if (!extensions.Any(ext => string.Equals(Path.GetExtension(path), ext, StringComparison.OrdinalIgnoreCase)))
-            result.errors.Add($"{label}格式不支援（{Path.GetExtension(path)}）。");
+            result.errors.Add(Localize.SF("{0}格式不支援（{1}）。", label, Path.GetExtension(path)));
     }
 
     private static void ValidateNonEmptyFile(ValidationResult result, string path, string label)
     {
-        if (new FileInfo(path).Length <= 16) result.errors.Add($"{label}檔案是空的或已損壞。");
+        if (new FileInfo(path).Length <= 16) result.errors.Add(Localize.SF("{0}檔案是空的或已損壞。", label));
     }
 
     private static void ValidateImageHeader(ValidationResult result, string path)
     {
-        ValidateNonEmptyFile(result, path, "曲繪");
+        ValidateNonEmptyFile(result, path, Localize.S("曲繪"));
         byte[] header = new byte[8];
         using (FileStream stream = File.OpenRead(path))
             stream.Read(header, 0, header.Length);
         bool png = header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47;
         bool jpeg = header[0] == 0xFF && header[1] == 0xD8;
-        if (!png && !jpeg) result.errors.Add("曲繪內容不是有效的 PNG 或 JPEG。");
+        if (!png && !jpeg) result.errors.Add(Localize.S("曲繪內容不是有效的 PNG 或 JPEG。"));
     }
 
     private static string CleanPath(string value)

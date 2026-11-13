@@ -127,8 +127,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     [SerializeField, Range(0.05f, 1.5f)] private float bracketFlareShare = 0.30f;
     [Tooltip("Nudge the parked pedal bar along the track, in world units. Negative pulls it toward the player.")]
     [SerializeField, Range(-3f, 3f)] private float pedalBarZOffset = -0.35f;
-    [Tooltip("How far the additive glow around each bar reaches, as a share of the track's width.")]
-    [SerializeField, Range(0.002f, 0.3f)] private float pedalBarGlowShare = 0.022f;
     [Tooltip("Where the side speed lines sit and how wide their band is, as shares of the track's width.")]
     [SerializeField, Range(0.005f, 0.3f)] private float sideLineGapShare = 0.02f;
     [SerializeField, Range(0.01f, 0.4f)] private float sideLineBandShare = 0.085f;
@@ -172,7 +170,15 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     [SerializeField, Range(0.3f, 4f), Tooltip("踩下／放開細框沿軌道方向的深度（世界單位）。")]
     private float markerFrameDepthWorld = 1.4f;
     [SerializeField, Range(0.03f, 0.5f), Tooltip("細框前後兩條橫邊的粗細（世界單位）。")]
-    private float markerFrameLineWorld = 0.12f;
+    // 0.12 在實機上只有 **1.1 px**：量過一張 1:1 的截圖，框的上下兩條在
+    // 判定線那裡相距 13 px（= markerFrameDepthWorld 1.4），而兩條線本身各只有
+    // 1～2 px、亮度 116/255 —— 於是整個框讀起來就是「判定線上的一條線」，
+    // 根本看不出它是一個框。音符自己的金邊大約 3 px，那個粗細是讀得到的，
+    // 所以對齊到那裡：0.30 世界單位 ≈ 2.8 px，中間仍然留 7 px 的空心。
+    //
+    // 注意這是**絕對**世界尺寸，而走廊的兩條長邊是 trackWidth * 0.008（會跟著
+    // 軌道寬縮放）。兩者不同源，改軌道寬度的時候這條不會跟著動。
+    private float markerFrameLineWorld = 0.30f;
     [SerializeField, Range(0.05f, 1.5f), Tooltip("細框左右兩端短邊的寬度（世界單位）。")]
     private float markerFrameCapWorld = 0.35f;
     [SerializeField, ColorUsage(true, true), Tooltip("放開那個細框的顏色。踩下的沿用 pressBarColor。")]
@@ -181,6 +187,29 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     [Header("Note avoidance")]
     [SerializeField, Range(0f, 1f), Tooltip("音符所在位置的踏板特效剩多少亮度。0 = 完全讓開。")]
     private float noteGapFloor = 0f;
+
+    /// <summary>
+    /// <c>true</c> 時踩下／放開的框不管有沒有和音符重疊，一律畫完整的一圈。
+    /// 目前是 <c>false</c>：框走到音符那裡化開，由包圈繞過去。
+    /// </summary>
+    /// <remarks>
+    /// **這個旗標被翻過兩次，兩次的理由都成立，差別在距離。**
+    ///
+    /// 翻成 <c>true</c> 的理由（留著當對照）：一個被切斷的框不再是框，是幾條浮著
+    /// 的線，玩家得自己把它接回去；而框本來就只有四條細線，遮擋量很小。另外包圈
+    /// 讓同一個動作有兩種長相，取決於一個玩家看不到的判定（有沒有吸附）。
+    ///
+    /// 2026-11-12 翻回 <c>false</c>，因為實機量出來「遮擋量很小」是錯的：框的上緣
+    /// 和音符的下緣**貼在一起、中間一個像素都沒有**（截圖裡兩條金線在 y=65／77，
+    /// 音符的紅邊收在 y=63）。貼著的時候讀到的不是「框從音符底下過」，是「音符
+    /// 坐在框上面」—— 踏板和音符黏成同一塊東西。切斷的代價換成了「隔開」的好處。
+    ///
+    /// 「同一個動作兩種長相」那一條也解掉了：包圈不再只給吸附過的踩下，**踩下和
+    /// 放開兩條都畫**，各自用自己那條框的顏色。
+    ///
+    /// 要還原成完整的一圈就改成 <c>true</c>（兩條框的包圈會一起關掉）。
+    /// </remarks>
+    private const bool MarkerFrameAlwaysClosed = false;
 
     /// <summary>踩著時站在判定線上那道光的高度，相對於原本。</summary>
     private const float PressWallHeightShare = 1f / 3f;
@@ -616,7 +645,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     }
 
 
-
     private void Place(Visual visual, PedalSpan span, float headZ, float tailZ, float judgmentZ,
         float songMs, float speed, bool snappedPress, float travelSeconds)
     {
@@ -726,7 +754,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         /// </summary>
         /// <remarks>
         /// 音符是一片平躺的貼圖，整片用「前緣」那一點的位移剛性地抬起來
-        /// （NoteController.LeadingEdgeZ）。包圈若照自己每個頂點的 z 去彎，
+        /// （NoteController.ArcSampleZ）。包圈若照自己每個頂點的 z 去彎，
         /// 中心就落在 z 中點的高度、遠邊還會再翹起來 —— 半個音符高在弧線陡的
         /// 地方就是看得見的落差，看起來就是圈浮在音符上面。所以包圈也要剛性地
         /// 用同一個參考點。
@@ -747,11 +775,154 @@ public sealed class PedalNoteRenderer : MonoBehaviour
 
     /// <summary>缺口邊緣往內化開的寬度，佔一格鍵道寬的比例。只往內側化開，不外擴。</summary>
     private const float NoteGapFeatherLanes = 0.2f;
-    /// <summary>包圈和力度光暈之間留的縫、包圈本身的厚度，都佔音符高的比例。</summary>
-    private const float WrapGapShare = 0.08f;
-    private const float WrapBandShare = 0.30f;
+    /// <summary>
+    /// 包圈的縫與厚度。**橫向和縱向各一個常數，而且單位不同。**
+    /// </summary>
+    /// <remarks>
+    /// 軌道在畫面上是躺著的，同一個世界長度在 x 和 z 上不是同一個像素數：
+    /// 量過一張實機截圖，橫向約 30 px/世界單位、縱向約 12 px，差 2.5 倍。
+    /// 以前兩個方向共用一個世界長度的厚度，畫出來上下只有 6 px、左右卻有 18 px ——
+    /// 看起來是一條扁的圈，而且上下那 6 px 根本放不下一層以上的顏色。
+    ///
+    /// 所以橫向用鍵道寬計（和 <see cref="WrapGapClearanceLanes"/> 同一套理由），
+    /// 縱向用音符高計，兩邊各自調到螢幕上約 13 px。
+    /// </remarks>
+    private const float WrapGapShare = 0.16f;
+    private const float WrapGapLanes = 0.035f;
+    private const float WrapBandShare = 0.56f;
+    private const float WrapBandLanes = 0.12f;
+
+    /// <summary>包圈的一段：離內緣多遠、多亮、顏色往哪一端走。</summary>
+    private struct RingStop
+    {
+        /// <summary>離內緣的距離，佔整條帶寬的比例。</summary>
+        public float T;
+        /// <summary>這一圈的不透明度，乘在整圈的強度上。</summary>
+        public float Alpha;
+        /// <summary>+1 = 白熱的芯，0 = 本色，-1 = 燒到底的燼。見 RingTone。</summary>
+        public float Tone;
+    }
+
+    /// <summary>
+    /// 包圈由內到外的斷面。改這張表就能重調整個效果，不用動幾何。
+    /// </summary>
+    /// <remarks>
+    /// **一條等寬的單色帶讀起來就是一條線**，不管調多亮。這條帶在螢幕上只有十幾
+    /// 像素，要讓它有東西可看，靠的不是更寬，是**斷面上有事情發生**：
+    /// 一條細的白熱芯線 → 一道暗縫 → 一圈金 → 燼色化開。三段各自有自己的顏色，
+    /// 中間那道縫把前兩段分開，所以數得出來是幾圈。
+    ///
+    /// 兩個規矩：
+    /// 　1. 內緣（T=0）不能是最亮的。貼著它的是力度光暈，兩道光在同一條邊上一樣亮
+    /// 　　 就分不出哪一圈是哪一圈 —— 這也是使用者要的「隔開」。
+    /// 　2. alpha 往下掉的時候 Tone 要跟著往負的走。**亮度掉而顏色不變就是灰煙**，
+    /// 　　 在深色軌道上只會看起來髒；要讓它一邊淡一邊變濃，才像燒完的邊。
+    /// </remarks>
+    private static readonly RingStop[] WrapRingProfile =
+    {
+        new RingStop { T = 0.00f, Alpha = 0.14f, Tone = -0.95f },  // 內緣，暗
+        new RingStop { T = 0.09f, Alpha = 0.95f, Tone =  0.85f },  // 芯線起
+        new RingStop { T = 0.20f, Alpha = 1.00f, Tone =  0.70f },  // 芯線
+        new RingStop { T = 0.29f, Alpha = 0.12f, Tone = -0.60f },  // 隔開的縫
+        new RingStop { T = 0.42f, Alpha = 0.80f, Tone =  0.05f },  // 金環起
+        new RingStop { T = 0.62f, Alpha = 0.62f, Tone = -0.20f },  // 金環
+        new RingStop { T = 0.82f, Alpha = 0.22f, Tone = -0.70f },  // 燼
+        new RingStop { T = 1.00f, Alpha = 0.00f, Tone = -1.00f },  // 化開
+    };
+
+    /// <summary>
+    /// 把本色往「白熱」或「燼」推。
+    /// </summary>
+    /// <remarks>
+    /// 往白熱推**不能 lerp 到 (1,1,1)**：這裡的本色是 HDR（最亮的通道超過 3），
+    /// 推向白等於把它調暗。要推向的是「本色自己最亮的那個通道」—— 去飽和但不掉
+    /// 亮度 —— 再整體加亮，芯才會比本色亮而不只是淡。
+    ///
+    /// 往燼推要**一邊變暗一邊加彩度**。單純乘一個小於 1 的數會往灰色掉，而這個
+    /// 材質是 SrcAlpha 混色（NoteVelocityHalo.shader），灰到接近黑的顏色在深色
+    /// 軌道上是把背景的光扣掉，看起來是髒不是暗（HoldMagic 那邊踩過同一個坑）。
+    /// </remarks>
+    private static Color RingTone(Color body, float tone)
+    {
+        if (tone > 0f)
+        {
+            float k = Mathf.Clamp01(tone);
+            float peak = Mathf.Max(body.r, Mathf.Max(body.g, body.b));
+            float blend = k * 0.62f;
+            float gain = 1f + 0.34f * k;
+            return new Color(
+                Mathf.Lerp(body.r, peak, blend) * gain,
+                Mathf.Lerp(body.g, peak, blend) * gain,
+                Mathf.Lerp(body.b, peak, blend) * gain,
+                body.a);
+        }
+
+        float d = Mathf.Clamp01(-tone);
+        float luma = body.r * 0.299f + body.g * 0.587f + body.b * 0.114f;
+        float sat = 1f + 0.95f * d;
+        float dim = 1f - 0.58f * d;
+        return new Color(
+            Mathf.Max(0f, (luma + (body.r - luma) * sat) * dim),
+            Mathf.Max(0f, (luma + (body.g - luma) * sat) * dim),
+            Mathf.Max(0f, (luma + (body.b - luma) * sat) * dim),
+            body.a);
+    }
     /// <summary>兩顆音符之間的空隙小於幾格鍵道寬，就合成同一圈。</summary>
     private const float WrapMergeLanes = 0.6f;
+
+    /// <summary>
+    /// 讓位視窗往判定線那側（早）、往譜面深處那側（晚）各一個，佔音符高的比例。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼晚的那一側要更寬。** 跑道是有透視的：同樣一個世界距離，越往深處
+    /// 在畫面上被壓得越扁。一顆「晚一點點」的音符在世界座標上離線還有一段，
+    /// 畫面上卻已經貼著那條線了 —— 所以門檻在那一側必須放寬，不然它會被線
+    /// 壓過去而完全不讓。早的那一側離鏡頭近、展得開，不需要同樣的餘裕。
+    ///
+    /// 0.5 是「剛好蓋住音符自己」的那個值（音符以自己的時間為中心，半高一格）。
+    /// 超過 0.5 的部分是餘裕，而餘裕會被速度收掉，見 <see cref="WrapWindowSlack"/>。
+    /// </remarks>
+    private const float WrapWindowNearShare = 0.75f;
+    private const float WrapWindowFarShare = 1.15f;
+
+    /// <summary>
+    /// 餘裕在這兩個速度之間收掉；高速時只留這麼多。
+    /// </summary>
+    /// <remarks>
+    /// **幾何的那一半不需要看速度** —— 世界距離就是畫面距離，一個世界單位的
+    /// 視窗在任何速度下都是同一條畫面上的帶子，所以「真的疊到了沒」本來就和
+    /// 速度無關。會隨速度變的是**餘裕值不值得**：速度拉高之後，同一條帶子裡
+    /// 裝得下的譜面時間變短，線附近本來就沒什麼東西，再往外多讓只是替畫面上
+    /// 明明還有距離的音符開洞，把那條線切得零碎。所以餘裕隨速度收。
+    /// </remarks>
+    private const float WrapWindowSpeedLo = 45f;
+    private const float WrapWindowSpeedHi = 140f;
+    private const float WrapWindowFastSlack = 0.35f;
+
+    /// <summary>
+    /// 重疊到多少就給**滿格**的讓位。
+    /// </summary>
+    /// <remarks>
+    /// 以前是線性的（`strength = overlap / full`），於是只擦到邊的音符拿到
+    /// 0.2～0.3 —— 線淡掉兩三成，看起來還是壓在音符上，而這正是「有些音符還是
+    /// 和踏板的線重疊到、沒有被避開」的來源。**讓位要嘛讀得出來、要嘛不要做**，
+    /// 中間那一段只會把線畫髒。重疊超過這個比例就給滿，下面才平滑地收到 0
+    /// —— 收到 0 那一段仍然要平滑，否則音符滑過線的那一格會突然開關一次。
+    /// </remarks>
+    private const float WrapStrengthKnee = 0.42f;
+
+    /// <summary>
+    /// 缺口要比音符寬出多少（占一格鍵道寬的比例，左右各算一次）。
+    /// </summary>
+    /// <remarks>
+    /// **缺口和音符一樣寬等於沒挖。** 音符是畫在框上面的不透明物件，所以挖掉的
+    /// 那一段本來就被它蓋著 —— 畫面上一點差別都沒有。長條走廊讀得出來是因為走廊
+    /// 是半透明的，線穿過去看得見，斷掉就讀得出來；音符頭沒有這個条件。
+    ///
+    /// 所以缺口要向外多開一截，讓線在音符兩側**明顯停住**。單位用鍵道寬而不是
+    /// 音符高：這是橫向的間距，而音符高是沿軌道方向的尺寸，兩者不成比例。
+    /// </remarks>
+    private const float WrapGapClearanceLanes = 0.55f;
     /// <summary>
     /// 踏板那一層比判定線高多少。音符是 +0.1（NoteController.judgmentYOffset），框貼在它上面一點點。
     /// </summary>
@@ -793,6 +964,34 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         if (!float.IsNegativeInfinity(beatLineTopY)) y = Mathf.Max(y, beatLineTopY + 0.01f);
         return y;
     }
+
+    /// <summary>
+    /// 光暈從細框的外緣往外散多遠，**以音符高為單位**。
+    /// </summary>
+    /// <remarks>
+    /// 以前寫成 `trackWidth * 0.022`，也就是拿**橫向**的尺去量**縱向**的距離。
+    /// 軌道是躺著的，同一個世界長度橫向大約 30 px、縱向只有 12 px，所以一個在
+    /// 橫向上「看起來只有一點點」的比例，換到縱向就是一片很厚的霧：放開那一側
+    /// 原本散出 7.8 個世界單位，接近**四個音符高**。縱向的厚度要用音符高算。
+    ///
+    /// 0.85 ＝ 比一顆音符再薄一點。這是「看得出那裡有光」的下限附近，而不是
+    /// 讓光自己變成一個有體積的物件 —— 它一有體積就會蓋住底下的音符和力度
+    /// 光暈，而那些才是要被看清楚的東西。
+    /// </remarks>
+    private const float GlowReachNotes = 0.85f;
+
+    /// <summary>放開那一側往玩家探出的長度，相對於 <see cref="GlowReachNotes"/>。</summary>
+    /// <remarks>
+    /// 前後不等長是故意的 —— 光往哪一側拖就是腳往哪一邊走，方向由它說。原本是
+    /// 0.55 : 3.4（1 比 6），在 7.8 個世界單位的尺度下那個比例才撐得住；收到一個
+    /// 音符高以內之後同樣的比例會讓短的那一側只剩 0.1，等於沒有。改成 1 比 3，
+    /// 方向還讀得出來，而最厚的那一側剛好是 <see cref="GlowReachNotes"/>。
+    /// </remarks>
+    private const float ReleaseGlowBack = 0.32f;
+    private const float ReleaseGlowFront = 1f;
+
+    /// <summary>踩下那圈前後一樣長，比放開那圈再小一點。</summary>
+    private const float PressGlowReach = 0.55f;
 
     private float NoteHeightWorld()
     {
@@ -889,7 +1088,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 Lo = minX - trackCenterX,
                 Hi = maxX - trackCenterX,
                 Feather = Mathf.Min(laneFeather, halfW * 0.5f),
-                Strength = Mathf.Clamp01(overlap / full),
+                Strength = WrapStrength(overlap / full),
             });
         }
     }
@@ -898,12 +1097,14 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     /// 實際畫著、疊在 [<paramref name="centreZ"/> ± <paramref name="halfDepthWorld"/>] 上的
     /// 音符頭（連同力度光暈），相鄰的合成一組。
     /// </summary>
-    private void CollectWrapGroups(float centreZ, float halfDepthWorld, List<WrapGroup> into)
+    private void CollectWrapGroups(float centreZ, float nearDepth, float farDepth,
+        List<WrapGroup> into)
     {
         into.Clear();
         if (trackWidth <= 0f) return;
-        float zLo = centreZ - halfDepthWorld;
-        float zHi = centreZ + halfDepthWorld;
+        // 往判定線那側（早）窄、往譜面深處那側（晚）寬。
+        float zLo = centreZ - nearDepth;
+        float zHi = centreZ + farDepth;
 
         List<HeadBox> heads = VisibleHeads();
         for (int i = 0; i < heads.Count; i++)
@@ -926,7 +1127,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 ZFar = shell.max.z,
                 RefZ = head.min.z,
                 HaloBand = 0f,
-                Strength = Mathf.Clamp01(overlap / full),
+                Strength = WrapStrength(overlap / full),
             });
         }
 
@@ -965,21 +1166,28 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     /// 這條線整體讓位的程度，通常是「離判定線還有多遠」。到線上就是 0：和弦在那
     /// 一刻被打掉，接下來是打擊特效的事，不需要再有一圈光繞著它。
     /// </param>
-    private void AddWrapGaps(float centreZ, float halfDepth, float fade,
+    private void AddWrapGaps(float centreZ, float fade,
         List<WrapGroup> groups, List<NoteGap> gaps)
     {
         groups.Clear();
         if (fade <= 0.01f || trackWidth <= 0f) return;
 
-        CollectWrapGroups(centreZ, halfDepth, groups);
         float laneWidth = trackWidth / PianoVisualLayout.LegacyLaneCount;
         float noteHeight = NoteHeightWorld();
+        // 0.5 是剛好蓋住音符自己，超過的部分是餘裕，餘裕隨速度收。
+        float slack = WrapWindowSlack();
+        float nearDepth = noteHeight * (0.5f + (WrapWindowNearShare - 0.5f) * slack);
+        float farDepth = noteHeight * (0.5f + (WrapWindowFarShare - 0.5f) * slack);
+        CollectWrapGroups(centreZ, nearDepth, farDepth, groups);
         for (int i = 0; i < groups.Count; i++)
         {
             WrapGroup g = groups[i];
             g.Strength *= fade;
             groups[i] = g;
-            float inner = g.HaloBand + noteHeight * WrapGapShare;
+            // 缺口要讓過**整圈**（縫 + 帶寬），不是只讓過內緣那道縫 ——
+            // 讓少了的話那條線會從包圈中間穿過去，等於把剛分開的幾段又接回來。
+            float inner = g.HaloBand + laneWidth
+                * (WrapGapLanes + WrapBandLanes + WrapGapClearanceLanes);
             gaps.Add(new NoteGap
             {
                 Lo = g.Lo - inner,
@@ -988,6 +1196,20 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 Strength = g.Strength,
             });
         }
+    }
+
+    /// <summary>餘裕乘數：慢速全開，快速收到 <see cref="WrapWindowFastSlack"/>。</summary>
+    private float WrapWindowSlack()
+    {
+        float t = Mathf.InverseLerp(WrapWindowSpeedLo, WrapWindowSpeedHi, currentSpeed);
+        return Mathf.Lerp(1f, WrapWindowFastSlack, t);
+    }
+
+    /// <summary>重疊比例 -> 讓位強度。見 <see cref="WrapStrengthKnee"/>。</summary>
+    private static float WrapStrength(float raw)
+    {
+        float t = Mathf.Clamp01(raw / WrapStrengthKnee);
+        return t * t * (3f - 2f * t);
     }
 
     /// <summary>越靠近判定線，讓位讓得越少；到線上就不讓了。</summary>
@@ -1844,14 +2066,43 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         // 音符高，所以量的是那一段；沒吸附的和放開那條沒有這個保證，量的就是線自
         // 己前後半個音符高之內有什麼。
         float noteHeight = NoteHeightWorld();
+        // **第三個參數傳 1，不是 WrapFade。**
+        //
+        // WrapFade 是「越靠近判定線讓得越少，到線上就不讓了」，理由是和弦在線上
+        // 已經被打掉、不需要再有一圈光繞著它。但踩著踏板的時候，踩下那條框**就停
+        // 在判定線上** —— fade 在那裡正好是 0，於是最該讓位的那一刻完全不讓，
+        // 框直接壓在音符和它的力度光暈上。使用者看到的就是這個。
+        //
+        // 傳 1 之後強度只由 overlap / full 決定（和放開那條、和走廊同一套），
+        // 停在線上時照樣讓位、照樣包圈。
+        //
+        // **量的位置要跟著「畫在哪」，不是跟著 headZ。**
+        //
+        // 框畫在 headDraw（= max(headZ, judgmentZ) + pedalBarZOffset），踩著的時候
+        // 它停在判定線上；但 headZ 會繼續往玩家這側跑過去。原本吸附那一支量的是
+        // headZ + 半個音符高 —— 踩下去之後那個位置早就在線的後面了，於是讓位和
+        // 包圈開在一個**沒有框**的地方，而框真正壓住的那些音符一個都沒讓。
+        // 症狀就是「有時候沒有隔開」：沒吸附的那一支量的是 headDraw，所以是對的，
+        // 只有吸附過的踩下會壞 —— 同一首裡有的有、有的沒有。
+        //
+        // 吸附那半個音符高的位移只在框還在跟著譜面跑的時候才有意義（那時和弦頭正好
+        // 在 headZ、往後佔一個音符高）。停在線上之後就不該再偏，要量的是線自己
+        // 前後半個音符高之內有什麼 —— 和沒吸附的那一支同一個規則。
+        bool pressTravelling = headZ > judgmentZ;
         AddWrapGaps(
-            snappedPress ? headZ + noteHeight * 0.5f : headDraw,
-            noteHeight * 0.5f,
-            WrapFade(headZ, judgmentZ, noteHeight),
+            snappedPress && pressTravelling ? headDraw + noteHeight * 0.5f : headDraw,
+            1f,
             wrapGroups, pressGaps);
-        AddWrapGaps(tailZ, noteHeight * 0.5f,
-            WrapFade(tailZ, judgmentZ, noteHeight),
-            releaseWrapGroups, releaseGaps);
+        // **放開那條不跟距離衰減，和長條走廊一樣。**
+        //
+        // <see cref="WrapFade"/> 存在的理由是「和弦在線上被打掉了，不需要再有一圈光
+        // 繞著它」，而放開有 97% 落在某個音符的 45ms 之內 —— 那正是它最靠近判定線、
+        // fade 趨近 0 的時候。讓位和包圈剛好在最該有的那一刻消失，線從音符頭上
+        // 切過去。踩下那條停在判定線上，有一模一樣的問題，所以現在兩條都傳 1。
+        //
+        // 傳 1 之後它的強度就是 <c>overlap / full</c>，和 <see cref="CollectCorridorGaps"/>
+        // 是同一條公式：剛碰到淡淡地讓、正中完全讓開、離開收回來。
+        AddWrapGaps(tailZ, 1f, releaseWrapGroups, releaseGaps);
 
         // 框的兩條長邊。**拋物線模式要沿路切段**：一整片四頂點的四邊形只有兩端
         // 會被抬到弧線上，中間是一條直線（弦），整個框就被拉成一片斜平面——那正是
@@ -1899,7 +2150,15 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             {
                 if (e > x0 && e < x1) gapBreaks.Add(e);
             }
-            for (int i = 0; i < gaps.Count; i++)
+            // **gaps 可以是 null，而且正常情況下就是 null。**
+            // MarkerFrameAlwaysClosed（目前是 true）的意思就是「框不為音符讓位」，
+            // 呼叫端寫的是 `MarkerFrameAlwaysClosed ? null : pressGaps`。
+            // Clearance() 早就擋了 null，這裡漏了 —— 於是每一幀在 LateUpdate 裡
+            // 丟一次 NullReferenceException，而它是從 Place() 裡丟出來的，
+            // 整顆踏板音符（連本體）都不會被畫。畫面上的症狀是「開關開著卻什麼
+            // 都沒有」，看起來像開關壞了，其實是這一行。
+            int gapCount = gaps != null ? gaps.Count : 0;
+            for (int i = 0; i < gapCount; i++)
             {
                 // 化開那一段取中點多切一刀：SmoothStep 是曲線，只拿兩端線性內插會
                 // 讓缺口的邊看起來是一段斜坡。化開在音符寬度之內，不往外擴。
@@ -1934,37 +2193,46 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             }
         }
 
-        // 包住一個和弦的光：和框同色，在力度光暈外面，形狀跟音符一樣是六角形。
-        //
-        // 最亮的地方離內緣一小段、往外化開。內緣不是最亮，是因為內緣貼著的是力度
-        // 光暈 —— 兩道光在同一條邊上一樣亮，就分不出哪一圈是哪一圈。
-        void WrapRing(WrapGroup g, Color colour)
+        // 包住一個和弦的光：在力度光暈外面，形狀跟音符一樣是六角形。
+        // 斷面由 WrapRingProfile 那張表決定 —— 一條芯線、一道縫、一圈金、燼。
+        void WrapRing(WrapGroup g, Color body)
         {
-            if (colour.a <= 0.001f) return;
-            float offset = g.HaloBand + noteHeight * WrapGapShare;
-            float band = noteHeight * WrapBandShare;
+            if (body.a <= 0.001f) return;
+            float laneWidth = trackWidth / PianoVisualLayout.LegacyLaneCount;
+            float gapX = g.HaloBand + laneWidth * WrapGapLanes;
+            float gapZ = g.HaloBand + noteHeight * WrapGapShare;
+            float bandX = laneWidth * WrapBandLanes;
+            float bandZ = noteHeight * WrapBandShare;
+            if (bandZ <= 0.0001f) return;
+
+            // 橫向比縱向厚幾倍。先把整個六角形的 x 除掉這個倍率，在那個空間裡
+            // 等寬地往外推（斜接才算得對），畫出來的時候再乘回去 —— 等於用一個
+            // 橢圓的距離做外擴，而不是把一個算好的圓硬拉長。
+            float aniso = Mathf.Max(0.05f, bandX / bandZ);
+
             float cx = (g.Lo + g.Hi) * 0.5f;
             float cy = (g.ZNear + g.ZFar) * 0.5f - judgmentZ;
-            float halfW = (g.Hi - g.Lo) * 0.5f + offset;
-            float halfH = (g.ZFar - g.ZNear) * 0.5f + offset;
+            float halfW = (g.Hi - g.Lo) * 0.5f + gapX;
+            float halfH = (g.ZFar - g.ZNear) * 0.5f + gapZ;
             float tip = Mathf.Min(halfH * 0.52f, halfW * 0.45f);
-            float flat = halfW - tip;
+            float flat = (halfW - tip) / aniso;
+            float halfWn = halfW / aniso;
 
             Vector2[] ring = wrapHex;
-            ring[0] = new Vector2(-halfW, 0f);
+            ring[0] = new Vector2(-halfWn, 0f);
             ring[1] = new Vector2(-flat, halfH);
             ring[2] = new Vector2(flat, halfH);
-            ring[3] = new Vector2(halfW, 0f);
+            ring[3] = new Vector2(halfWn, 0f);
             ring[4] = new Vector2(flat, -halfH);
             ring[5] = new Vector2(-flat, -halfH);
 
-            Color innerColour = colour; innerColour.a *= 0.55f;
-            Color fade = colour; fade.a = 0f;
             int at = vertices.Count;
-            for (int layer = 0; layer < 3; layer++)
+            RingStop[] profile = WrapRingProfile;
+            for (int s = 0; s < profile.Length; s++)
             {
-                float push = layer == 0 ? 0f : layer == 1 ? band * 0.35f : band;
-                Color c = layer == 0 ? innerColour : layer == 1 ? colour : fade;
+                float push = profile[s].T * bandZ;
+                Color c = RingTone(body, profile[s].Tone);
+                c.a = body.a * profile[s].Alpha;
                 for (int i = 0; i < 6; i++)
                 {
                     Vector2 prev = ring[(i + 5) % 6];
@@ -1976,7 +2244,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                     float miter = 1f + Vector2.Dot(n1, n2);
                     Vector2 offsetDir = miter > 0.0001f ? (n1 + n2) / miter : n1;
                     Vector2 v = here + offsetDir * push;
-                    vertices.Add(new Vector3(cx + v.x, cy + v.y, 0f));
+                    vertices.Add(new Vector3(cx + v.x * aniso, cy + v.y, 0f));
                     colours.Add(c);
                 }
             }
@@ -1988,9 +2256,9 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 End = vertices.Count,
                 Distance = g.RefZ - judgmentZ,
             });
-            for (int layer = 0; layer < 2; layer++)
+            for (int s = 0; s + 1 < profile.Length; s++)
             {
-                int a = at + layer * 6;
+                int a = at + s * 6;
                 int b = a + 6;
                 for (int i = 0; i < 6; i++)
                 {
@@ -2228,31 +2496,54 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         // 踩下的細框：到判定線之前跟著譜面下來，踩著的時候停在線上，放開後淡掉。
         Color pressFrame = pressBarColor;
         pressFrame.a *= pressBarAlpha;
-        MarkerFrame(headDraw, pressFrame, pressGaps);
-        for (int i = 0; i < wrapGroups.Count; i++)
+        MarkerFrame(headDraw, pressFrame, MarkerFrameAlwaysClosed ? null : pressGaps);
+        if (!MarkerFrameAlwaysClosed)
         {
-            Color ringColour = pressFrame;
-            ringColour.a *= wrapGroups[i].Strength;
-            WrapRing(wrapGroups[i], ringColour);
+            // **包圈的本色不是框的本色。** 踩下那條框是近乎白的（3.80,3.62,3.20），
+            // 近白沒有色相可以推：往白熱推推不動、往燼推只會變灰，整圈又回到單色。
+            // 往框金那邊拉過去，斷面才有「白熱 → 金 → 燼」這段路可以走，
+            // 而它仍然在同一個色系裡，看得出是這條框的圈。
+            Color pressRing = Color.Lerp(pressFrame, frameGold, 0.6f);
+            pressRing.a = pressFrame.a;
+            for (int i = 0; i < wrapGroups.Count; i++)
+            {
+                Color ringColour = pressRing;
+                ringColour.a *= wrapGroups[i].Strength;
+                WrapRing(wrapGroups[i], ringColour);
+            }
         }
 
-        // 放開（抬起）的細框：**只讓位，不包圈。**
+        // 放開（抬起）的細框：**讓位，而且也包圈。**
         //
-        // 量過這個曲庫：放開有 97% 落在某個音符的 45ms 之內，而且一段都不在音符
-        // 之前 —— 那就是切分踏板的樣子（手按下去的那一刻腳抬起來）。所以「放開正
-        // 好在音符上」不是特例，是常態。
+        // 以前這條只讓位不包圈，理由是：量過這個曲庫，放開有 97% 落在某個音符的
+        // 45ms 之內（切分踏板 —— 手按下去的那一刻腳抬起來），所以「放開正好在音符
+        // 上」是常態不是特例，每次換踏板都畫一圈的話，密的段落會變成一串圈。
         //
-        // 常態就不能用特例的畫法。每一次換踏板都在和弦外面畫一圈光，密的段落會
-        // 變成一串圈。包圈留給吸附過的踩下：那裡和弦和踏板是同一個動作，圈是在說
-        // 「這個位置被那個和弦佔了」；放開只是經過。
-        MarkerFrame(tailZ, releaseFrameColor, releaseGaps);
+        // 2026-11-12 改成兩條都包。那個擔心是對的，但它要的是**顏色**不是有無：
+        // 兩圈的顏色各自跟著自己那條框走（踩下是偏白的金、放開是橘金），所以就算
+        // 兩圈前後接著出現，看到的是「這一圈換成那一圈」，不是一串同樣的圈。
+        // 真的覺得吵的話，先調 releaseFrameColor 的 alpha，不要整個關掉 ——
+        // 關掉的話放開那條會變成唯一一條會壓在音符上的線，前後就不一致了。
+        MarkerFrame(tailZ, releaseFrameColor, MarkerFrameAlwaysClosed ? null : releaseGaps);
+        if (!MarkerFrameAlwaysClosed)
+        {
+            // releaseWrapGroups 是另一份 list，不是 wrapGroups —— 兩條框的音符
+            // 位置不同（一個在 headDraw、一個在 tailZ），共用一份會讓先畫的那條
+            // 拿到後算的那一組位置。
+            for (int i = 0; i < releaseWrapGroups.Count; i++)
+            {
+                Color ringColour = releaseFrameColor;
+                ringColour.a *= releaseWrapGroups[i].Strength;
+                WrapRing(releaseWrapGroups[i], ringColour);
+            }
+        }
 
         bool held = headZ <= judgmentZ && tailZ > judgmentZ;
         // 踩下的那一瞬間有多近。火星跟著它，不跟著「踩著」——「踩著」是狀態，
         // 由停住的那條橫桿負責。
         float pressMoment = 1f - Mathf.Clamp01(
             Mathf.Abs(headZ - judgmentZ) / Mathf.Max(0.01f, trackWidth * 0.35f));
-        float glowReach = trackWidth * pedalBarGlowShare;
+        float glowReach = NoteHeightWorld() * GlowReachNotes;
         // 踩著的那條是畫面上唯一停住的東西，它得撐得住被一直看。
         // 貼著線，只多出一點點邊。光暈散得比線本身還寬的時候，讀到的是一片霧，
         // 線反而不見了 —— 發光的是那條線，不是它周圍的空氣。
@@ -2269,7 +2560,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         //
         // 放開那條維持躺著的一小圈：它只存在一瞬間，站起來的東西需要時間被讀，
         // 而它沒有那個時間。
-        BarGlow(tailZ, halfWidth, glowReach * 0.55f, glowReach * 3.4f,
+        BarGlow(tailZ, halfWidth, glowReach * ReleaseGlowBack, glowReach * ReleaseGlowFront,
             new Color(3.0f, 2.1f, 1.1f, 0.6f), releaseGaps);
 
         // 踩下的細框也給一圈小光暈，前後一樣長、比放開那圈小。
@@ -2280,7 +2571,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         // 顏色跟著框走（偏白的金），放開後和框一起淡掉。
         float pressGlowAlpha = 0.42f * pressBarAlpha;
         if (pressGlowAlpha > 0.01f)
-            BarGlow(headDraw, halfWidth, glowReach * 0.9f, glowReach * 0.9f,
+            BarGlow(headDraw, halfWidth, glowReach * PressGlowReach, glowReach * PressGlowReach,
                 new Color(3.2f, 2.75f, 2.1f, pressGlowAlpha), pressGaps);
 
         if (pressMoment > 0.02f) Motes(headDraw, halfWidth, pressMoment);
@@ -2587,6 +2878,21 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((1f - t) / 0.18f));
         }
 
+        // **整體的亮度倍率。這一個常數就是「邊框明不明顯」的那個旋鈕。**
+        //
+        // 混色是 SrcAlpha One（加法），所以畫面上拿到的是 rgb × alpha。這裡的
+        // core 是 HDR（r 最高 4.3），光束的 alpha 峰值 0.74，乘起來 3.2 —— 再加上
+        // 底下那一片，重疊處超過 4。tonemap 的白點在 1 附近，所以**整個亮區被壓成
+        // 同一種白**，衰減只剩最外面幾個像素在變化，而那幾個像素就是看起來的那條
+        // 邊框。判定光柱是同一個病（那邊的旋鈕叫 _AlphaGain），而且先治好了。
+        //
+        // 0.58 把峰值帶到 1.9 上下：還在 bloom 的門檻以上（不會變成一片死色），
+        // 但已經離開 tonemap 的肩部，斜邊從此是一段連續的漸層。
+        //
+        // **這是一個取捨，不是一個 bug 修掉了。** 往 1 拉會更亮，邊框也會跟著回來；
+        // 往下拉邊更糊，但低到某個點之後它會掉出 bloom 門檻、整片變成平的橘色。
+        const float GlowGain = 0.58f;
+
         // 光點在**光的裡面**，不是在光的旁邊。
         //
         // 這樣兩者就不是兩個並排的效果，而是一個東西的裡和外：光是體積，光點是
@@ -2602,7 +2908,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             float ceiling = LightHeight(progress);
             if (ceiling <= 0.0001f) return;
 
-            const int Points = 40;
+            const int Points = 60;
             float edge = trackWidth * 0.5f;
             float radius = trackWidth * 0.0024f;
 
@@ -2618,34 +2924,49 @@ public sealed class PedalNoteRenderer : MonoBehaviour
                 {
                     int k = i + side * Points;
 
-                    float t = Mathf.Repeat(k * 0.2360679f, 1f);
+                    // **分層取樣**：先把整條帶子切成 Points 格，每格裡面再隨機
+                    // 放一顆。純隨機會結塊、留空洞；低差異序列（原本的
+                    // Repeat(k × 無理數)）則相反，均勻到讀得出是網格。
+                    // 分層兩邊都避開：沒有洞、也沒有規律。
+                    float t = (i + WallHash(k * 3 + 7)) / Points;
                     float ends = AlongFade(t);
                     if (ends < 0.01f) continue;
 
-                    // 慢慢往上飄，飄到頂就從底下再進來。光點在光裡面是在**流
-                    // 動**的 —— 定住的一組亮點是灑在上面的糖粉。
-                    float rise = Mathf.Repeat(k * 0.4142135f + songMs * 0.00013f, 1f);
+                    // **大小是重尾的。** 大部分很小、少數幾顆明顯大。
+                    // 一群大小相近的點讀起來是顆粒雜訊；少數幾顆撐場、其餘退到
+                    // 背景，才讀成一把有層次的光塵。次方是這件事唯一的來源。
+                    float grade = Mathf.Pow(WallHash(k * 5 + 23), 2.6f);
+                    float size = 0.35f + 2.40f * grade;
+
+                    // 每顆自己的速度。共用一個速度的話，整群是一張一起平移的圖。
+                    float speed = 0.00007f + 0.00013f * WallHash(k * 7 + 41);
+                    float rise = Mathf.Repeat(WallHash(k * 11 + 67) + songMs * speed, 1f);
                     // 越靠近頂端越淡。光本身就是往上化開的，裡面的東西不能比
                     // 它還實，否則光點會從光裡浮出來變成獨立的一層。
                     float fade = 1f - rise * rise;
 
+                    // 各自閃爍，而且週期各不相同 —— 共用週期的話整群會一起呼吸，
+                    // 那是一個動畫，不是一堆各自存在的東西。
+                    float twinkle = 0.55f + 0.45f * Mathf.Sin(
+                        songMs * (0.0018f + 0.0026f * WallHash(k * 13 + 83))
+                        + k * 1.913f);
+
                     // 在光的厚度裡前後錯開一點點。全部貼在同一個平面上的話，
                     // 側面一看就是一張貼紙。
-                    float across = (Mathf.Repeat(k * 0.7548777f, 1f) - 0.5f)
-                        * trackWidth * 0.014f;
+                    float across = (WallHash(k * 17 + 101) - 0.5f) * trackWidth * 0.018f;
+                    // 上升的過程橫向也慢慢晃 —— 直線上升的是火花，會飄的才是塵。
+                    across += Mathf.Sin(rise * 3.1f + k * 0.77f) * trackWidth * 0.0045f;
 
-                    // 每顆的大小和亮度各自不同。整齊一致的一群讀起來是圖案，
-                    // 有大有小才讀成一把撒在光裡的東西。
-                    float grade = 0.45f + 0.9f * Mathf.Repeat(k * 0.6180339f + 0.37f, 1f);
                     float alpha = ends * fade * (0.45f + 0.55f * landing)
-                        * (0.55f + 0.45f * grade);
+                        * (0.30f + 0.70f * twinkle) * (0.40f + 0.80f * grade);
 
                     Spark(sign * edge + across,
                         ceiling * rise,
                         (t - 0.5f) * sideDepth,
-                        radius * grade,
-                        radius * grade * 1.35f,
-                        new Color(tint.r, tint.g, tint.b, alpha));
+                        radius * size,
+                        // 大的那幾顆拉得更長：細長的光點讀起來是光，正圓的是點。
+                        radius * size * (1.25f + 0.55f * grade),
+                        new Color(tint.r, tint.g, tint.b, alpha * GlowGain));
                 }
             }
         }
@@ -2653,11 +2974,72 @@ public sealed class PedalNoteRenderer : MonoBehaviour
         // 連續那一片佔整體高度的幾成，以及它的濃度。光束從這個高度往上長。
         const float SheetShare = 0.42f;
         const float SheetAlpha = 0.55f;
+        // 一段光罩多長，佔軌道寬的比例。105 × 0.042 ≈ 4.4 世界單位，
+        // 一條 46 單位長的踏板大約切成 10 段。
+        //
+        // **分段取代了楔形。** 以前是一片高度連續變化的光（近端高、遠端收掉），
+        // 那條連續的輪廓線不管怎麼加亂度都還是一條線，而線會被讀成一個物件的邊。
+        // 分段之後**沒有輪廓可以讀** —— 高度是一階一階跳的，相鄰兩段可以差很多，
+        // 眼睛找不到一條可以沿著走的邊。
+        //
+        // 「還要踩多久」沒有因此丟掉：那件事本來就是由這片光**鋪到哪裡**講的，
+        // 不是由高度講的（原本的註解已經寫過這件事，只是當時還留著楔形）。
+        const float SegmentShare = 0.042f;
 
-        // 光束的間距（佔軌道寬的比例）和支數上限。間距是**固定**的，所以一束光
-        // 從出生到消失都待在同一個世界位置上。
-        const float SpacingShare = 0.085f;
-        const int MaxShafts = 34;
+        // 每一段往左右**各多鋪出去多少**，1 = 剛好接到鄰居、不重疊。
+        //
+        // **這是「段與段之間還有邊」的解。** 一段一塊硬邊的方形，相鄰兩塊高度
+        // 不同時，交界就是一條垂直的亮度斷崖 —— 拿掉了橫的那條輪廓線，換來一排
+        // 直的。
+        //
+        // 解法不是把高度抹平（那就退回連續的曲線了），是讓**每一段自己在兩端化
+        // 開**：段的兩端 uv.x = 1、中間 uv.x = 0，shader 的 1 - uv.x² 會把邊緣
+        // 吃掉，所以一段是一片兩頭淡的光斑而不是一個方塊。再讓相鄰兩段互相重疊
+        // 三成，加法混合把它們接起來，交界處就沒有任何一條線。
+        //
+        // 高度仍然是一階一階跳的 —— 跳的是高度，化開的是邊緣，兩件事不衝突。
+        //
+        // **重疊量要算，不能抓個差不多。** 重疊不足會在交界留暗縫，重疊過頭則交界
+        // 是兩份光相加、比各自的中心還亮 —— 接縫從暗的變成亮的，一樣是一排線。
+        // 拿 shader 的核 f(u) = 1 - u²、半寬 R（以段長為單位）掃過去算總和的起伏：
+        //
+        //   R = 0.65（重疊 1.3）：起伏 41%
+        //   R = 0.70（1.4）     ：起伏 23%   <- 採用
+        //   R = 1.00（2.0）     ：起伏 50%（最差：交界剛好兩份疊滿）
+        //   R = 1.23（2.46）    ：起伏  7%（數學上最平）
+        //
+        // **沒有取 2.46**：那個半寬讓每一點都疊到約三段，等於對高度做了三段的
+        // 移動平均 —— 階差被抹掉，又變回一條連續的曲線，也就是一開始要逃的東西。
+        // 1.4 是「還看得出是一段一段」這個前提下最平的。剩下那 23% 是跨越半段的
+        // 緩慢明暗，不是斷崖，和硬邊是兩回事。
+        const float SegmentOverlap = 1.4f;
+
+        // 一維的平滑值雜訊。給光牆的高度用。
+        //
+        // **為什麼不是正弦。** 原本是兩個無理數頻率的正弦疊加，想用「週期長到看不
+        // 出來」換隨機。那不成立：兩個正弦疊出來仍然是一條**平滑且處處可微的
+        // 曲線**，而一條乾淨的曲線就是一個輪廓 —— 眼睛會把它讀成一個物件的邊，
+        // 這正是「錐形的邊緣很明顯」的來源。真正要的是沒有形狀可以被認出來。
+        //
+        // 雜訊的輸入是**世界座標**，不是正規化的 t。拿 t 的話整個起伏會隨著
+        // span 收短而被壓扁、一路往判定線滑過去 —— 這個檔案裡光束的位置已經為了
+        // 同一個理由從 t 改成固定間距了。
+        static float WallHash(int i)
+        {
+            uint h = (uint)i * 2654435761u;
+            h ^= h >> 15;
+            h *= 2246822519u;
+            h ^= h >> 13;
+            return (h & 0xFFFFFFu) / (float)0xFFFFFF;
+        }
+
+        static float WallNoise(float v)
+        {
+            int i = Mathf.FloorToInt(v);
+            float f = v - i;
+            f = f * f * (3f - 2f * f);
+            return Mathf.Lerp(WallHash(i), WallHash(i + 1), f);
+        }
 
         // 譜面左右、垂直於軌道面的一片楔形光。
         //
@@ -2708,134 +3090,86 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             //
             // 「還要踩多久」這件事沒有丟：它由這片光**鋪到哪裡**講，而那是形狀之
             // 外的另一個頻道。
-            float Profile(float t)
-            {
-                // 只有最後 12% 收掉，免得末端切成一條直邊。
-                float ends = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((1f - t) / 0.12f));
-                // 沿路的高低。兩個無理數頻率疊起來，週期長到不會被看出是規律。
-                float rough = 0.72f
-                    + 0.18f * Mathf.Sin(t * 9.7f + 1.3f)
-                    + 0.10f * Mathf.Sin(t * 23.1f - 0.7f);
-                return ends * Mathf.Clamp(rough, 0.35f, 1f);
-            }
+            // 起伏**慢慢在換**，不是一組定住的形狀。定住的話，就算它再不規則，
+            // 看久了還是會被認出是同一條曲線 —— 和兩個正弦的下場一樣，只是慢一點。
+            // 0.00022 大約 4.5 秒走完一格雜訊，快到看得出在動、慢到不會閃。
+            float drift = songMs * 0.00022f;
 
-            // 一束光，立在 x 這個平面上、沿著 z 只佔一小段。
+            // 一段光罩的高度。階梯狀，所以每一段裡面是平的。
             //
-            // **形狀是紡錘不是矩形。** 矩形的上緣和兩個上角是三條硬邊，再怎麼調
-            // alpha 都還是會被眼睛判定成「一塊有邊的東西」；把寬度沿著高度收成一
-            // 條曲線之後，輪廓上一個直角都不剩，收尾自然收在一個點上。
-            //
-            // 每一層沿 z 有三 column：兩端 uv.x = 1、中間 uv.x = 0，邊緣由 shader
-            // 化開。細的東西一定要有中間那一排，不然 1 - uv.x² 會把兩邊都算成零、
-            // 整束消失 —— 這個檔案裡已經踩過兩次。
-            void Shaft(float x, float z, float halfLen, float height, Color foot)
+            // 段號由**世界座標**算（floor(z / segLen)），不是由 t —— 拿 t 的話
+            // 整排階梯會隨著 span 收短而往判定線滑過去。這個檔案裡光束的位置、
+            // 高度的雜訊都已經為了同一個理由改成世界座標了。
+            float segLen = Mathf.Max(0.5f, trackWidth * SegmentShare);
+
+            float SegmentHeight(int seg)
             {
-                const int Rows = 6;
-                int at = beamVertices.Count;
-                for (int row = 0; row <= Rows; row++)
-                {
-                    float v = row / (float)Rows;
-                    // 底部最寬、往上收成一個點。0.7 次方讓它在中段就開始收，不是
-                    // 到頂才突然縮 —— 那樣會變成一根有肩膀的釘子。
-                    float wide = halfLen * Mathf.Pow(1f - v, 0.7f);
-                    float y = height * v;
-                    Color lit = new Color(foot.r, foot.g, foot.b, foot.a * (1f - v * v));
-                    for (int col = 0; col < 3; col++)
-                    {
-                        float across = col == 1 ? 0f : 1f;
-                        beamVertices.Add(new Vector3(x, y, z + (col - 1) * wide));
-                        beamColours.Add(lit);
-                        beamUV.Add(new Vector2(across, v));
-                    }
-                }
-                for (int row = 0; row < Rows; row++)
-                {
-                    for (int col = 0; col < 2; col++)
-                    {
-                        int a = at + row * 3 + col;
-                        int b = a + 3;
-                        beamTriangles.Add(a); beamTriangles.Add(b); beamTriangles.Add(b + 1);
-                        beamTriangles.Add(a); beamTriangles.Add(b + 1); beamTriangles.Add(a + 1);
-                    }
-                }
+                // 兩個尺度：大的讓相鄰幾段一起高或一起低（成群，不是逐段亂跳），
+                // 小的給逐段的差異。兩個都隨 drift 慢慢換。
+                float group = WallNoise(seg * 0.34f + drift);
+                float each = WallHash(seg * 2654 + 17);
+                float wobble = 0.5f + 0.5f * Mathf.Sin(songMs * 0.0016f + seg * 2.177f);
+                return Mathf.Clamp01(0.26f + 0.46f * group + 0.34f * each * wobble);
             }
 
             // 一側一片。緊貼著軌道的邊，多層疊出來的厚度反而會讓它變成一個站在
             // 軌道旁邊的獨立量體。
             void Wall(float x)
             {
-                // --- 連續的那一片 ---------------------------------------
+                // --- 一段一段的光罩 --------------------------------------
                 //
-                // 這一層是**不可以有缺口的**。之前只畫參差的光束，於是兩束之間
-                // 就整段沒有東西 —— 讀起來不是「一片有疏密的光」，是「幾根插在
-                // 那裡的棍子」。連續的底片先把整條鋪滿，光束再加在它上面。
-                const int Steps = 30;
-                int at = beamVertices.Count;
-                for (int i = 0; i <= Steps; i++)
+                // 每一段自己一塊，段內等高，段與段之間直接跳。**不內插** ——
+                // 內插出來的就是一條連續的輪廓線，那正是要拿掉的東西。
+                //
+                // 每一段都是獨立的四邊形（不共用頂點），所以相鄰兩段的高度差
+                // 不會被拉成一條斜邊。
+                int segments = Mathf.Max(1, Mathf.CeilToInt(span / segLen));
+                for (int seg = 0; seg < segments; seg++)
                 {
-                    float t = i / (float)Steps;
-                    float z = t * span;
-                    // 最遠那一端不會硬生生切掉：Profile 已經讓它收到零，這裡再
-                    // 給一點點餘量，免得最後一格變成一條亮線。
-                    float tall = peak * Profile(t) * SheetShare;
+                    float z0 = seg * segLen;
+                    float z1 = Mathf.Min(z0 + segLen, span);
+                    if (z1 - z0 < 0.01f) continue;
+
+                    // 最後那一截收掉，免得盡頭變成一道立起來的亮牆。
+                    float tailFade = Mathf.SmoothStep(0f, 1f,
+                        Mathf.Clamp01((span - z0) / Mathf.Max(0.01f, span * 0.14f)));
+                    float tall = peak * SegmentHeight(seg) * tailFade;
+                    if (tall <= 0.0001f) continue;
+
+                    // 高的那幾段同時也亮一點 —— 高度和亮度一起走，階差才讀得出
+                    // 是強弱，而不只是形狀。
+                    float lift = Mathf.Clamp01(tall / Mathf.Max(0.0001f, peak));
                     Color lit = new Color(core.r, core.g, core.b,
-                        core.a * breathe * SheetAlpha);
-                    beamVertices.Add(new Vector3(x, 0f, z));
-                    beamColours.Add(lit);
-                    beamUV.Add(new Vector2(0f, 0f));
-                    beamVertices.Add(new Vector3(x, tall, z));
-                    beamColours.Add(lit);
-                    beamUV.Add(new Vector2(0f, 1f));
-                }
-                for (int i = 0; i < Steps; i++)
-                {
-                    int a = at + i * 2;
-                    int b = a + 2;
-                    beamTriangles.Add(a); beamTriangles.Add(a + 1); beamTriangles.Add(b + 1);
-                    beamTriangles.Add(a); beamTriangles.Add(b + 1); beamTriangles.Add(b);
-                }
+                        core.a * breathe * SheetAlpha * GlowGain * (0.62f + 0.55f * lift));
 
-                // --- 疏密的光束 ------------------------------------------
-                //
-                // 它們只負責質感，不負責覆蓋。所以位置可以不規則、高矮可以差很
-                // 多 —— 底下那一片保證了任何一處都不會空掉。
-                //
-                // 光束**釘在固定的世界位置上**，不是沿著 span 均分。
-                //
-                // 這就是抖動的來源。原本支數是 round(span / trackWidth * 14)，而
-                // span 每一幀都在縮 —— 支數每掉一根，t = (i + 0.5) / shafts 就讓
-                // **整排光束同時換位置**。一秒跳個好幾次，看起來就是在抖。
-                //
-                // 改成固定間距之後，每一束從出生到消失都待在同一個地方，只是隨著
-                // 楔形掃過而變矮。「大家慢慢往下退」本來就該是這個樣子：退的是高
-                // 度，不是位置。
-                float spacing = trackWidth * SpacingShare;
-                int shafts = Mathf.Min(MaxShafts, Mathf.CeilToInt(span / spacing));
-                for (int i = 0; i < shafts; i++)
-                {
-                    float jitter = (Mathf.Repeat(i * 0.6180339f, 1f) - 0.5f) * 0.55f;
-                    float z = (i + 0.5f + jitter) * spacing;
-                    if (z >= span) continue;
-                    float t = z / span;
-                    float floorHeight = peak * Profile(t);
-                    if (floorHeight <= 0.0001f) continue;
+                    // 三排：兩端 uv.x = 1（shader 吃掉）、中間 uv.x = 0。
+                    // 中間那一排是必要的 —— 只有兩端的話 1 - uv.x² 會把整段算成
+                    // 透明。這個檔案裡已經踩過三次了。
+                    float centre = (z0 + z1) * 0.5f;
+                    float reach = (z1 - z0) * 0.5f * SegmentOverlap;
+                    // 近端不越過判定線：那後面是玩家這一側，沒有這段踏板的事。
+                    float near = Mathf.Max(0f, centre - reach);
+                    float far = centre + reach;
 
-                    float thin = Mathf.Repeat(i * 0.7548777f, 1f);
-                    float rise = Mathf.Repeat(i * 0.4142135f + 0.23f, 1f);
-                    float lit = Mathf.Repeat(i * 0.2360679f + 0.61f, 1f);
-
-                    // 粗細也跟著固定間距走，不跟 span —— 跟著 span 的話每一束會
-                    // 隨著時間慢慢變瘦，那是另一種形式的抖。
-                    float halfLen = spacing * (0.10f + 0.26f * thin);
-                    // 一律**高過**那一片，所以光束是從片上長出來的，不是插在旁
-                    // 邊。參差的是它們高出多少，不是有沒有。
-                    float tallEach = floorHeight * (SheetShare + 0.62f * (0.35f + 0.65f * rise * rise));
-                    // 亮度各自不同，而且慢慢在變 —— 一組定住的亮度是圖案。
-                    float pulse = 0.72f + 0.28f * Mathf.Sin(songMs * 0.0035f + i * 2.399f);
-                    float alpha = core.a * breathe * (0.40f + 0.85f * lit) * pulse;
-
-                    Shaft(x, z, halfLen, tallEach,
-                        new Color(core.r, core.g, core.b, alpha));
+                    int at = beamVertices.Count;
+                    for (int col = 0; col < 3; col++)
+                    {
+                        float z = col == 0 ? near : col == 1 ? centre : far;
+                        float across = col == 1 ? 0f : 1f;
+                        beamVertices.Add(new Vector3(x, 0f, z));
+                        beamColours.Add(lit);
+                        beamUV.Add(new Vector2(across, 0f));
+                        beamVertices.Add(new Vector3(x, tall, z));
+                        beamColours.Add(lit);
+                        beamUV.Add(new Vector2(across, 1f));
+                    }
+                    for (int col = 0; col < 2; col++)
+                    {
+                        int a = at + col * 2;
+                        int b = a + 2;
+                        beamTriangles.Add(a); beamTriangles.Add(a + 1); beamTriangles.Add(b + 1);
+                        beamTriangles.Add(a); beamTriangles.Add(b + 1); beamTriangles.Add(b);
+                    }
                 }
             }
 
@@ -3076,8 +3410,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             if (pool[i].Object.activeSelf) pool[i].Object.SetActive(false);
         }
     }
-
-
 
 
     private Visual CreateVisual(int index)

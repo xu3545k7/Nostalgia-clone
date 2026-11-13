@@ -223,12 +223,12 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         // 遊戲本身也是等到要播的時候才非同步載。檢視器自己載一份。
         if (songClip == null && !string.IsNullOrWhiteSpace(audioPath))
         {
-            audioStatus = "音檔載入中";
+            audioStatus = Localize.S("音檔載入中");
             StartCoroutine(LoadAudioRoutine(audioPath));
         }
         else if (songClip == null)
         {
-            audioStatus = "沒有音檔";
+            audioStatus = Localize.S("沒有音檔");
         }
         loadedChart = null;
         preparedChart = null;
@@ -247,7 +247,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
     private IEnumerator LoadChartRoutine(string chartFile)
     {
         loading = true;
-        status = "讀取檔案…";
+        status = Localize.S("讀取檔案…");
         string json = null;
         try
         {
@@ -256,16 +256,16 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         }
         catch (System.Exception error)
         {
-            status = "讀檔失敗：" + error.Message;
+            status = Localize.S("讀檔失敗：") + error.Message;
         }
 
         if (string.IsNullOrEmpty(json))
         {
-            if (status == "讀取檔案…") status = "找不到譜面檔：" + chartFile;
+            if (status == "讀取檔案…") status = Localize.S("找不到譜面檔：") + chartFile;
             loading = false;
             yield break;
         }
-        status = "解析中…";
+        status = Localize.S("解析中…");
 
         Task<Chart> task = null;
         try { task = Task.Run(() => Newtonsoft.Json.JsonConvert.DeserializeObject<Chart>(json)); }
@@ -282,12 +282,12 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         {
             // Newtonsoft 沒吃下去就退回 JsonUtility（主緒），總比什麼都不顯示好。
             try { loadedChart = JsonUtility.FromJson<Chart>(json); }
-            catch (System.Exception error) { status = "解析失敗：" + error.Message; }
+            catch (System.Exception error) { status = Localize.S("解析失敗：") + error.Message; }
         }
         try { loadedChart?.NormaliseHiddenNotes(); } catch { }
-        if (loadedChart == null) status = "解析不出譜面：" + chartFile;
+        if (loadedChart == null) status = Localize.S("解析不出譜面：") + chartFile;
         else if (loadedChart.notes == null || loadedChart.notes.Count == 0)
-            status = "這份譜面沒有音符：" + chartFile;
+            status = Localize.S("這份譜面沒有音符：") + chartFile;
         else status = null;
         loading = false;
     }
@@ -298,7 +298,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         following = true;
         playing = false;
         if (audioSource != null) audioSource.Pause();
-        SettingsUiKit.SetText(playLabel, "播放");
+        SettingsUiKit.SetText(playLabel, Localize.S("播放"));
         if (followButton != null) followButton.gameObject.SetActive(false);
     }
 
@@ -307,7 +307,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         // 手指一碰就停下自走播放：要拖著看的時候，畫面不該還在自己跑。
         playing = false;
         if (audioSource != null) audioSource.Pause();
-        SettingsUiKit.SetText(playLabel, "播放");
+        SettingsUiKit.SetText(playLabel, Localize.S("播放"));
         following = false;
         if (followButton != null) followButton.gameObject.SetActive(true);
     }
@@ -368,7 +368,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         {
             audioSource.Pause();
         }
-        SettingsUiKit.SetText(playLabel, playing ? "暫停" : "播放");
+        SettingsUiKit.SetText(playLabel, playing ? Localize.S("暫停") : Localize.S("播放"));
     }
 
     /// <summary>把音檔載進來。external:// 的走 UnityWebRequest，內建的走 Resources。</summary>
@@ -400,7 +400,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
                 }
                 else
                 {
-                    audioStatus = "音檔載入失敗";
+                    audioStatus = Localize.S("音檔載入失敗");
                     yield break;
                 }
             }
@@ -412,7 +412,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
             songClip = load.asset as AudioClip;
         }
 
-        audioStatus = songClip != null ? null : "沒有音檔";
+        audioStatus = songClip != null ? null : Localize.S("沒有音檔");
         // 載入的時候已經按了播放，就立刻接上去。
         if (playing && songClip != null) StartAudio();
     }
@@ -549,22 +549,22 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         hint.overflowMode = TextOverflowModes.Overflow;
         SettingsUiKit.Place(hint.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0f),
             new Vector2(-32f, 22f), new Vector2(1500f, 40f));
-        SettingsUiKit.SetText(hint, "滾輪或拖曳捲動　＋／－ 縮放　F2 開關");
+        SettingsUiKit.SetText(hint, Localize.S("滾輪或拖曳捲動　＋／－ 縮放　F2 開關"));
 
         // 控制鈕靠右上直排，一律 76 高 —— 一根手指的大小。
-        CreateControl("Close", SettingsGlyph.Shape.Back, "關閉", -32f, () => SetOpen(false));
+        CreateControl("Close", SettingsGlyph.Shape.Back, Localize.S("關閉"), -32f, () => SetOpen(false));
         CreateControl("ZoomIn", SettingsGlyph.Shape.Plus, null, -194f,
             () => pxPerMs = Mathf.Min(MaxPxPerMs, pxPerMs * 1.25f));
         CreateControl("ZoomOut", SettingsGlyph.Shape.Minus, null, -290f,
             () => pxPerMs = Mathf.Max(MinPxPerMs, pxPerMs * 0.8f));
-        followButton = CreateControl("Follow", SettingsGlyph.Shape.Play, "跟隨", -386f,
+        followButton = CreateControl("Follow", SettingsGlyph.Shape.Play, Localize.S("跟隨"), -386f,
             ResumeFollow);
         followButton.gameObject.SetActive(false);
 
         // 播放：選曲畫面沒有遊戲時鐘，所以自己往前推。看一段譜面「跑起來是什麼樣
         // 子」比靜態圖有用得多 —— 密到什麼程度、手怎麼換，都要動起來才看得出來。
         Button play = SettingsUiKit.CreateButton(viewerRoot, "Play", SettingsUiKit.Tone.Quiet,
-            SettingsGlyph.Shape.Play, "播放", 24f, new Vector2(150f, 76f), out playLabel, out _);
+            SettingsGlyph.Shape.Play, Localize.S("播放"), 24f, new Vector2(150f, 76f), out playLabel, out _);
         var playRect = play.GetComponent<RectTransform>();
         SettingsUiKit.Place(playRect, new Vector2(1f, 1f), new Vector2(1f, 1f),
             new Vector2(-546f, -18f), new Vector2(150f, 76f));
@@ -889,7 +889,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
             quads.Clear();
             if (graphic != null) graphic.SetQuads(quads);
             HideUnusedLabels();
-            SettingsUiKit.SetText(header, "畫面出錯：" + error.Message);
+            SettingsUiKit.SetText(header, Localize.S("畫面出錯：") + error.Message);
             Debug.LogException(error, this);
         }
     }
@@ -903,8 +903,8 @@ public sealed class ChartOverviewViewer : MonoBehaviour
         {
             SettingsUiKit.SetText(header,
                 !string.IsNullOrEmpty(status) ? status
-                : loading ? "載入譜面…"
-                : "沒有譜面可以看");
+                : loading ? Localize.S("載入譜面…")
+                : Localize.S("沒有譜面可以看"));
             HideUnusedLabels();
             graphic.SetQuads(quads);
             return;
@@ -953,23 +953,25 @@ public sealed class ChartOverviewViewer : MonoBehaviour
 
         SettingsUiKit.SetText(header,
             (string.IsNullOrEmpty(loadedTitle) ? string.Empty : loadedTitle + "    ") +
-            $"BPM {chartBpm:0.#}    {chartNumerator}/4    最密 1/{densestSubdivision}    " +
-            $"格線 1/{gridSubdivision}    音符 {notes.Count}    {FormatTime(songMs)}" +
-            (following || conductor == null ? string.Empty : "　（已暫離播放）") +
+            Localize.SF("BPM {0:0.#}    {1}/4    最密 1/{2}    ", chartBpm,
+                chartNumerator, densestSubdivision) +
+            Localize.SF("格線 1/{0}    音符 {1}    {2}", gridSubdivision, notes.Count,
+                FormatTime(songMs)) +
+            (following || conductor == null ? string.Empty : Localize.S("　（已暫離播放）")) +
             (stage != null
                 ? (stage.IsBuilding
-                    ? $"　建立中 {stage.BuiltNotes}/{stage.TotalNotes}"
-                    : $"　舞台 {stage.BuiltNotes}")
+                    ? Localize.SF("　建立中 {0}/{1}", stage.BuiltNotes, stage.TotalNotes)
+                    : Localize.SF("　舞台 {0}", stage.BuiltNotes))
                 : string.Empty) +
             (stage != null && stage.FailedNotes > 0
-                ? $"　失敗 {stage.FailedNotes}（{stage.FirstFailure}）"
+                ? Localize.SF("　失敗 {0}（{1}）", stage.FailedNotes, stage.FirstFailure)
                 : string.Empty) +
             (stage != null && stage.OrphanNotes > 0
-                ? $"　孤兒 {stage.OrphanNotes}"
+                ? Localize.SF("　孤兒 {0}", stage.OrphanNotes)
                 : string.Empty) +
             (string.IsNullOrEmpty(audioStatus) ? string.Empty : "　" + audioStatus));
         if (stage != null && stage.OrphanNotes > 0 && !string.IsNullOrEmpty(stage.FirstOrphan))
-            SettingsUiKit.SetText(hint, "孤兒音符：" + stage.FirstOrphan);
+            SettingsUiKit.SetText(hint, Localize.S("孤兒音符：") + stage.FirstOrphan);
     }
 
     private static string FormatTime(float ms)

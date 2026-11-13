@@ -1142,6 +1142,21 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
 
         ClearSpawnedObjects();
 
+        // 把鋼琴這一側整個歸零。
+        //
+        // **重新開始的意思包括「之前排的東西都不算數了」。** 還在延音的聲部、排進去
+        // 的隱藏音和顫音，它們的時間戳留在上一輪 —— 不清掉的話會響進新的一輪，而且
+        // 新的一輪一開始就是前導的安靜段落，上一輪的尾巴在那裡特別明顯。
+        //
+        // 和 PrepareSettingsPreviewSegment 做的是同一件事，理由也一樣：見那裡的說明。
+        // StartSong 本身完全不碰鋼琴（它只負責排程），所以沒有人會順手清掉。
+        try
+        {
+            PianoVoiceManager.Instance?.StopAll();
+            PianoKeysound.ClearAllLanes();
+        }
+        catch { }
+
         // Restart the song
         StartSong(chartFileName, currentSongClip, currentSongDisplayName, currentPianoClip,
             currentPianoResourcePath, currentSongResourcePath);
@@ -1375,8 +1390,12 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
         // MIDI 輸入模式自動啟用/停用
         bool wantsMidi = SettingsManager.Instance != null &&
                          SettingsManager.Instance.InputMode != InputModeType.Keyboard;
+        // 第三個條件比的是**身分**不是「有沒有」：管理器會被換掉（選曲畫面會建一份
+        // 常駐的，場景裡那一份跟著 GameplayRoot 關掉），只問 null 的話會一直停在
+        // 已經不做事的那一份上，於是遊玩中完全收不到音。
         if (!midiModeStateInitialized || wantsMidi != midiModeEnabled ||
-            (wantsMidi && MIDIInputManager.Instance == null))
+            (wantsMidi && (MIDIInputManager.Instance == null ||
+                           midiSubscribedTo != MIDIInputManager.Instance)))
         {
             EnsureMIDIInputManagerEnabled(wantsMidi);
             midiModeEnabled = wantsMidi;
@@ -1386,6 +1405,13 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
     }
 
     private bool midiSubscribed = false;
+
+    /// <summary>上面那個 bool 訂的是**哪一個**管理器。</summary>
+    /// <remarks>
+    /// 單靠 bool 記不住對象：管理器被換掉或被 Destroy 之後，bool 還是 true，於是
+    /// 永遠不會重訂，而事件從新的那一份出來，舊的那一份一聲不響。
+    /// </remarks>
+    private MIDIInputManager midiSubscribedTo;
     private bool midiModeStateInitialized;
     private bool midiModeEnabled;
     private bool midiTimingPathLogged;
@@ -1393,31 +1419,42 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
     private void EnsureMIDIInputManagerEnabled(bool enable)
     {
         var midiObj = MIDIInputManager.Instance;
-        if (enable && midiObj == null)
+        if (enable && (midiObj == null || !midiObj.isActiveAndEnabled))
             midiObj = FindFirstObjectByType<MIDIInputManager>();
         if (enable)
         {
-            if (midiObj == null)
+            if (midiObj == null || !midiObj.isActiveAndEnabled)
             {
                 var go = new GameObject("MIDIInputManager");
                 go.AddComponent<MIDIInputManager>();
+            }
+            // 換人了就先退訂舊的那一個，否則下面的 midiSubscribed 會擋住重訂。
+            if (midiSubscribedTo != null && midiSubscribedTo != MIDIInputManager.Instance)
+            {
+                midiSubscribedTo.OnMidiNoteOnTimed -= HandleMidiNoteOnTimed;
+                midiSubscribedTo.OnMidiNoteOffTimed -= HandleMidiNoteOffTimed;
+                midiSubscribedTo = null;
+                midiSubscribed = false;
             }
             if (!midiSubscribed && MIDIInputManager.Instance != null)
             {
                 MIDIInputManager.Instance.OnMidiNoteOnTimed += HandleMidiNoteOnTimed;
                 MIDIInputManager.Instance.OnMidiNoteOffTimed += HandleMidiNoteOffTimed;
+                midiSubscribedTo = MIDIInputManager.Instance;
                 midiSubscribed = true;
             }
         }
         else
         {
             ReleaseAllActiveMidiLanes(midiObj);
-            if (midiSubscribed && MIDIInputManager.Instance != null)
+            // 退訂的對象是當初訂的那一個，不是現在的 Instance —— 兩者可能已經不同人。
+            if (midiSubscribed && midiSubscribedTo != null)
             {
-                MIDIInputManager.Instance.OnMidiNoteOnTimed -= HandleMidiNoteOnTimed;
-                MIDIInputManager.Instance.OnMidiNoteOffTimed -= HandleMidiNoteOffTimed;
-                midiSubscribed = false;
+                midiSubscribedTo.OnMidiNoteOnTimed -= HandleMidiNoteOnTimed;
+                midiSubscribedTo.OnMidiNoteOffTimed -= HandleMidiNoteOffTimed;
             }
+            midiSubscribedTo = null;
+            midiSubscribed = false;
             if (midiObj != null)
             {
                 Destroy(midiObj.gameObject);
@@ -1921,7 +1958,8 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
                 BuildLogger.Log(
                     $"[GameManager] '{chartFile}': folded {removed} hidden note(s) " +
                     $"(by hostIndex {chart.hiddenByIndex}, by fallback " +
-                    $"{chart.hiddenByFallback}, no host {chart.hiddenWithoutHost}); " +
+                    $"{chart.hiddenByFallback}, always-on {chart.hiddenAlwaysOn}, " +
+                    $"no host {chart.hiddenWithoutHost}); " +
                     $"autoplay queue {chart.autoHidden.Count}; " +
                     $"PlayHiddenSubNotes={(settings == null ? "?" : settings.PlayHiddenSubNotes.ToString())}, " +
                     $"synthesisedPiano={(settings == null ? "?" : settings.UsesSynthesisedPiano.ToString())}");
@@ -2174,6 +2212,9 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
         // The count-in begins only after parsing, audio decoding and prewarming
         // are complete, so its final second lands where the roll-in begins.
         GameplayEntryPresentation.BeginCountdown((float)(lead - roll), (float)roll);
+        // 譜面一樣一樣進來。接在倒數開始的同一刻：進場全長約一秒，倒數最短
+        // 也比它長，所以第一個小節落下來時舞台已經就位。
+        try { GameplayEntryReveal.Play(); } catch { }
 
         AudioSource musicSource = null;
 

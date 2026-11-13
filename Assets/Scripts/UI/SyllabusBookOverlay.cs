@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -18,8 +18,10 @@ using UnityEngine.UI;
 /// 己曲庫裡的曲名。這是這套系統對空狀態最大的一筆，而抽課引擎反正得寫，這個效果不
 /// 加錢。
 ///
-/// **為什麼這本書不能按。** 它是帳本不是控制台：檢定的動作在結算頁（打完一局按「送
-/// 審」），技階的動作在考場。書上多一顆按鈕就會有人以為按了會開始考試。
+/// **為什麼列不能按，底下卻有三顆按鈕。** 每一列是帳不是控制台 —— 按一列會讓人以為
+/// 按了就開始考試，而實際要彈哪一首是考場的事。但「帳本沒有任何出口」比那更糟：從演奏
+/// 廳的牌子翻開這本書之後就是死路，玩家看完十八列卻不知道下一步在哪。所以底下有兩條明
+/// 確的路通往兩座考場，按鈕上寫的就是它會做的事。
 /// </remarks>
 public sealed class SyllabusBookOverlay : MonoBehaviour
 {
@@ -122,20 +124,39 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
             boardWear.Foxing = 0;
         }
 
-        leftPage = AddPage("LeftPage", new Vector2(0.034f, 0.052f), new Vector2(0.489f, 0.948f));
-        rightPage = AddPage("RightPage", new Vector2(0.511f, 0.052f), new Vector2(0.966f, 0.948f));
+        // 兩頁的下緣收到 0.135，空出一條約 120px 的腰帶給底下那三顆牼。
+        // 舊的 0.052 只剩 47px，而牼本身就 46px 高 —— 所以它們是踩在書緣上、
+        // 上半被頁面壓著，在畫面上就是「看不到」。
+        leftPage = AddPage("LeftPage", new Vector2(0.034f, 0.135f), new Vector2(0.489f, 0.948f));
+        rightPage = AddPage("RightPage", new Vector2(0.511f, 0.135f), new Vector2(0.966f, 0.948f));
         Image spine = AddImage(book, "BookSpine", new Color(0.28f, 0.15f, 0.065f, 0.78f));
-        spine.rectTransform.anchorMin = new Vector2(0.497f, 0.045f);
+        spine.rectTransform.anchorMin = new Vector2(0.497f, 0.128f);
         spine.rectTransform.anchorMax = new Vector2(0.503f, 0.955f);
         spine.rectTransform.offsetMin = spine.rectTransform.offsetMax = Vector2.zero;
         spine.raycastTarget = false;
 
         notice = AddText(book, string.Empty, 20f, InkFaint, FontStyles.Italic,
             TextAlignmentOptions.Center);
-        Place(notice.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 34f), new Vector2(900f, 30f));
+        Place(notice.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 90f), new Vector2(900f, 28f));
 
-        Button edit = BuildEditToggle();
+        Button edit = BuildPlate("EditToggle", Localize.S("編輯考程"), new Vector2(1f, 0f),
+            new Vector2(-42f, 30f), new Vector2(212f, 50f), null);
         editLabel = edit.GetComponentInChildren<TextMeshProUGUI>();
+        edit.onClick.AddListener(() =>
+        {
+            editing = !editing;
+            UiSfx.Select();
+            if (editLabel != null) editLabel.text = editing ? Localize.S("完成編輯") : Localize.S("編輯考程");
+            Rebuild();
+        });
+
+        // 左頁是檢定、右頁是技階，所以兩顆門各站自己那一頁的下緣。
+        BuildPlate("ToGradeHall", Localize.S("檢定考場"), new Vector2(0f, 0f),
+            new Vector2(42f, 30f), new Vector2(212f, 50f),
+            () => { Close(); SyllabusExamHall.OpenGrade(); });
+        BuildPlate("ToStageHall", Localize.S("技階考場"), new Vector2(0.5f, 0f),
+            new Vector2(146f, 30f), new Vector2(212f, 50f),
+            () => { Close(); SyllabusExamHall.Open(); });
 
         Rebuild();
         StartCoroutine(FadeIn());
@@ -148,7 +169,7 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         // 旗標擋掉並立刻回報「沒做」，於是提示被清掉、書卻還是空的。
         if (manager != null && SyllabusCourses.NeedsDraft(manager))
         {
-            notice.text = "編定考程中…";
+            notice.text = Localize.S("編定考程中…");
             StartCoroutine(SyllabusCourses.Drafting ? AwaitDraft() : Draft());
         }
     }
@@ -204,7 +225,7 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
 
         RectTransform head = AddRect(page, "Head", Vector2.zero, Vector2.zero);
         Span(head, Inset, HeadHeight, PageTop);
-        TextMeshProUGUI heading = AddText(head, recital ? "檢定" : "技階", 34f, Ink,
+        TextMeshProUGUI heading = AddText(head, recital ? Localize.S("檢定") : Localize.S("技階"), 34f, Ink,
             FontStyles.Bold, TextAlignmentOptions.TopLeft);
         Stretch(heading.rectTransform);
         heading.characterSpacing = 6f;
@@ -256,7 +277,8 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         Color ink = passed ? Ink : open ? InkSoft : InkFaint;
 
         TextMeshProUGUI title = AddText(row,
-            $"{SyllabusProgress.Numeral(stage.Index)}階　{stage.Name}", 24f, ink,
+            Localize.SF("{0}階　{1}", SyllabusProgress.Numeral(stage.Index), stage.Name),
+            24f, ink,
             passed ? FontStyles.Bold : FontStyles.Normal, TextAlignmentOptions.TopLeft);
         Stretch(title.rectTransform);
 
@@ -266,9 +288,9 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
             SyllabusOverrides.HighOf(stage));
         if (course != null && course.charts.Count == SyllabusLadder.CourseSize)
         {
-            right += $"　{SyllabusCourses.AllowanceFor(manager, course)} 容錯";
+            right += Localize.SF("　{0} 容錯", SyllabusCourses.AllowanceFor(manager, course));
             if (course.widened > 0) right += $"　±{course.widened}";
-            if (course.belowSignificance) right += "　曲庫未達顯著";
+            if (course.belowSignificance) right += Localize.S("　曲庫未達顯著");
         }
         TextMeshProUGUI meta = AddText(row, right, 17f, InkFaint, FontStyles.Normal,
             TextAlignmentOptions.TopRight);
@@ -277,7 +299,7 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         // 朱印蓋在最右邊，和印記那一欄對齊 —— 它是這一列唯一的顏色。
         if (passed)
         {
-            TextMeshProUGUI seal = AddText(row, "已敘", 22f, Vermilion, FontStyles.Bold,
+            TextMeshProUGUI seal = AddText(row, Localize.S("已敘"), 22f, Vermilion, FontStyles.Bold,
                 TextAlignmentOptions.BottomRight);
             Stretch(seal.rectTransform);
         }
@@ -300,7 +322,8 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         bool open = SyllabusProgress.Grade + 1 >= grade.Index;
         Color ink = awarded ? Ink : open ? InkSoft : InkFaint;
 
-        TextMeshProUGUI title = AddText(row, $"{SyllabusProgress.Numeral(grade.Index)}級", 24f, ink,
+        TextMeshProUGUI title = AddText(row,
+            Localize.SF("{0}級", SyllabusProgress.Numeral(grade.Index)), 24f, ink,
             awarded ? FontStyles.Bold : FontStyles.Normal, TextAlignmentOptions.TopLeft);
         Stretch(title.rectTransform);
 
@@ -317,7 +340,8 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         else if (paper != null && SyllabusProgress.FilledSlots(paper) > 0)
         {
             TextMeshProUGUI pending = AddText(row,
-                $"已送審 {SyllabusProgress.FilledSlots(paper)} / {SyllabusLadder.PaperSize}",
+                Localize.SF("已送審 {0} / {1}", SyllabusProgress.FilledSlots(paper),
+                    SyllabusLadder.PaperSize),
                 16f, InkSoft, FontStyles.Normal, TextAlignmentOptions.BottomRight);
             Stretch(pending.rectTransform);
         }
@@ -335,12 +359,14 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
     private string DescribeCourse(SyllabusCourse course, SyllabusLadder.Stage stage)
     {
         if (course == null || course.charts.Count < SyllabusLadder.CourseSize)
-            return $"尚未開課：需 {SyllabusLadder.BandText(SyllabusOverrides.LowOf(stage), SyllabusOverrides.HighOf(stage))} 的三首不同曲目";
+            return Localize.SF("尚未開課：需 {0} 的三首不同曲目",
+                SyllabusLadder.BandText(SyllabusOverrides.LowOf(stage),
+                    SyllabusOverrides.HighOf(stage)));
 
         var text = new StringBuilder();
         for (int i = 0; i < course.charts.Count; i++)
         {
-            if (i > 0) text.Append("・");
+            if (i > 0) text.Append(Localize.S("・"));
             text.Append(NameOf(course.charts[i]));
         }
         return text.ToString();
@@ -349,12 +375,14 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
     private string DescribePaper(SyllabusPaper paper, SyllabusLadder.Grade grade)
     {
         if (paper == null || paper.charts.Count < SyllabusLadder.PaperSize)
-            return $"尚未開考：需 {SyllabusLadder.BandText(SyllabusOverrides.LowOf(grade), SyllabusOverrides.HighOf(grade))} 的兩首不同曲目";
+            return Localize.SF("尚未開考：需 {0} 的兩首不同曲目",
+                SyllabusLadder.BandText(SyllabusOverrides.LowOf(grade),
+                    SyllabusOverrides.HighOf(grade)));
 
         string tech = NameOf(paper.charts[0]);
         string sing = paper.charts.Count > 1 ? NameOf(paper.charts[1]) : "—";
-        string body = $"技巧 {tech}　歌唱 {sing}";
-        if (paper.widened > 0) body += $"（已放寬 ±{paper.widened}）";
+        string body = Localize.SF("技巧 {0}　歌唱 {1}", tech, sing);
+        if (paper.widened > 0) body += Localize.SF("（已放寬 ±{0}）", paper.widened);
         return body;
     }
 
@@ -368,19 +396,21 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
             float need = demand.For(c);
             if (need <= 0f) continue;
             if (text.Length > 0) text.Append("　");
-            text.Append(SyllabusLadder.CriterionShortNames[c]).Append(' ').Append((int)need);
+            text.Append(SyllabusLadder.CriterionShortName(c)).Append(' ').Append((int)need);
         }
-        if (demand.Average > 0f) text.Append($"　平均 {(int)demand.Average}");
-        if (SyllabusOverrides.NeedsExpressionOf(grade)) text.Append("　需表情資料");
+        if (demand.Average > 0f)
+            text.Append(Localize.SF("　平均 {0}", (int)demand.Average));
+        if (SyllabusOverrides.NeedsExpressionOf(grade)) text.Append(Localize.S("　需表情資料"));
         if (grade.RequiredStage > 0)
-            text.Append($"　先修 {SyllabusProgress.Numeral(grade.RequiredStage)}階");
+            text.Append(Localize.SF("　先修 {0}階",
+                SyllabusProgress.Numeral(grade.RequiredStage)));
         return text.ToString();
     }
 
     private string NameOf(string chartFileName)
     {
         SongSelectionManager.SongOption option = SyllabusCourses.Resolve(manager, chartFileName);
-        if (option == null) return "（此譜已不在曲庫）";
+        if (option == null) return Localize.S("（此譜已不在曲庫）");
         return string.IsNullOrWhiteSpace(option.displayName) ? chartFileName : option.displayName;
     }
 
@@ -425,37 +455,49 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         Rebuild();
     }
 
-    private Button BuildEditToggle()
+    /// <summary>書緣上的一顆牌：淡底、金線、刻字。</summary>
+    private Button BuildPlate(string name, string caption, Vector2 corner, Vector2 offset,
+        Vector2 size, System.Action onClick)
     {
-        var buttonObject = new GameObject("EditToggle", typeof(RectTransform),
+        var buttonObject = new GameObject(name, typeof(RectTransform),
             typeof(CanvasRenderer), typeof(Image), typeof(Button));
         buttonObject.layer = book.gameObject.layer;
         var rect = buttonObject.GetComponent<RectTransform>();
         rect.SetParent(book, false);
-        rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
-        rect.pivot = new Vector2(1f, 0f);
-        rect.anchoredPosition = new Vector2(-42f, 26f);
-        rect.sizeDelta = new Vector2(196f, 46f);
+        rect.anchorMin = rect.anchorMax = corner;
+        rect.pivot = corner;
+        rect.anchoredPosition = offset;
+        rect.sizeDelta = size;
 
-        Image face = buttonObject.GetComponent<Image>();
-        face.color = new Color(0.42f, 0.27f, 0.11f, 0.12f);
-        PageRuleGraphic rule = PageRuleGraphic.Attach(rect, 53,
-            new Color(0.62f, 0.44f, 0.18f, 0.85f), 0.075f, 2.2f, true, 0);
-        if (rule != null) rule.Wear = 0.18f;
+        // **這三顆牼坐在書板上，不是紙頁上。** 舊的做法是 12% 透明的底配墨色字
+        // （和頁上那些字同一個 <see cref="Ink"/>），而書板是深褐色的皮 —— 深配深，
+        // 在畫面上幾乎看不見。改成銃牼：實心的皮面、金線、米白刻字，和考場底下那顆
+        // 「翻開考程」是同一種東西。
+        // 面是**有貼圖的**皮，所以圓角走遮罩：疊一塊平色圓角會把皮紋整片蓋掉。
+        RectTransform inside = SettingsUiKit.RoundCorners(rect, 10f);
+        Image face = AddImage(inside, "Face", Color.white);
+        ClassicalBookUITheme.ApplyDarkSurface(face, new Color(0.205f, 0.095f, 0.055f, 1f),
+            ClassicalBookUITheme.Surface.Leather, 1.4f);
+        face.rectTransform.anchorMin = Vector2.zero;
+        face.rectTransform.anchorMax = Vector2.one;
+        face.rectTransform.offsetMin = face.rectTransform.offsetMax = Vector2.zero;
+        PageRuleGraphic rule = PageRuleGraphic.Attach(inside, 53,
+            new Color(0.82f, 0.63f, 0.28f, 0.95f), 0.075f, 2.2f, true, 0);
+        if (rule != null) rule.Wear = 0.12f;
 
         var label = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer),
             typeof(TextMeshProUGUI));
         label.layer = book.gameObject.layer;
         var labelRect = label.GetComponent<RectTransform>();
-        labelRect.SetParent(rect, false);
+        labelRect.SetParent(inside, false);
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
         labelRect.offsetMin = new Vector2(4f, 2f);
         labelRect.offsetMax = new Vector2(-4f, -2f);
         TextMeshProUGUI text = label.GetComponent<TextMeshProUGUI>();
-        text.text = "編輯考程";
+        text.text = caption;
         text.fontSize = 20f;
-        text.color = Ink;
+        text.color = new Color(0.94f, 0.88f, 0.74f, 1f);
         text.fontStyle = FontStyles.Bold;
         text.alignment = TextAlignmentOptions.Center;
         text.raycastTarget = false;
@@ -464,18 +506,17 @@ public sealed class SyllabusBookOverlay : MonoBehaviour
         ClassicalBookUITheme.ApplyLocalizedFont(text);
 
         Button button = buttonObject.GetComponent<Button>();
+        // 染色要染看得見的那一層。遮罩圖不畫，染它等於什麼都沒做。
+        button.targetGraphic = face;
+        // 底色現在是實心的，提亮倍率要跟著收 —— 舊的 2.1× 是配 12% 透明底算的，
+        // 直接留著會爆白。
         ColorBlock colours = button.colors;
         colours.normalColor = Color.white;
-        colours.highlightedColor = new Color(2.1f, 1.85f, 1.35f, 1.9f);
-        colours.pressedColor = new Color(1.4f, 1.15f, 0.80f, 2.6f);
+        colours.highlightedColor = new Color(1.22f, 1.16f, 1.06f, 1f);
+        colours.pressedColor = new Color(0.82f, 0.78f, 0.72f, 1f);
         button.colors = colours;
-        button.onClick.AddListener(() =>
-        {
-            editing = !editing;
-            UiSfx.Select();
-            if (editLabel != null) editLabel.text = editing ? "完成編輯" : "編輯考程";
-            Rebuild();
-        });
+        if (onClick != null)
+            button.onClick.AddListener(() => { UiSfx.Select(); onClick(); });
         return button;
     }
 

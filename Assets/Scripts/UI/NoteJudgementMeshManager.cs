@@ -71,6 +71,127 @@ public class NoteJudgementMeshManager : MonoBehaviour
     [SerializeField, Tooltip("Optional override material that supports vertex colors (e.g. Unlit/Transparent or Sprites/Default) for gradient alpha.")]
     private Material vertexColorMaterial;
     private Material premiumGlowMaterial;
+
+    /// <summary>
+    /// 力度彈對時，網格要走向的紫。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼是深的、飽和的紫，不是淡紫。** 判定色是從材質的 <c>_EmissionColor</c>
+    /// 正規化來的，justMesh 那一組是 (62.2, 62.2, 49.0)，歸一之後約是 (0.96, 0.96, 0.68)
+    /// —— **本來就幾乎是白的**。再加上這條光柱自己的發光和 bloom，核心是完全吵爆的。
+    ///
+    /// 所以前一版那個帶金的淡紫 (1.06, 0.72, 1.24) 混進去之後是 (1.03, 0.79, 1.08)，
+    /// **也幾乎是白的** —— 兩個近白的顏色經過 bloom 一律爆成白色，只剩邊緣有點粉。
+    ///
+    /// 要在被吹爆的白柱上讀得出來，差異不能只在色相：綠要壓得夠低（飽和度）、
+    /// 整體亮度要比判定色低（密度），那一段才會讀成「著色的紫」而不是「白裡透粉」。
+    /// </remarks>
+    private static readonly Color PreciseViolet = new Color(0.56f, 0.10f, 0.98f, 1f);
+
+    /// <summary>
+    /// 力度彈對時，<c>_Color</c> 改成白（alpha 照舊），讓頂點色自己說了算。
+    /// </summary>
+    /// <remarks>
+    /// **這是整件事卡住的地方。** <c>Custom/UnlitVertexColor</c> 的片段是
+    /// <c>o.color = v.color * _Color</c>，而 <c>_Color</c> 由 PropertyBlock 設成同一個
+    /// <c>BaseColor</c> —— 所以平常畫出來的其實是 <b>BaseColor 的平方</b>，而我放進頂點
+    /// 色的紫會再被 BaseColor 乘一次：藍是 1.04 × 0.68 = 0.71，正好把讓它變紫的那個通道
+    /// 壓掉，再被 <c>fixed4</c> 夾到 1 以內。無論怎麼調色相都不會有反應。
+    ///
+    /// 所以彈對力度時把 <c>_Color</c> 的 RGB 設成 1，頂點色直接寫最終要的顏色；沒彈對
+    /// 的走原路，畫面和以前一模一樣。alpha 不動 —— 它本來就是兩邊相乘，改了會讓整根
+    /// 光柱的濃淡變掉。
+    /// </remarks>
+    /// <summary>
+    /// 把「力度彈對」交給 shader 的垂直漸層。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼不在 C# 這邊調色。** 實際畫光柱的是 <c>Custom/PremiumJudgmentGlow</c>，
+    /// 它的片段只讀頂點色的 <c>alpha</c>，顏色全部來自 uniform <c>_Color</c> —— 所以
+    /// 「底部一個顏色、頂端另一個顏色」在 C# 這一側無論怎麼寫都做不出來，只能由
+    /// shader 拿它自己的 <c>uv.y</c> 去 lerp。
+    /// </remarks>
+    private static void ApplyPreciseTip(EffectState state)
+    {
+        if (state.PropertyBlock == null) return;
+        state.PropertyBlock.SetColor("_TipColor", PreciseViolet);
+        state.PropertyBlock.SetFloat("_TipBlend",
+            state.DynamicOnTarget ? PreciseGradientStrength : 0f);
+        // 完全完美：中間金、兩側藍、最外緣一道紫。三個都是**橫向**位置的函數
+        // （見 shader 裡的 sideRamp / rimRamp），紫不走垂直漸層。
+        state.PropertyBlock.SetColor("_FlawlessCore", FlawlessCore);
+        state.PropertyBlock.SetColor("_FlawlessSide", FlawlessSide);
+        state.PropertyBlock.SetColor("_FlawlessRim", FlawlessRim);
+        state.PropertyBlock.SetFloat("_FlawlessSideStart", FlawlessSideStart);
+        state.PropertyBlock.SetFloat("_FlawlessSideEnd", FlawlessSideEnd);
+        state.PropertyBlock.SetFloat("_FlawlessRimStart", FlawlessRimStart);
+        state.PropertyBlock.SetFloat("_FlawlessBlend", state.Flawless ? 1f : 0f);
+        state.PropertyBlock.SetFloat("_FlawlessCoreGain", FlawlessCoreGain);
+    }
+
+    /// <summary>完全完美時柱子兩側的顏色：藍。</summary>
+    /// <remarks>
+    /// 密度要和 <see cref="PreciseViolet"/> 同一個量級（峰值約 1、亮度約 0.3）。
+    /// 調亮的話它會變成「白裡透藍」—— 這根柱子的核心乘 _CoreIntensity（8），
+    /// 旁邊任何淡色都會被它洗掉。
+    /// </remarks>
+    private static readonly Color FlawlessSide = new Color(0.26f, 0.48f, 1.25f, 1f);
+
+    /// <summary>完全完美時最外緣那一道：紫。</summary>
+    /// <remarks>
+    /// **紫只做邊緣**，所以它不走垂直漸層（那會讓整根柱子的上半都是紫），
+    /// 只由橫向位置決定。
+    ///
+    /// 數值比其他兩個高一個量級（約 2.3 / 0.6 / 3.8），這是**對的** —— 欄杆拿掉
+    /// 之後柱子最外圈只剩 aura 的尾巴，那裡的線性亮度大約 0.04，放一個普通密度的
+    /// 紫進去等於沒放。這裡可以放膽加亮，因為加完仍然遠在白點以下；魔法陣那邊
+    /// 不行（<see href="hold-magic-shading"/> 的筆記：那裡每一條線本來就在白點
+    /// 以上，加亮只會把顏色推成同一種白）。同一個動作在兩個地方結果相反，判準是
+    /// **那個像素加亮前落在 tonemap 的哪一段**，不是顏色本身。
+    /// </remarks>
+    private static readonly Color FlawlessRim = new Color(2.29f, 0.62f, 3.77f, 1f);
+
+    /// <summary>
+    /// 三個顏色沿橫向交棒的位置。**這組數字跟著柱子的形狀走。**
+    /// </summary>
+    /// <remarks>
+    /// 舊的 0.35 / 0.78 / 0.80 是對著兩條欄杆（峰在 x≈0.76）訂的 —— 欄杆拿掉
+    /// 之後柱子只剩中央一團光，同一組數字會讓藍攤掉半根柱子，看起來變成
+    /// 「藍柱子中間一道金」。往外推之後才是「金柱子帶一圈藍、邊緣一線紫」。
+    /// 這幾個值和 shader 裡 aura 的指數（3.2）綁在一起，動一個要回頭看另一個。
+    /// </remarks>
+    private const float FlawlessSideStart = 0.44f;
+    private const float FlawlessSideEnd = 0.80f;
+    private const float FlawlessRimStart = 0.80f;
+
+    /// <summary>完全完美時柱子中央的顏色：金。</summary>
+    private static readonly Color FlawlessCore = new Color(1.00f, 0.74f, 0.28f, 1f);
+
+    /// <summary>
+    /// 完全完美時核心的亮度倍率。**金要看得出是金就不能全亮。**
+    /// </summary>
+    /// <remarks>
+    /// 核心平常是 `warmWhite * _CoreIntensity`，而 _CoreIntensity 是 8 —— 在那個
+    /// 量級上任何色相都會被推到白，所以直接把金寫進去只會得到一樣的白柱子。
+    /// 壓到 0.28 金才落在看得出顏色的範圍（0.5 還是白的，量過）。
+    /// 判定線上那一下的閃光（strike）仍然是白的、只縮 22%：那是打擊的瞬間，
+    /// 不是這根柱子的性格。
+    /// </remarks>
+    private const float FlawlessCoreGain = 0.28f;
+
+    private static Color TintFor(EffectState state) => state.BaseColor;
+
+    /// <summary>
+    /// 頂端往紫走多少。1 = 整個頂端都是紫的。
+    /// </summary>
+    /// <remarks>
+    /// 不給 1：頂端完全變紫的話，兩種判定（例如 GREAT 和 GOOD）只要都彈對力度就長
+    /// 得一模一樣，判定色就只剩根部那一小截在講。0.72 讓紫佔主導、但判定色還渗得上
+    /// 來，所以 JUST 的紫和 GOOD 的紫不是同一個紫。
+    /// </remarks>
+    private const float PreciseGradientStrength = 0.72f;
+
+
     [SerializeField, Range(0f, 1f), Tooltip("Top alpha multiplier for the hit effect gradient (0 = fully transparent at top)."),]
     private float gradientTopAlpha = 0.15f;
     [SerializeField, Tooltip("If disabled, the effect will not fade out over lifetime (only the vertical gradient applies).")]
@@ -105,6 +226,10 @@ public class NoteJudgementMeshManager : MonoBehaviour
         public MeshRenderer Renderer;
         public MaterialPropertyBlock PropertyBlock;
         public Color BaseColor = Color.white;
+        /// <summary>這一下的力度彈對了。頂端的顏色會往紫走，底部不動。</summary>
+        public bool DynamicOnTarget;
+        /// <summary>準時**而且**力度對：左右藍紫、中間金。和封印是同一套語彙。</summary>
+        public bool Flawless;
         public float StartTime;
         public Vector3 StartPosition;
         public float ReleaseStartTime;
@@ -427,14 +552,27 @@ public class NoteJudgementMeshManager : MonoBehaviour
     }
 
     /// <param name="overrideColor">
-    /// Replaces the judgment's own colour. Recital mode's centre hits come
-    /// through here: the light is the loudest thing on a hit, so a different
-    /// colour on it is how "you took that one on the middle key" gets said
-    /// without a word or an extra effect.
+    /// 把判定自己的顏色整個換掉。**目前沒有呼叫端。**
     /// </param>
+    /// <remarks>
+    /// 這個參數原本的註解寫著「演奏會的中心擊走這裡」—— 那已經不是真的：本家的
+    /// 演奏會不評中心格，這條路後來改給了 PRECISE，而 PRECISE 現在改走
+    /// <paramref name="dynamicOnTarget"/> 的漸層。留著當逃生門，但別再相信那個故事。
+    /// </remarks>
+    /// <param name="dynamicOnTarget">
+    /// 這一下的力度彈對了（PRECISE）。
+    /// </param>
+    /// <remarks>
+    /// **和 <paramref name="overrideColor"/> 不同：它不換色，它加一層漸層。** 判定
+    /// （JUST / GREAT / GOOD）是這一下最重要的資訊，換掉它等於用「彈得夠輕重」蓋掉
+    /// 「打得準不準」—— 兩件事都要說，而且不能互相遮蔽。
+    ///
+    /// 作法是沿用網格本來就有的底→頂漸層：底部留判定色、頂端往紫走。判定色在根部
+    /// 一眼可辨，而紫是往上揚的那一截，餘光掃過去就知道這一下兩件事都做到了。
+    /// </remarks>
     public void ShowEffect(NoteController note, JudgmentResult result, bool persistent = false,
         float signedTimingOffsetMs = 0f, bool useTimingColor = false, int inputLane = -1,
-        Color? overrideColor = null)
+        Color? overrideColor = null, bool dynamicOnTarget = false)
     {
         if (!TryGetMaterial(result, out var material, out var baseColor))
         {
@@ -515,6 +653,12 @@ public class NoteJudgementMeshManager : MonoBehaviour
 
         state.Renderer.sharedMaterial = material;
         state.BaseColor = baseColor;
+        // 沒彈對的時候要把旗標清掉 —— 這個 state 是從池裡拿的，上一個用它的效果
+        // 可能是彈對的，不清的話紫色會跟著池流到下一下。
+        state.DynamicOnTarget = dynamicOnTarget;
+        // 和封印同一個條件（ParticleEffectPlayer.NextSealIsFlawless）：時間和力度
+        // 同時做到。一樣要無條件寫，這個 state 是從池裡拿的。
+        state.Flawless = dynamicOnTarget && result == JudgmentResult.Perfect;
         state.PropertyBlockDirty = true;
         state.StartTime = Time.unscaledTime;
         state.Busy = true;
@@ -549,8 +693,8 @@ public class NoteJudgementMeshManager : MonoBehaviour
         ApplyVerticalGradient(state, 1f); // 初始化頂到底的透明漸層（ShowEffect 時執行一次）
         if (state.Renderer != null && state.PropertyBlock != null)
         {
-            state.PropertyBlock.SetColor("_Color", state.BaseColor);
-            state.PropertyBlock.SetFloat("_ShimmerStrength", 0.16f);
+            state.PropertyBlock.SetColor("_Color", TintFor(state));
+            ApplyPreciseTip(state);
             state.Renderer.SetPropertyBlock(state.PropertyBlock);
         }
         state.PropertyBlockDirty = false;
@@ -1224,6 +1368,24 @@ public class NoteJudgementMeshManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 一個判定對應的顏色。光柱和魔法環用的是**同一個**。
+    /// </summary>
+    /// <remarks>
+    /// 開這個出口是為了不要有第二份定義。顏色不是寫死的常數，而是從 justMesh／
+    /// greatMesh／goodMesh 三個材質算出來的（`lerp(_Color, _EmissionColor / peak,
+    /// 0.82)`）—— 把結果抄一份到別的檔案，改了材質之後兩邊就會各說各話。
+    /// </remarks>
+    public Color BaseColorFor(JudgmentResult result)
+    {
+        try
+        {
+            if (TryGetMaterial(result, out _, out Color baseColor)) return baseColor;
+        }
+        catch { }
+        return Color.white;
+    }
+
     private bool TryGetMaterial(JudgmentResult result, out Material material, out Color baseColor)
     {
         // 首選統一的頂點色材質
@@ -1292,6 +1454,8 @@ public class NoteJudgementMeshManager : MonoBehaviour
 
         float bottomA = Mathf.Clamp01(state.BaseColor.a * alphaMultiplier);
         float topA    = Mathf.Clamp01(state.BaseColor.a * gradientTopAlpha * alphaMultiplier);
+        // 這裡只管 alpha 的上下漸層。顏色由 shader 的 _Color / _TipColor 決定 ——
+        // 實際在用的 PremiumJudgmentGlow 只讀頂點色的 alpha，RGB 寫了也不會進去。
         Color bottom  = new Color(state.BaseColor.r, state.BaseColor.g, state.BaseColor.b, bottomA);
         Color top     = new Color(state.BaseColor.r, state.BaseColor.g, state.BaseColor.b, topA);
 
@@ -1349,7 +1513,6 @@ public class NoteJudgementMeshManager : MonoBehaviour
             }
 
             float alpha = 1f;
-            float shimmerStrength = 0.16f;
             if (state.Phase == EffectPhase.Rising)
             {
                 float t = Mathf.Clamp01((now - state.StartTime) / Mathf.Max(0.01f, riseDuration));
@@ -1397,9 +1560,10 @@ public class NoteJudgementMeshManager : MonoBehaviour
                     ? state.ReleaseStartHeight
                     : Mathf.Lerp(state.ReleaseStartHeight, 0.01f, eased);
                 // Keep the body luminous while its upper edge flows back toward
-                // the line; the brighter moving caustic gives a liquid return.
+                // the line. The moving caustic that used to brighten on the way
+                // back is gone -- it drew chevrons, not light -- so this curve is
+                // now the whole of the return.
                 alpha = 1f - Mathf.Pow(t, 1.35f);
-                shimmerStrength = Mathf.Lerp(0.34f, 0.12f, eased);
                 if (t >= 1f)
                 {
                     ReleaseState(state);
@@ -1411,10 +1575,11 @@ public class NoteJudgementMeshManager : MonoBehaviour
             ApplyVerticalGradient(state, alpha);
             if (state.Renderer != null && state.PropertyBlock != null)
             {
-                var c = state.BaseColor;
+                // alpha 的算法一字不改：TintFor 只動 RGB，a 還是 BaseColor.a。
+                var c = TintFor(state);
                 c.a *= alpha;
                 state.PropertyBlock.SetColor("_Color", c);
-                state.PropertyBlock.SetFloat("_ShimmerStrength", shimmerStrength);
+                ApplyPreciseTip(state);
                 state.Renderer.SetPropertyBlock(state.PropertyBlock);
             }
             state.PropertyBlockDirty = false;

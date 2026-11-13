@@ -63,7 +63,7 @@ public static class PlayerProfile
         get
         {
             EnsureLoaded();
-            return string.IsNullOrWhiteSpace(data.name) ? "演奏者" : data.name;
+            return string.IsNullOrWhiteSpace(data.name) ? Localize.S("演奏者") : data.name;
         }
     }
 

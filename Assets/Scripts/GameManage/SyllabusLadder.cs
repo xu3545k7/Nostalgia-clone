@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// 考程的兩座階梯：練習室的<b>技階</b>十階，演奏廳的<b>檢定</b>八級。
@@ -57,7 +57,7 @@ public static class SyllabusLadder
     /// 之前沒有任何東西能讓玩家失敗，所以不存在失敗遙測。考場開張時第一件事應該是
     /// 把「每一首結束時剩多少容錯」寫進 oplog，跑過幾十次之後再回頭調。
     /// </remarks>
-    public const bool ExamHallOpen = false;
+    public const bool ExamHallOpen = true;
 
     /// <summary>
     /// 一階怎麼從曲庫裡挑譜。全部讀 <see cref="ChartAnalysis"/> 現成的欄位。
@@ -91,13 +91,32 @@ public static class SyllabusLadder
     public sealed class Stage
     {
         public readonly int Index;
-        public readonly string Name;
+
+        /// <summary>這一階的名字，繁體原文。同時也是譯文檔的鍵。</summary>
+        public readonly string RawName;
+
+        /// <summary>這一階的名字，照目前語言。</summary>
+        /// <remarks>
+        /// 做成屬性不是欄位：<see cref="Stages"/> 是 <c>static readonly</c>，欄位只算
+        /// 一次，在那裡翻的話整張表會停在程式啟動時那個語言。六個顯示的地方都讀這個，
+        /// 所以改這裡六個一起好。
+        /// </remarks>
+        public string Name => Localize.S(RawName);
+
         public readonly int Low;
         public readonly int High;
         public readonly Metric Key;
         /// <summary>true = 取這個指標<b>最低</b>的三首。</summary>
         public readonly bool Ascending;
-        /// <summary>容錯點 = ceil(三首音符數合計 × 這個比率)。</summary>
+        /// <summary>
+        /// 容錯點 = ceil(三首音符數合計 × 這個比率)。**目前沒有人讀。**
+        /// </summary>
+        /// <remarks>
+        /// 這是為「一局連開三首、共用一池容錯」那種一次性考試寫的。考場最後做成**逐曲
+        /// 應試**：每一首各自打、可以重測、取最好的一次，那種模式裡「共用一池容錯」
+        /// 沒有意義 —— 沒有失敗狀態可以扣。欄位和編輯器裡的那個旋鈕留著，哪天真的
+        /// 做了一次性考試再接回來；現在別把它印在考場上，那會是個騙人的數字。
+        /// </remarks>
         public readonly float AllowanceRate;
 
         /// <summary>
@@ -114,7 +133,7 @@ public static class SyllabusLadder
         internal Stage(int index, string name, int low, int high, Metric key, bool ascending,
             float rate, float significance)
         {
-            Index = index; Name = name; Low = low; High = high;
+            Index = index; RawName = name; Low = low; High = high;
             Key = key; Ascending = ascending; AllowanceRate = rate; Significance = significance;
         }
     }
@@ -177,9 +196,27 @@ public static class SyllabusLadder
         /// </remarks>
         public readonly bool NeedsExpressionData;
 
-        internal Grade(int index, int low, int high, Demand demand, bool needsExpressionData)
+        /// <summary>
+        /// 這一級的考題該有多難（0–100，全庫相對）。
+        /// </summary>
+        /// <remarks>
+        /// **為什麼需要這個：等級帶不夠。** 舊的抽法是「帶內平均密度最高的那一份」，
+        /// 而帶內最高值是帶內中位的 3～5 倍 —— 只要帶裡有一份「標的等級低、實際很難」
+        /// 的譜，那一級就會爆衝。實測：舊法的三級抽到 <c>系ぎて Normal</c>（標 Lv5，
+        /// 速度負荷 41.2），比四、五、六級都難；而 <c>Conflict (VILA Remix) Normal</c>
+        /// 標 Lv4 卻有 54.7，比 Lv13 的中位還高，二到六級放寬後都抃得到它。
+        ///
+        /// 改成瞑準目標之後，八級的平均難度是 13 / 25 / 31 / 46 / 55 / 65 / 78 / 89，
+        /// 單調而且級距平均 11 分（範圍 6～15）。舊法是不單調的。
+        ///
+        /// 數值是等距鑄開的百分位，不是調出來的；等級帶還在，當內容的軟性限制。
+        /// </remarks>
+        public readonly int Target;
+
+        internal Grade(int index, int low, int high, int target, Demand demand,
+            bool needsExpressionData)
         {
-            Index = index; Low = low; High = high;
+            Index = index; Low = low; High = high; Target = target;
             Demand = demand; NeedsExpressionData = needsExpressionData;
         }
 
@@ -228,15 +265,15 @@ public static class SyllabusLadder
     /// </remarks>
     public static readonly Grade[] Grades =
     {
-        //                     lv帶      完整  旋律  失誤  情感  平均   要表情資料
-        new Grade(1, 1,  3,  new Demand(75f,  0f,   0f,   0f,   0f),  false),
-        new Grade(2, 3,  4,  new Demand(75f,  0f,   0f,   0f,   0f),  false),
-        new Grade(3, 4,  5,  new Demand(75f,  0f,   75f,  0f,   0f),  false),
-        new Grade(4, 5,  7,  new Demand(85f,  0f,   75f,  0f,   0f),  false),
-        new Grade(5, 7,  8,  new Demand(85f,  75f,  75f,  0f,   0f),  false),
-        new Grade(6, 8,  10, new Demand(85f,  75f,  85f,  0f,   0f),  false),
-        new Grade(7, 10, 12, new Demand(85f,  75f,  85f,  75f,  0f),  true),
-        new Grade(8, 12, 99, new Demand(85f,  75f,  85f,  85f,  85f), true),
+        //                  lv帶  目標     完整  旋律  失誤  情感  平均   要表情資料
+        new Grade(1, 1,  3,  12, new Demand(75f,  0f,   0f,   0f,   0f),  false),
+        new Grade(2, 3,  4,  23, new Demand(75f,  0f,   0f,   0f,   0f),  false),
+        new Grade(3, 4,  5,  34, new Demand(75f,  0f,   75f,  0f,   0f),  false),
+        new Grade(4, 5,  7,  45, new Demand(85f,  0f,   75f,  0f,   0f),  false),
+        new Grade(5, 7,  8,  56, new Demand(85f,  75f,  75f,  0f,   0f),  false),
+        new Grade(6, 8,  10, 67, new Demand(85f,  75f,  85f,  0f,   0f),  false),
+        new Grade(7, 10, 12, 78, new Demand(85f,  75f,  85f,  75f,  0f),  true),
+        new Grade(8, 12, 99, 90, new Demand(85f,  75f,  85f,  85f,  85f), true),
     };
 
     public static Stage StageAt(int index) =>
@@ -254,13 +291,32 @@ public static class SyllabusLadder
     /// 等級帶印成字。最高那一階／級的上限是哨兵值 99，不能直接印出來。
     /// </summary>
     public static string BandText(int low, int high) =>
-        high >= 99 ? $"Lv{low} 以上" : $"Lv{low}–{high}";
+        high >= 99 ? Localize.SF("Lv{0} 以上", low) : $"Lv{low}–{high}";
 
     /// <summary>四項的名字，順序和 <c>RecitalAssessment.Report</c> 一致。</summary>
+    /// <remarks>繁體原文，同時是譯文檔的鍵。要顯示的字用 <see cref="CriterionName"/>。</remarks>
     public static readonly string[] CriterionNames = { "完整度", "旋律", "失誤錯音", "情感表情" };
 
     /// <summary>同樣四項的短名。考程書那一列只有 649 寬，八級那一行放不下全名。</summary>
     public static readonly string[] CriterionShortNames = { "完整", "旋律", "失誤", "情感" };
+
+    /// <summary>第 <paramref name="index"/> 項的名字，照目前語言。</summary>
+    public static string CriterionName(int index) =>
+        index >= 0 && index < CriterionNames.Length
+            ? Localize.S(CriterionNames[index]) : string.Empty;
+
+    /// <summary>同上，短名。</summary>
+    public static string CriterionShortName(int index) =>
+        index >= 0 && index < CriterionShortNames.Length
+            ? Localize.S(CriterionShortNames[index]) : string.Empty;
+
+    /// <summary>印蓋出來要給人看的字。</summary>
+    /// <remarks>
+    /// <see cref="SealFor"/> 回的是**存進存檔**的字串，<see cref="SealRank"/> 還拿它
+    /// 比名次 —— 那個不能翻，翻掉舊存檔的印就排不出來了。要印在畫面上時才過這一層。
+    /// </remarks>
+    public static string SealText(string seal) =>
+        string.IsNullOrEmpty(seal) ? string.Empty : Localize.S(seal);
 
     /// <summary>證書上蓋哪一枚印。兩首平均對 75 / 85 / 95。</summary>
     public static string SealFor(float average)
@@ -309,7 +365,9 @@ public static class SyllabusLadder
     }
 
     /// <summary>指標的顯示名，給考卷印「本階照什麼排的」。</summary>
-    public static string MetricName(Metric metric)
+    public static string MetricName(Metric metric) => Localize.S(MetricNameSource(metric));
+
+    private static string MetricNameSource(Metric metric)
     {
         switch (metric)
         {

@@ -44,6 +44,26 @@ public static class LocalScoreRecords
     private static LocalScoreFile data;
     private static readonly List<LocalScoreEntry> EmptyScores = new List<LocalScoreEntry>();
 
+    /// <summary>
+    /// 練習模式的紀錄排在另一個桶裡。
+    /// </summary>
+    /// <remarks>
+    /// **兩種模式的分數不是同一件事。** 練習可以改速度、背景音樂關著、段落重播，
+    /// 拿它和演奏會的分數排在一起是比錯了對象。
+    ///
+    /// 舊的做法是兩邊共用同一個桶，而且是**單向**地漏：結算頁擋掉了練習的寫入
+    /// （對），可是練習室的紀錄牌讀的也是那個桶 —— 所以演奏會打的分數會回填到練習
+    /// 室，而練習打的分數哪裡都不記。前綴把兩邊彻底分開；舊檔的鍵沒有前綴，所以
+    /// 以前的紀錄自動算演奏會的（那本來就是它們唯一被記下來的來源）。
+    /// </remarks>
+    private const string PracticePrefix = "practice|";
+
+    public static string GetKey(SongSelectionManager.SongOption option, bool practice)
+    {
+        string key = GetKey(option);
+        return practice && !string.IsNullOrEmpty(key) ? PracticePrefix + key : key;
+    }
+
     public static string GetKey(SongSelectionManager.SongOption option)
     {
         if (option == null) return string.Empty;
@@ -56,9 +76,9 @@ public static class LocalScoreRecords
     }
 
     public static IReadOnlyList<LocalScoreEntry> GetTopScores(
-        SongSelectionManager.SongOption option)
+        SongSelectionManager.SongOption option, bool practice = false)
     {
-        return GetTopScores(GetKey(option));
+        return GetTopScores(GetKey(option, practice));
     }
 
     public static IReadOnlyList<LocalScoreEntry> GetTopScores(string key)
@@ -76,9 +96,10 @@ public static class LocalScoreRecords
     /// **全連是看所有紀錄，不是只看最高分那筆。** 全連是一件做到過就算的事，而分數
     /// 是比大小的；把兩者綁在同一筆會讓玩家在刷分之後失去已經拿到的記號。
     /// </remarks>
-    public static LocalScoreEntry GetBest(SongSelectionManager.SongOption option)
+    public static LocalScoreEntry GetBest(SongSelectionManager.SongOption option,
+        bool practice = false)
     {
-        IReadOnlyList<LocalScoreEntry> scores = GetTopScores(option);
+        IReadOnlyList<LocalScoreEntry> scores = GetTopScores(option, practice);
         if (scores == null || scores.Count == 0) return null;
         LocalScoreEntry best = scores[0];
         for (int i = 0; i < scores.Count; i++)
@@ -90,26 +111,29 @@ public static class LocalScoreRecords
     }
 
     /// <summary>這張譜**曾經**全連過嗎。</summary>
-    public static bool EverFullCombo(SongSelectionManager.SongOption option)
+    public static bool EverFullCombo(SongSelectionManager.SongOption option,
+        bool practice = false)
     {
-        IReadOnlyList<LocalScoreEntry> scores = GetTopScores(option);
+        IReadOnlyList<LocalScoreEntry> scores = GetTopScores(option, practice);
         if (scores == null) return false;
         for (int i = 0; i < scores.Count; i++)
             if (scores[i] != null && scores[i].fullCombo) return true;
         return false;
     }
 
-    public static int GetBestScore(SongSelectionManager.SongOption option)
+    public static int GetBestScore(SongSelectionManager.SongOption option,
+        bool practice = false)
     {
-        IReadOnlyList<LocalScoreEntry> scores = GetTopScores(option);
+        IReadOnlyList<LocalScoreEntry> scores = GetTopScores(option, practice);
         return scores.Count > 0 ? scores[0].score : 0;
     }
 
     /// <returns>1-based local placement, or 0 when the score missed the top three.</returns>
     public static int RecordManualScore(
-        SongSelectionManager.SongOption option, int score, bool fullCombo = false)
+        SongSelectionManager.SongOption option, int score, bool fullCombo = false,
+        bool practice = false)
     {
-        string key = GetKey(option);
+        string key = GetKey(option, practice);
         if (string.IsNullOrEmpty(key)) return 0;
         EnsureLoaded();
         LocalChartScoreList chart = FindChart(key);

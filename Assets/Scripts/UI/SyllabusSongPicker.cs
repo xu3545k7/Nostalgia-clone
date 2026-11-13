@@ -85,7 +85,7 @@ public sealed class SyllabusSongPicker : MonoBehaviour
 
         Collect();
 
-        Label(panel, "挑一份譜", 40f, 30f, 420f, 28f, Ink, TextAlignmentOptions.MidlineLeft,
+        Label(panel, Localize.S("挑一份譜"), 40f, 30f, 420f, 28f, Ink, TextAlignmentOptions.MidlineLeft,
             FontStyles.Bold);
         count = Label(panel, string.Empty, -40f, 34f, 300f, 20f, InkFaint,
             TextAlignmentOptions.MidlineRight, FontStyles.Normal, true);
@@ -142,7 +142,7 @@ public sealed class SyllabusSongPicker : MonoBehaviour
         area.offsetMax = new Vector2(-12f, -4f);
         area.gameObject.AddComponent<RectMask2D>();
 
-        TextMeshProUGUI placeholder = Label(area, "輸入曲名篩選", 0f, 0f, 0f, 20f, InkFaint,
+        TextMeshProUGUI placeholder = Label(area, Localize.S("輸入曲名篩選"), 0f, 0f, 0f, 20f, InkFaint,
             TextAlignmentOptions.MidlineLeft);
         Stretch(placeholder.rectTransform);
         TextMeshProUGUI text = Label(area, string.Empty, 0f, 0f, 0f, 20f, Ink,
@@ -211,8 +211,8 @@ public sealed class SyllabusSongPicker : MonoBehaviour
             shown++;
         }
         count.text = string.IsNullOrEmpty(filter)
-            ? $"{entries.Count} 份譜"
-            : $"{shown} / {entries.Count} 份譜";
+            ? Localize.SF("{0} 份譜", entries.Count)
+            : Localize.SF("{0} / {1} 份譜", shown, entries.Count);
     }
 
     private void AddRow(Entry entry)

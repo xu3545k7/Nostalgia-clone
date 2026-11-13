@@ -104,14 +104,14 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         ClassicalBookUITheme.AddShadow(card.gameObject, new Color(0f, 0f, 0f, 0.55f), new Vector2(12f, -12f));
 
         TextMeshProUGUI title = Label(card, "Title",
-            PlayerProfile.Exists ? "改個名字" : "報上名來", 34f,
+            PlayerProfile.Exists ? Localize.S("改個名字") : Localize.S("報上名來"), 34f,
             new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(640f, 48f),
             TextAlignmentOptions.Center);
         title.fontStyle = FontStyles.Bold;
         title.color = new Color(0.96f, 0.90f, 0.76f, 1f);
 
         Label(card, "Hint",
-            "這個名字只留在這台電腦上，不會傳到任何地方。", 20f,
+            Localize.S("這個名字只留在這台電腦上，不會傳到任何地方。"), 20f,
             new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(660f, 30f),
             TextAlignmentOptions.Center).color = new Color(0.82f, 0.76f, 0.64f, 0.85f);
 
@@ -154,7 +154,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         TextMeshProUGUI text = Label(box, "Text", string.Empty, 32f,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(446f, 56f),
             TextAlignmentOptions.MidlineLeft);
-        TextMeshProUGUI placeholder = Label(box, "Placeholder", "你的名字", 32f,
+        TextMeshProUGUI placeholder = Label(box, "Placeholder", Localize.S("你的名字"), 32f,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(446f, 56f),
             TextAlignmentOptions.MidlineLeft);
         placeholder.color = new Color(0.70f, 0.63f, 0.52f, 0.75f);
@@ -170,7 +170,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         field.onValueChanged.AddListener(_ => Refresh());
 
         // 印記顏色：六個色票。
-        Label(card, "SealCaption", "印記", 20f,
+        Label(card, "SealCaption", Localize.S("印記"), 20f,
             new Vector2(0f, 1f), new Vector2(58f, -284f), new Vector2(200f, 28f),
             TextAlignmentOptions.MidlineLeft).color = new Color(0.82f, 0.76f, 0.64f, 0.85f);
         for (int i = 0; i < chips.Length; i++)
@@ -196,11 +196,11 @@ internal sealed class PlayerProfileCard : MonoBehaviour
             });
         }
 
-        Button pick = MakeButton(card, "Portrait", "選一張頭像", new Vector2(0f, 0f),
+        Button pick = MakeButton(card, "Portrait", Localize.S("選一張頭像"), new Vector2(0f, 0f),
             new Vector2(58f, 146f), new Vector2(260f, 82f), out portraitLabel);
         pick.onClick.AddListener(PickPortrait);
 
-        confirm = MakeButton(card, "Confirm", "開始", new Vector2(1f, 0f),
+        confirm = MakeButton(card, "Confirm", Localize.S("開始"), new Vector2(1f, 0f),
             new Vector2(-58f, 146f), new Vector2(220f, 82f), out confirmLabel);
         confirm.onClick.AddListener(Commit);
 
@@ -240,7 +240,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         ruleImage.color = new Color(0.92f, 0.78f, 0.44f, 0.30f);
         ruleImage.raycastTarget = false;
 
-        Label(card, "SwitchCaption", "這台電腦上的演奏者", 20f,
+        Label(card, "SwitchCaption", Localize.S("這台電腦上的演奏者"), 20f,
             new Vector2(0f, 0f), new Vector2(58f, 92f), new Vector2(300f, 26f),
             TextAlignmentOptions.MidlineLeft).color = new Color(0.82f, 0.76f, 0.64f, 0.85f);
 
@@ -251,7 +251,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
             string id = ids[i];
             bool active = string.Equals(id, PlayerSlots.ActiveId, System.StringComparison.Ordinal);
             string who = PlayerSlots.NameOf(id);
-            if (string.IsNullOrEmpty(who)) who = "未命名";
+            if (string.IsNullOrEmpty(who)) who = Localize.S("未命名");
 
             Button slot = MakeButton(card, "Slot" + i, who, new Vector2(0f, 0f),
                 new Vector2(x, 22f), new Vector2(150f, 58f), out TextMeshProUGUI slotLabel);
@@ -274,7 +274,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
             x += 162f;
         }
 
-        Button add = MakeButton(card, "AddPlayer", "＋ 新增", new Vector2(1f, 0f),
+        Button add = MakeButton(card, "AddPlayer", Localize.S("＋ 新增"), new Vector2(1f, 0f),
             new Vector2(-58f, 22f), new Vector2(150f, 58f), out TextMeshProUGUI _);
         add.onClick.AddListener(() =>
         {
@@ -295,7 +295,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         // 用畫面上既有的那個原生對話框（RuntimeSongLibraryPanel 匯入曲目用的同
         // 一個），不要再寫一份 P/Invoke。
         string path = RuntimeSongLibraryPanel.WindowsFilePicker.TryPick(
-            "圖片\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0所有檔案\0*.*\0\0", "選一張頭像");
+            Localize.S("圖片\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0所有檔案\0*.*\0\0"), Localize.S("選一張頭像"));
         if (string.IsNullOrEmpty(path))
         {
             UiSfx.Back();
@@ -309,12 +309,12 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         {
             // 讀不進來（格式不支援、檔案壞了）要說出來，不要靜靜地什麼都沒發生。
             UiSfx.Denied();
-            if (portraitLabel != null) portraitLabel.text = "這張讀不進來";
+            if (portraitLabel != null) portraitLabel.text = Localize.S("這張讀不進來");
         }
         Refresh();
 #else
         UiSfx.Denied();
-        if (portraitLabel != null) portraitLabel.text = "這個平台不支援";
+        if (portraitLabel != null) portraitLabel.text = Localize.S("這個平台不支援");
 #endif
     }
 
@@ -335,7 +335,7 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         if (monogram != null) monogram.enabled = art == null;
         if (portraitLabel != null && !portraitLabel.text.StartsWith("這"))
         {
-            portraitLabel.text = art != null ? "換一張頭像" : "選一張頭像";
+            portraitLabel.text = art != null ? Localize.S("換一張頭像") : Localize.S("選一張頭像");
         }
         if (sealFace != null) sealFace.color = PlayerProfile.SealColours[seal];
         for (int i = 0; i < chips.Length; i++)
@@ -459,6 +459,14 @@ internal sealed class PlayerProfileCard : MonoBehaviour
         label = Label(rect, "Label", caption, 28f, new Vector2(0.5f, 0.5f), Vector2.zero,
             new Vector2(size.x - 24f, size.y - 16f), TextAlignmentOptions.Center);
         label.fontStyle = FontStyles.Bold;
+        // 放不下就縮，不要畫到鈕外面去（Label 開的是 Overflow）。
+        // 下限比專案其他按鈕的 0.72 低：這四顆鈕裡有一顆印的是**玩家自己打的
+        // 名字**，長度沒有上限。126 寬的格子在 28 級只放得下四個全角字 ——
+        // 「未命名」的英文 Unnamed 就已經要 ×1.11，五個字的中文名字要 ×1.19，
+        // Christopher 要 ×1.49。0.66 讓這些都進得來。
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 28f * 0.66f;
+        label.fontSizeMax = 28f;
         label.color = new Color(0.22f, 0.13f, 0.06f, 1f);
         var button = rect.gameObject.AddComponent<Button>();
         button.targetGraphic = face;

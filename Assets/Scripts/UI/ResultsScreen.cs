@@ -159,6 +159,9 @@ public class ResultsScreen : MonoBehaviour
     private RawImage rankBadgeImage;
     private RectTransform bookRect;
     private Coroutine revealRoutine;
+
+    /// <summary>這一局的分數。開幕之後要從 0 跑到這個數。</summary>
+    private int revealScore;
     private bool lastResultWasAuto;
     private int lastLocalPlacement;
     private bool scoreHandledForOpenResult;
@@ -506,7 +509,7 @@ public class ResultsScreen : MonoBehaviour
 
         // 送審。平常不在，只有這一局剛好是某一級檢定的指定曲時才出現（見
         // OfferSubmission），所以它不是「多一顆按鈕」，是「這一局剛好可以拿去用」。
-        submitButton = CreateButton("Submit", page, "送審", new Vector2(152f, 76f));
+        submitButton = CreateButton("Submit", page, Localize.S("送審"), new Vector2(152f, 76f));
         submitLabel = submitButton.GetComponentInChildren<TextMeshProUGUI>();
         submitButton.onClick.AddListener(OnSubmitPressed);
         submitButton.gameObject.SetActive(false);
@@ -577,9 +580,16 @@ public class ResultsScreen : MonoBehaviour
         submitExpression = expressionMeasured;
         submitMarks = new[] { report.completeness, report.melody, report.mistakes, report.expression };
 
-        string role = slot == 0 ? "技巧曲" : "歌唱曲";
+        string role = Localize.S(slot == 0 ? "技巧曲" : "歌唱曲");
+        // 已經有更好的一局在那一格時先說出來，玩家才不會以為按了沒反應。
+        SyllabusSubmission held = paper.submissions != null && slot < paper.submissions.Count
+            ? paper.submissions[slot] : null;
+        float mine = (report.completeness + report.melody + report.mistakes + report.expression) * 0.25f;
+        bool improves = held == null || mine > held.Average;
         if (submitLabel != null)
-            submitLabel.text = $"送審　{SyllabusProgress.Numeral(paper.grade)}級・{role}";
+            submitLabel.text = improves
+                ? Localize.SF("送審　{0}級・{1}", SyllabusProgress.Numeral(paper.grade), role)
+                : Localize.SF("已有 {0:0.#}%　本局 {1:0.#}%", held.Average, mine);
         submitButton.interactable = true;
         submitButton.gameObject.SetActive(true);
         if (closeButton != null)
@@ -587,17 +597,53 @@ public class ResultsScreen : MonoBehaviour
                 new Vector2(290f, 62f), new Vector2(-152f, 76f));
     }
 
+    /// <summary>
+    /// 這一局如果是技階考場的曲目，自動收進那一格。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼這裡自動收、檢定卻要按鈕。** 檢定的送審永遠覆蓋那一格，自動收會
+    /// 靜靜地拿一局壞的換掉一局好的；技階取最好的一次，自動收不可能弄壞已有的
+    /// 成績，多一顆按鈕只是多一步。
+    ///
+    /// 条件和送審一致：自動演奏不算、評不到的不算、練習模式不算。考試要在演奏會
+    /// 模式下打 —— 練習可以改速度，那和別人考的不是同一張譜。
+    /// </remarks>
+    private void RecordStageAttempt(SongSelectionManager.SongOption song, int score,
+        Judgment.RecitalAssessment.Report report, bool expressionMeasured)
+    {
+        if (!SyllabusLadder.ExamHallOpen) return;
+        if (lastResultWasAuto || !report.measured) return;
+        bool recitalRun = SettingsManager.Instance == null || SettingsManager.Instance.RecitalMode;
+        if (!recitalRun) return;
+
+        SongSelectionManager.SongOption played =
+            song != null && song.selectedVariant != null ? song.selectedVariant : song;
+        if (played == null || string.IsNullOrWhiteSpace(played.chartFileName)) return;
+
+        // 只收「持有階 +1」那一門：更高階的課還沒輪到，而低階的已經凍結了。
+        int next = SyllabusProgress.Stage + 1;
+        SyllabusProgress.RecordAttempt(next, played.chartFileName,
+            new[] { report.completeness, report.melody, report.mistakes, report.expression },
+            score, expressionMeasured);
+    }
+
     private void OnSubmitPressed()
     {
         if (string.IsNullOrEmpty(submitChart)) return;
         bool awardedBefore = SyllabusProgress.PaperFor(submitGrade)?.awarded ?? false;
-        SyllabusProgress.Submit(submitGrade, submitChart, submitMarks, submitScore, submitExpression);
+        bool improved = SyllabusProgress.Submit(
+            submitGrade, submitChart, submitMarks, submitScore, submitExpression);
         SyllabusPaper paper = SyllabusProgress.PaperFor(submitGrade);
         bool awarded = paper != null && paper.awarded && !awardedBefore;
+        float achieved = SyllabusProgress.AchievementOf(paper);
         if (submitLabel != null)
             submitLabel.text = awarded
-                ? $"已授　{SyllabusProgress.Numeral(submitGrade)}級　{paper.seal}"
-                : "已送審";
+                ? Localize.SF("已授　{0}級　{1}",
+                    SyllabusProgress.Numeral(submitGrade), paper.seal)
+                : improved
+                    ? Localize.SF("已送審　達成 {0:0.#}%", achieved)
+                    // 送審只會往上換，所以「沒換」不是失敗，是那一格本來就比較好。
+                    : Localize.SF("保留原成績　達成 {0:0.#}%", achieved);
         submitButton.interactable = false;
         UiSfx.Select();
     }
@@ -930,11 +976,17 @@ public class ResultsScreen : MonoBehaviour
         return button;
     }
 
+    /// <summary>
+    /// 離開結算。回選曲也走幕 —— 進來有轉場、出去沒有的話，出去會顯得像當掉。
+    /// </summary>
     private void OnClosePressed()
     {
-        Hide();
-        SetGameplayHudVisible(true);
-        GameManager.Instance?.ReselectSong();
+        StageCurtain.Play(() =>
+        {
+            Hide();
+            SetGameplayHudVisible(true);
+            GameManager.Instance?.ReselectSong();
+        });
     }
 
     /// <summary>
@@ -988,7 +1040,25 @@ public class ResultsScreen : MonoBehaviour
             ClassicalBookUITheme.ApplyLocalizedFont(text);
     }
 
+    /// <summary>
+    /// 落幕、攤開這一頁、開幕。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼整頁要搬到回呼裡。** 這一頁要做的事很多：關 HUD、沖掉還沒結算的判
+    /// 定、讀本地紀錄、重排版面、量書的縮放。那一整串在畫面上是一連串的跳動 ——
+    /// 舊畫面還在，書忽然出現，欄位一格一格填進去。原本用 0.32 秒的 alpha 淡入蓋
+    /// 住它，但淡入蓋住的是「過程」，不是「沒有過程」。
+    ///
+    /// 搬到幕完全合上的那一刻做，這一串就發生在看不見的地方；幕拉開的時候，這一頁
+    /// 已經是排好的。
+    /// </remarks>
     public void ShowResults()
+    {
+        if (panel == null) return;
+        StageCurtain.Play(PresentResults, BeginBookReveal);
+    }
+
+    private void PresentResults()
     {
         if (panel == null) return;
         GameplayEntryPresentation.EndGameplay();
@@ -1019,16 +1089,20 @@ public class ResultsScreen : MonoBehaviour
                 SongSelectionManager.Instance?.GetSelectedSong();
             if (!scoreHandledForOpenResult)
             {
-                // 練習模式和自動演奏一樣不進榜：速度可以改、背景音樂關著，這一局
-                // 的分數和其他人的分數不是同一件事。
+                // 練習模式不進演奏會的榜，但它有自己的一本：速度可以改、背景音樂
+                // 關著，那和別人的分數不是同一件事 —— 可是也不該打完就蒸發。兩本分開存
+                // （見 <see cref="LocalScoreRecords"/>），所以演奏會的分數不會再回填到練習室。
+                //
+                // 自動演奏兩本都不進：那不是人打的。
                 bool practising = SettingsManager.Instance != null
                     && SettingsManager.Instance.PracticeMode;
-                lastLocalPlacement = lastResultWasAuto || practising
+                lastLocalPlacement = lastResultWasAuto
                     ? 0
-                    // 全連＝一顆 Miss、一次 Fail 都沒有。這兩個數字就在手邊，
-                    // 而在這之前它從來沒有被存下來過。
+                    // 全連＝一顆 Miss、一次 Fail 都沒有。
                     : LocalScoreRecords.RecordManualScore(selectedSong, stats.score,
-                        stats.miss == 0 && stats.fail == 0);
+                        stats.miss == 0 && stats.fail == 0, practising);
+                // 練習的名次不拿來報「本地第幾」，那一欄講的是演奏會的榜。
+                if (practising) lastLocalPlacement = 0;
                 scoreHandledForOpenResult = true;
             }
             SetResults(stats.perfect, stats.great, stats.good, stats.miss, stats.fail,
@@ -1048,6 +1122,8 @@ public class ResultsScreen : MonoBehaviour
                 dynamics.correct, dynamics.total);
             SetAssessment(report);
             OfferSubmission(selectedSong, stats.score, report,
+                pedal.total > 0 && dynamics.total > 0);
+            RecordStageAttempt(selectedSong, stats.score, report,
                 pedal.total > 0 && dynamics.total > 0);
 
             // 實力評分吃的是**每一局**，包含練習模式 —— 那正是排行榜刻意不收的那
@@ -1118,8 +1194,10 @@ public class ResultsScreen : MonoBehaviour
         }
 
         UpdateSongPresentation();
-        if (revealRoutine != null) StopCoroutine(revealRoutine);
-        revealRoutine = StartCoroutine(Reveal());
+
+        // 幕後面不需要淡入 —— 被遮住的時候這一頁就該是不透明的，拉開才看得到。
+        if (canvasGroup != null) canvasGroup.alpha = 1f;
+        PrepareStagedReveal();
     }
 
     private void SetResults(int just, int great, int good, int miss, int fail, int maxCombo, int score, int fast, int late)
@@ -1132,7 +1210,8 @@ public class ResultsScreen : MonoBehaviour
         if (fastText != null) fastText.text = $"{fast:N0}  /  {late:N0}";
         // 沒有千分位。逗號是試算表的寫法，而這一頁是一本書；等寬的格子已經把
         // 位數分得很清楚，逗號只是在中間插兩個不是數字的東西。
-        string formattedScore = Mathf.Clamp(score, 0, 1000000).ToString("0000000");
+        revealScore = Mathf.Clamp(score, 0, 1000000);
+        string formattedScore = revealScore.ToString("0000000");
         if (scoreText != null) scoreText.text = formattedScore;
         if (scoreDigits != null) scoreDigits.SetValue(formattedScore);
         if (maxComboText != null)
@@ -1251,20 +1330,88 @@ public class ResultsScreen : MonoBehaviour
         if (rankText != null) rankText.gameObject.SetActive(badge == null);
     }
 
+    /// <summary>分數從 0 跑到定值要多久。</summary>
+    /// <remarks>
+    /// 比開幕（0.72）長一點，所以幕完全拉開的時候數字還在跑 —— 玩家的視線跟著幕
+    /// 走到中央，正好接上還沒跑完的那一段。等數字停了才開幕的話，看到的是一個靜止
+    /// 的結果；這樣看到的是結果**正在成形**。
+    /// </remarks>
+    private const float ScoreRollSeconds = 0.92f;
+
+    /// <summary>評等蓋下來的那一下。</summary>
+    private const float RankStampSeconds = 0.30f;
+
+    /// <summary>
+    /// 幕還合著的時候，把要分批進場的東西收回起點。
+    /// </summary>
+    /// <remarks>
+    /// 一定要在幕後面做。在開幕之後才把評等縮成 0，會看到它先出現再消失。
+    /// </remarks>
+    private void PrepareStagedReveal()
+    {
+        SetRankScale(0f);
+        if (scoreDigits != null) scoreDigits.SetValue("0000000");
+        if (scoreText != null) scoreText.text = "0000000";
+    }
+
+    private void BeginBookReveal()
+    {
+        if (revealRoutine != null) StopCoroutine(revealRoutine);
+        revealRoutine = StartCoroutine(Reveal());
+    }
+
+    /// <summary>
+    /// 開幕之後：分數先跑完，評等才蓋下來。
+    /// </summary>
+    /// <remarks>
+    /// **順序就是這一頁的情緒。** 分數是過程的總和，評等是對它的判語 —— 判語要在
+    /// 過程講完之後才出現。兩個同時出現的話，評等會先被看到（它是一塊圖，數字是
+    /// 一排小字），那一排數字就白跑了。
+    ///
+    /// 走 unscaled：練習模式改過 <c>Time.timeScale</c>，結算不該跟著變快變慢。
+    /// </remarks>
     private IEnumerator Reveal()
     {
-        if (canvasGroup == null) yield break;
-        canvasGroup.alpha = 0f;
+        if (canvasGroup != null) canvasGroup.alpha = 1f;
+
         float elapsed = 0f;
-        const float duration = 0.32f;
-        while (elapsed < duration)
+        while (elapsed < ScoreRollSeconds)
         {
             elapsed += Time.unscaledDeltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            canvasGroup.alpha = 1f - Mathf.Pow(1f - t, 3f);
+            float k = Mathf.Clamp01(elapsed / ScoreRollSeconds);
+            // 尾段放慢。等速跑到底會在最後一刻硬停，讀起來像被打斷。
+            float eased = 1f - Mathf.Pow(1f - k, 3f);
+            string rolling = Mathf.RoundToInt(revealScore * eased).ToString("0000000");
+            if (scoreDigits != null) scoreDigits.SetValue(rolling);
+            if (scoreText != null) scoreText.text = rolling;
             yield return null;
         }
-        canvasGroup.alpha = 1f;
+        string finalScore = revealScore.ToString("0000000");
+        if (scoreDigits != null) scoreDigits.SetValue(finalScore);
+        if (scoreText != null) scoreText.text = finalScore;
+
+        elapsed = 0f;
+        while (elapsed < RankStampSeconds)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float k = Mathf.Clamp01(elapsed / RankStampSeconds);
+            // 從大縮到正好，尾巴再彈一點點 —— 蓋章的手停住之前會微微回彈。
+            float eased = 1f - Mathf.Pow(1f - k, 3f);
+            float scale = Mathf.LerpUnclamped(1.9f, 1f, eased)
+                        + 0.06f * Mathf.Sin(k * Mathf.PI) * (1f - k);
+            SetRankScale(scale);
+            yield return null;
+        }
+        SetRankScale(1f);
+        revealRoutine = null;
+    }
+
+    /// <summary>評等那一塊的大小。圖和文字兩種都要動 —— 沒有徽章圖的時候走文字。</summary>
+    private void SetRankScale(float scale)
+    {
+        Vector3 s = Vector3.one * scale;
+        if (rankBadgeImage != null) rankBadgeImage.rectTransform.localScale = s;
+        if (rankText != null) rankText.rectTransform.localScale = s;
     }
 
     public void Hide()

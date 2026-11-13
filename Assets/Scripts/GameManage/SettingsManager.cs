@@ -102,7 +102,8 @@ public enum PianoPedalSource
 public enum TrackMarbleTheme { Black, White }
 
 [System.Serializable]
-public enum AppLanguage { TraditionalChinese, English, SimplifiedChinese }
+// 只能往後加：這個列舉是用 int 存進設定檔的，中間插一個會把所有人的語言換掉。
+public enum AppLanguage { TraditionalChinese, English, SimplifiedChinese, Japanese, Korean }
 
 [System.Serializable]
 public enum ComboDisplayPosition { TopLeft, TopCenter, Track, Center }
@@ -112,7 +113,7 @@ public class GameSettings
 {
     // Version 2 distinguishes a deliberate 0% music volume from legacy saves
     // where missing/uninitialised UI values were accidentally persisted as 0.
-    public int settingsVersion = 7;
+    public int settingsVersion = 8;
 
     [Header("Language")]
     public AppLanguage language = AppLanguage.TraditionalChinese;
@@ -144,8 +145,17 @@ public class GameSettings
     [Header("Gameplay Settings")]
     [Range(10f, 2000f)]
     public float defaultSpeed = 80f;
-    /// <summary>流速跟著譜面的音符密度走。關掉就是固定的單位/秒。</summary>
-    public bool densityScaledScroll = true;
+    /// <summary>
+    /// 流速跟著譜面的音符密度走。**預設關掉**，關掉就是固定的單位/秒。
+    /// </summary>
+    /// <remarks>
+    /// 為什麼預設關：開著的話同一個設定值在不同曲子上是不同的實際流速，而實測
+    /// 365 份譜，那樣做也只把「畫面擁擠度」的差距從 3.9 倍收到 1.7 倍 —— 數字不再
+    /// 可預期了，卻也沒真的做到等值。要等值得把強度拉到 1.0，那會讓實際流速在
+    /// 0.45×～2.20× 之間跑，最疏的譜音符會慢到爬。兩邊都不划算，所以預設讓
+    /// 玩家設的數字就是實際的單位/秒。實作留在 <c>ChartScrollSpeed</c>，想試再開。
+    /// </remarks>
+    public bool densityScaledScroll = false;
 
     [Range(2f, 5f)]
     public float gameStartDelay = 2f;
@@ -314,6 +324,13 @@ public class GameSettings
     [Tooltip("Match every song's playback loudness so changing song does not mean changing the volume. Off plays each recording at whatever level it was mastered.")]
     public bool normalizeMusicLoudness = true;
 
+    // 效能（見 PerformanceSettings）。-1 ＝ 沒調過，用平台預設：同一份設定檔
+    // 在桌機和平板上各自拿到適合的值，玩家改過才固定下來。
+    public int frameRateCap = -1;
+    public float renderScale = -1f;
+    public int bloomQuality = -1;
+    public int pianoVoiceOption = -1;
+
     [Tooltip("Which judgment preset is in force. 0 responsive, 1 classic, 2 custom.")]
     public int judgmentPreset = (int)JudgmentPreset.Custom;
 
@@ -474,7 +491,7 @@ public class SettingsManager : MonoBehaviour
     public GameSettings gameSettings = new GameSettings();
 
     private const string SETTINGS_KEY = "GameSettings";
-    private const int CURRENT_SETTINGS_VERSION = 7;
+    private const int CURRENT_SETTINGS_VERSION = 8;
 
     void Awake()
     {
@@ -548,6 +565,15 @@ public class SettingsManager : MonoBehaviour
                 gameSettings.settingsVersion = CURRENT_SETTINGS_VERSION;
                 settingsChanged = true;
             }
+            // 版本 7 曾經把「流速跟著密度走」預設開著。量過之後決定關掉：它讓同一個
+            // 設定值在不同曲子上不等值，卻只把畫面擁擠度的差距從 3.9 倍收到 1.7 倍。
+            // 改預設不夠 —— 存過設定的人 JSON 裡已經有 true，會越過欄位初始值。
+            if (gameSettings != null && gameSettings.settingsVersion < 8)
+            {
+                gameSettings.densityScaledScroll = false;
+                gameSettings.settingsVersion = CURRENT_SETTINGS_VERSION;
+                settingsChanged = true;
+            }
             // A save written before this setting existed deserialises to 0, which
             // would weight future notes to zero distance and swallow every press.
             if (gameSettings != null && gameSettings.futureNotePenalty < 1f)
@@ -570,6 +596,11 @@ public class SettingsManager : MonoBehaviour
             {
                 gameSettings.normalizeMusicLoudness = true;
             }
+            // 舊存檔沒有效能欄位時會讀成 0（＝30 fps、光暈關閉、32 聲部），要退回「未設定」
+            if (gameSettings != null && !json.Contains("frameRateCap")) gameSettings.frameRateCap = -1;
+            if (gameSettings != null && !json.Contains("renderScale")) gameSettings.renderScale = -1f;
+            if (gameSettings != null && !json.Contains("bloomQuality")) gameSettings.bloomQuality = -1;
+            if (gameSettings != null && !json.Contains("pianoVoiceOption")) gameSettings.pianoVoiceOption = -1;
             if (gameSettings != null && !json.Contains("touchAlignment"))
             {
                 gameSettings.touchAlignment = 1f;
@@ -864,6 +895,8 @@ public class SettingsManager : MonoBehaviour
         // 落下模式會覆寫上面的鏡頭角度，並決定軌道畫不畫，所以排在後面。
         ApplyNoteFallMode();
 
+        try { ApplyPerformanceSettings(); } catch { }
+
         // Apply timing & protection settings to judgment systems (best-effort)
         try
         {
@@ -1030,10 +1063,10 @@ public class SettingsManager : MonoBehaviour
     /// 拍子上時的名字；現在量的是<b>最忙 2 秒有幾次擊鍵</b>（見
     /// <see cref="ChartScrollSpeed"/>），和速度標記、拍號、拍點表都沒有關係。
     ///
-    /// 舊的設定檔沒有這個鍵也沒關係：<c>JsonUtility.FromJson</c> 會跑建構式，缺的
-    /// 鍵保留欄位初始值（true），只有 JSON 裡真的寫了 false 才會關掉。
+    /// 預設是**關**的，理由見 <see cref="GameSettings.densityScaledScroll"/>。所以讀不到
+    /// 設定（<c>gameSettings</c> 為 null）的時候也要當成關，不要偷偷打開。
     /// </remarks>
-    public bool DensityScaledScroll => gameSettings == null || gameSettings.densityScaledScroll;
+    public bool DensityScaledScroll => gameSettings != null && gameSettings.densityScaledScroll;
 
     public void SetDensityScaledScroll(bool on)
     {
@@ -1859,6 +1892,57 @@ public class SettingsManager : MonoBehaviour
     public bool BlockKeyChatter => gameSettings == null || gameSettings.blockKeyChatter;
 
     public bool ShowPedalCues => gameSettings == null || gameSettings.showPedalCues;
+
+    // ── 效能 ───────────────────────────────────────────────────────────
+
+    public int FrameRateCap => gameSettings != null && gameSettings.frameRateCap >= 0
+        ? Mathf.Clamp(gameSettings.frameRateCap, 0, 2) : PerformanceSettings.DefaultFrameCap;
+
+    public float RenderScale => gameSettings != null && gameSettings.renderScale > 0f
+        ? Mathf.Clamp(gameSettings.renderScale, PerformanceSettings.MinRenderScale, PerformanceSettings.MaxRenderScale)
+        : PerformanceSettings.DefaultRenderScale;
+
+    public int BloomQuality => gameSettings != null && gameSettings.bloomQuality >= 0
+        ? Mathf.Clamp(gameSettings.bloomQuality, 0, 2) : PerformanceSettings.DefaultBloom;
+
+    public int PianoVoiceOption => gameSettings != null && gameSettings.pianoVoiceOption >= 0
+        ? Mathf.Clamp(gameSettings.pianoVoiceOption, 0, PerformanceSettings.VoiceOptions.Length - 1)
+        : PerformanceSettings.DefaultVoiceOption;
+
+    public void SetFrameRateCap(int option)
+    {
+        if (gameSettings == null) return;
+        gameSettings.frameRateCap = Mathf.Clamp(option, 0, 2);
+        SaveSettings();
+        PerformanceSettings.ApplyFrameCap(FrameRateCap);
+    }
+
+    public void SetRenderScale(float scale)
+    {
+        if (gameSettings == null) return;
+        gameSettings.renderScale = Mathf.Clamp(scale, PerformanceSettings.MinRenderScale, PerformanceSettings.MaxRenderScale);
+        SaveSettings();
+        PerformanceSettings.ApplyRenderScale(RenderScale);
+    }
+
+    public void SetBloomQuality(int option)
+    {
+        if (gameSettings == null) return;
+        gameSettings.bloomQuality = Mathf.Clamp(option, 0, 2);
+        SaveSettings();
+        PerformanceSettings.ApplyBloom(BloomQuality);
+    }
+
+    public void SetPianoVoiceOption(int option)
+    {
+        if (gameSettings == null) return;
+        gameSettings.pianoVoiceOption = Mathf.Clamp(option, 0, PerformanceSettings.VoiceOptions.Length - 1);
+        SaveSettings();
+        PerformanceSettings.ApplyVoiceLimit(PianoVoiceOption);
+    }
+
+    public void ApplyPerformanceSettings() =>
+        PerformanceSettings.Apply(FrameRateCap, RenderScale, BloomQuality, PianoVoiceOption);
 
     public void SetShowPedalCues(bool enabled)
     {

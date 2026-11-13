@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,6 +40,8 @@ public static class SyllabusCourses
         public int Level;
         public ChartAnalysis Analysis;
         public string Key;
+        /// <summary>全庫相對難度 0–100。<see cref="ScoreDifficulty"/> 在建完 pool 後填。</summary>
+        public float Difficulty;
     }
 
     private static readonly Dictionary<string, SongSelectionManager.SongOption> byChart =
@@ -173,6 +175,8 @@ public static class SyllabusCourses
             for (int i = 0; i < pool.Count; i++)
                 byKey[Normalise(pool[i].Option.chartFileName)] = pool[i];
 
+            ScoreDifficulty(pool);
+
             var used = new HashSet<int>();
             var courses = new List<SyllabusCourse>();
             for (int i = 0; i < SyllabusLadder.Stages.Length; i++)
@@ -281,7 +285,9 @@ public static class SyllabusCourses
 
         for (int widen = 0; widen <= SyllabusLadder.MaxWidening; widen++)
         {
-            List<Candidate> band = Band(pool, low - widen, high + widen);
+            // 先把帶收成「離本級目標難度最近的那一撮」，角色才在撮裡挑。跳過這一步的
+            // 話兩格都會抽到帶內最極端的那一份，而帶內最高值是中位的 3～5 倍。
+            List<Candidate> band = NearTarget(Band(pool, low - widen, high + widen), grade.Target);
             var filled = (Candidate[])pinned.Clone();
             var seen = new HashSet<int>(claimed);
 
@@ -341,6 +347,81 @@ public static class SyllabusCourses
         for (int i = 0; i < band.Count; i++)
             if (!seen.Contains(band[i].Song)) return band[i];
         return null;
+    }
+
+    /// <summary>
+    /// 給每份譜一個 0–100 的全庫相對難度。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼不用標註的等級。** 實測這個曲庫，等級和實際難度的關係會斷：
+    /// Lv6 的速度中位比 Lv5 低、Lv9 比 Lv8 低，而 <c>Conflict (VILA Remix) Normal</c>
+    /// 標 Lv4 的速度負荷比 Lv13 的中位還高。拿等級當排序鍵，考題就會徽到這些譜。
+    ///
+    /// 量的是 <c>speedLoad</c> 與 <c>staminaLoad</c> 的**全庫百分位**，0.35 : 0.65。
+    /// 權重偏耐力是量出來的：和標註等級的秩相關，只看速度 0.70、只看耐力 0.92、
+    /// 這個混合 0.90 —— 二者都要（快和久是兩回事），但耐力更能代表一份譜的分量。
+    ///
+    /// 百分位是對**這個曲庫**算的，不是寫死的常數：曲庫改了指紋就會變，整本
+    /// 考程重編，這個分數跟著重算。
+    /// </remarks>
+    private static void ScoreDifficulty(List<Candidate> pool)
+    {
+        if (pool.Count == 0) return;
+
+        var speed = new float[pool.Count];
+        var stamina = new float[pool.Count];
+        for (int i = 0; i < pool.Count; i++)
+        {
+            speed[i] = pool[i].Analysis.speedLoad;
+            stamina[i] = pool[i].Analysis.staminaLoad;
+        }
+        Array.Sort(speed);
+        Array.Sort(stamina);
+
+        for (int i = 0; i < pool.Count; i++)
+        {
+            float a = LowerRank(speed, pool[i].Analysis.speedLoad);
+            float b = LowerRank(stamina, pool[i].Analysis.staminaLoad);
+            pool[i].Difficulty = 100f * (0.35f * a + 0.65f * b);
+        }
+    }
+
+    /// <summary>排好的陣列裡有幾成比 <paramref name="value"/> 小。</summary>
+    private static float LowerRank(float[] sorted, float value)
+    {
+        int low = 0;
+        int high = sorted.Length;
+        while (low < high)
+        {
+            int mid = (low + high) / 2;
+            if (sorted[mid] < value) low = mid + 1;
+            else high = mid;
+        }
+        return low / (float)sorted.Length;
+    }
+
+    /// <summary>
+    /// 帶內離目標難度最近的那一小撮。角色（技巧曲／歌唱曲）在這一撮裡再挑。
+    /// </summary>
+    /// <remarks>
+    /// 不是「只取最近的一份」：那樣兩格會幾乎沒有選擇，也没有空間讓角色、多樣性
+    /// 和釘住的格子發揮。一成八或至少六份，夠兩格各自挑且不撞同一首。
+    /// </remarks>
+    private static List<Candidate> NearTarget(List<Candidate> band, int target)
+    {
+        int want = Mathf.Max(6, Mathf.RoundToInt(band.Count * 0.18f));
+        if (band.Count <= want) return band;
+
+        var near = new List<Candidate>(band);
+        near.Sort((x, y) =>
+        {
+            float dx = Mathf.Abs(x.Difficulty - target);
+            float dy = Mathf.Abs(y.Difficulty - target);
+            if (dx != dy) return dx.CompareTo(dy);
+            return string.CompareOrdinal(x.Key, y.Key);   // 全序，不要靠不穩定排序
+        });
+        near.RemoveRange(want, near.Count - want);
+        return near;
     }
 
     private static List<Candidate> Band(List<Candidate> pool, int low, int high)

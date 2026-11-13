@@ -88,9 +88,22 @@ public class MIDIInputManager : MonoBehaviour
     private InputModeType lastInputMode = InputModeType.Keyboard;
     private static long inputEventSequence;
 
+    /// <summary>
+    /// 單例。**只讓位給活著的那一份。**
+    /// </summary>
+    /// <remarks>
+    /// 場景裡那一份掛在 <c>GameplayRoot</c> 底下，而選曲畫面把那個 root 整個關掉。
+    /// 關著的時候它的 <c>Update</c> 不跑（沒人抽 MidiJack 的佇列）、<c>OnDisable</c>
+    /// 還把原生回呼退訂掉了 —— 它不是 null，是**死的**。
+    ///
+    /// 舊版只比 <c>Instance != null</c>：那份死的一旦佔著 <c>Instance</c>，後來要接手
+    /// 的那一份會在這裡把自己 <c>Destroy</c> 掉，於是整個選曲畫面永遠沒有 MIDI。
+    /// 比 <c>isActiveAndEnabled</c> 才是問對問題：讓位的理由是「已經有人在做事」，
+    /// 不是「已經有人佔著位子」。
+    /// </remarks>
     private void Awake()
     {
-        if (Instance != null && Instance != this)
+        if (Instance != null && Instance != this && Instance.isActiveAndEnabled)
         {
             Destroy(this);
             return;
@@ -207,8 +220,19 @@ public class MIDIInputManager : MonoBehaviour
         else sustainPedalChannels &= ~bit;
     }
 
+    /// <summary>
+    /// 這一下要不要理它。
+    /// </summary>
+    /// <remarks>
+    /// **只有掛名的那一份（<see cref="Instance"/>）做事。** 場景裡那一份住在
+    /// <c>GameplayRoot</c> 底下、會跟著畫面被關掉，所以選曲畫面會另外建一份常駐的；
+    /// 進遊戲時兩份都醒著，而兩份在 <c>OnEnable</c> 各自都訂了 MidiJack 的回呼。
+    /// 不擋的話同一個 note 會被兩套誤觸濾網各跑一次，<c>MistouchProbe</c> 的統計也會
+    /// 變成兩倍 —— 那些數字是拿來調誤觸參數的，翻倍等於全部要重測。
+    /// </remarks>
     private bool ShouldAcceptMidi()
     {
+        if (Instance != this) return false;
         var settings = SettingsManager.Instance;
         return settings != null && settings.InputMode != InputModeType.Keyboard;
     }

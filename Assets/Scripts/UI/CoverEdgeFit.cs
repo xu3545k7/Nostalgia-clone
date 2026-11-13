@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
@@ -58,6 +58,9 @@ internal sealed class CoverEdgeFit : UIBehaviour
         // —— 只比對 sprite 的話，空白的卡中間會浮著上一首的金框。
         if (cover.sprite != lastSprite || cover.enabled != lastEnabled ||
             box.rect.size != lastBox) Apply();
+        // 位置每幀對齊，不進 Apply 的快取判斷：曲繪的**位置**可以在大小不變的
+        // 情況下動（卡片滑動、版面重排），而那時候上面三個條件一個都不會變。
+        FollowCover();
     }
 
     private void Apply()
@@ -79,5 +82,25 @@ internal sealed class CoverEdgeFit : UIBehaviour
         float width = aspect >= boxAspect ? lastBox.x : lastBox.y * aspect;
         float height = aspect >= boxAspect ? lastBox.x / aspect : lastBox.y;
         rect.sizeDelta = new Vector2(width, height);
+        FollowCover();
+    }
+
+    /// <summary>
+    /// 把金邊搬到曲繪的正中心。
+    /// </summary>
+    /// <remarks>
+    /// **用世界座標對齊，不靠錨點推算。** 原本是「取曲繪兩個 anchor 的中點，
+    /// anchoredPosition 給 0」—— 那只有在曲繪用**對稱的比例錨點**時才等於它的中心。
+    /// 曲繪改成「縱向拉滿 ＋ 不對稱的絕對位移」之後（上下空隙要對稱那次），錨點中點
+    /// 變成卡片正中央，金邊就留在那裡，和圖差了一大截。
+    ///
+    /// 這裡直接問曲繪「你的中心在世界的哪裡」，不管它是怎麼錨的 —— 以後版面再改，
+    /// 這一行都不用跟著改。
+    /// </remarks>
+    private void FollowCover()
+    {
+        if (cover == null || rect == null) return;
+        RectTransform coverRect = cover.rectTransform;
+        rect.position = coverRect.TransformPoint(coverRect.rect.center);
     }
 }

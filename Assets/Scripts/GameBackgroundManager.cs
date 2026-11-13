@@ -42,6 +42,34 @@ public class GameBackgroundManager : MonoBehaviour
     [SerializeField] private bool maskSongTextGraphics = false;
     [SerializeField] private bool maskGameplayDifficultyGraphic = false;
 
+    /// <summary>分數那一塊的框，和 <c>JudgmentManager.ConfigureClassicalGameplayHud</c> 裡寫的同一組。</summary>
+    /// <remarks>
+    /// **為什麼抄一份而不是去量分數的 rect。** 量不到 —— 那一組值是
+    /// <c>ConfigureClassicalGameplayHud</c> 設上去的，而它和這裡誰先跑沒有保證。排在
+    /// 它前面的話，量到的是場景裡那個還沒被改過的舊值，排完就被搬走，速度那一塊自然
+    /// 落在無關的地方。
+    ///
+    /// 改這組值的時候 JudgmentManager 那邊要一起改。兩邊會分開的風險，換掉的是一個
+    /// 「看場景載入順序決定對不對」的版面。
+    /// </remarks>
+    private static readonly Vector2 ScoreBoxOffset = new Vector2(-54f, -42f);
+    private static readonly Vector2 ScoreBoxSize = new Vector2(390f, 108f);
+
+    /// <summary>分數的字實際畫出來有多高。</summary>
+    /// <remarks>
+    /// **不是 <see cref="ScoreBoxSize"/>.y。** 那是框的高度（108），而分數那顆是舊版
+    /// <c>Text</c> 開著 <c>VerticalWrapMode.Overflow</c>、靠右上角對齊往下排 —— 字塊
+    /// 會溢出框。兩行 48pt 加一份 (3,-3) 的投影，量出來大約 126。
+    ///
+    /// 拿框高去讓，讓出來的會短 18，速度那一塊就頂在數字的下緣上。這是同一個錯誤的
+    /// 第二種形狀：第一次是只讓了一行的高度，第二次是只讓了框的高度。要讓的一直都是
+    /// **看得到的那一塊**。
+    /// </remarks>
+    private const float ScoreTextHeight = 126f;
+
+    /// <summary>分數字塊底緣到速度框頂緣的空隙。</summary>
+    private const float ScoreToBpmGap = 22f;
+
     [Header("Song Title Marquee")]
     [SerializeField, Min(1f)] private float songTitleMarqueeSpeed = 58f;
     [SerializeField, Min(0f)] private float songTitleMarqueeStartDelay = 0.8f;
@@ -453,17 +481,64 @@ public class GameBackgroundManager : MonoBehaviour
         if (bpmDisplay != null && bpmDisplay.bpmText != null)
         {
             RectTransform bpmRect = bpmDisplay.bpmText.rectTransform;
-            bpmRect.SetParent(overlayObject.transform, false);
-            bpmRect.anchorMin = new Vector2(0f, 0.5f);
-            bpmRect.anchorMax = new Vector2(0f, 0.5f);
-            bpmRect.pivot = new Vector2(0f, 0.5f);
-            bpmRect.anchoredPosition = new Vector2(48f, 0f);
-            bpmRect.sizeDelta = new Vector2(430f, 180f);
+
+            // **速度和拍號貼著分數排。** 它們和分數是同一類東西 —— 一局的讀數，
+            // 不是曲目的身分。原本放在畫面左側中間漂著，既不屬於字卡也不屬於 HUD，
+            // 而那一帶正好是音符落下來的路徑。
+            RectTransform scoreAnchor = null;
+            var judge = FindFirstObjectByType<Judgment.JudgmentManager>();
+            if (judge != null) scoreAnchor = judge.ScoreAnchor;
+
+            if (scoreAnchor != null && scoreAnchor.parent != null)
+            {
+                // **位置整組寫死，不從分數的 rect 推。** 分數那一塊的框在程式裡是
+                // 定值（見 ScoreBoxOffset），但它要等 JudgmentManager 跑過才會是那個
+                // 值 —— 去讀它等於賭執行順序。而且分數那一塊用右上角當 pivot、靠
+                // Overflow 讓字自己溢出框，所以它的 sizeDelta 和看得到的字塊不是同一
+                // 件事，拿去當位移的尺一定會算短。
+                //
+                // 往下讓的是「分數的字實際佔掉多高」，不是框高、更不是一個字級。
+                // 分數是「SCORE」加數字兩行，畫出來約 126 —— 比它自己的框（108）還高，
+                // 因為那顆開著 Overflow。照框讓會短 18，照字級讓會短 78。
+                bpmRect.SetParent(scoreAnchor.parent, false);
+                bpmRect.anchorMin = new Vector2(1f, 1f);
+                bpmRect.anchorMax = new Vector2(1f, 1f);
+                bpmRect.pivot = new Vector2(1f, 1f);
+                bpmRect.sizeDelta = new Vector2(ScoreBoxSize.x, 76f);
+                bpmRect.anchoredPosition = new Vector2(
+                    ScoreBoxOffset.x,
+                    ScoreBoxOffset.y - ScoreTextHeight - ScoreToBpmGap);
+            }
+            else
+            {
+                // 找不到分數就維持舊位置，總比疊在左上角好。
+                bpmRect.SetParent(overlayObject.transform, false);
+                bpmRect.anchorMin = new Vector2(0f, 0.5f);
+                bpmRect.anchorMax = new Vector2(0f, 0.5f);
+                bpmRect.pivot = new Vector2(0f, 0.5f);
+                bpmRect.anchoredPosition = new Vector2(48f, 0f);
+                bpmRect.sizeDelta = new Vector2(430f, 180f);
+            }
             bpmRect.localScale = Vector3.one;
             bpmRect.localRotation = Quaternion.identity;
+            bpmDisplay.ConfigureFloatingPresentation();
+
+            // **一定要排在 ConfigureFloatingPresentation 後面。** 那個函式會把對齊設
+            // 回 MidlineLeft、字級設回 64（自動縮放上限也是 64）—— 排在它前面的話，
+            // 這兩行全部會被蓋掉。
+            if (scoreAnchor != null && scoreAnchor.parent != null)
+            {
+                bpmDisplay.bpmText.alignment = TMPro.TextAlignmentOptions.TopRight;
+                bpmDisplay.bpmText.enableAutoSizing = false;
+                bpmDisplay.bpmText.fontSize = 44f;
+            }
+
+            // 鎖在最後：BpmDisplay.Start 還沒跑的話，它會把框撐回 400×82、對齊設回
+            // MidlineLeft、再掛一支自己的 Canvas，上面排的全部白做。鎖完才清 Canvas，
+            // 順序反過來的話清掉的是還沒被補上的那一個。
+            bpmDisplay.LockPlacement();
             Canvas bpmCanvas = bpmDisplay.bpmText.GetComponent<Canvas>();
             if (bpmCanvas != null) Destroy(bpmCanvas);
-            bpmDisplay.ConfigureFloatingPresentation();
             bpmRect.SetAsLastSibling();
         }
 
@@ -565,6 +640,20 @@ public class GameBackgroundManager : MonoBehaviour
     /// <summary>Paper mount between the gilt edge and the artwork.</summary>
     private const float CoverMount = 5f;
 
+    /// <summary>曲繪框離卡片上緣多遠。和建立時的 SetPanelRect 同一個值。</summary>
+    private const float CoverFrameTopInset = 12f;
+
+    /// <summary>缺口的左緣。進度條右緣 312、曲繪左緣 322，切在中間。</summary>
+    private const float NotchLeft = 316f;
+
+    /// <summary>曲繪框下緣到裁切口之間要留多少紙。</summary>
+    /// <remarks>
+    /// 和上緣的 <see cref="CoverFrameTopInset"/> 一樣，所以曲繪在那一塊紙裡是上下
+    /// 置中的。第一版把缺口切在曲繪框的下緣上（這個值等於 0），結果是上面有一道
+    /// 內縮、下面直接見底 —— 圖看起來像是被卡在紙的斷口上，而不是被紙托著。
+    /// </remarks>
+    private const float CoverFrameBottomGap = CoverFrameTopInset;
+
     /// <summary>
     /// Reshapes the thumbnail frame to the artwork's own proportions.
     /// </summary>
@@ -586,6 +675,37 @@ public class GameBackgroundManager : MonoBehaviour
             ? new Vector2(inner, inner / aspect)
             : new Vector2(inner * aspect, inner);
         _coverFrame.sizeDelta = art + new Vector2(CoverMount * 2f, CoverMount * 2f);
+        ApplyCardNotch(_coverFrame.sizeDelta.y);
+    }
+
+    /// <summary>
+    /// 曲繪底下那塊用不到的紙，從卡片上切掉。
+    /// </summary>
+    /// <remarks>
+    /// 缺口的高度 ＝ 卡片高 −（曲繪的上緣位移 ＋ 曲繪框的實際高度）。方的圖只空出
+    /// 76，16:9 的圖空出 149 —— 差一倍，所以這個非跟著算不可，寫死一個值會不是切
+    /// 太少就是切到圖。
+    ///
+    /// 缺口的左緣用 <see cref="NotchLeft"/>：進度條右緣在 312、曲繪左緣在 322，
+    /// 316 落在兩者之間，所以左欄的任何東西都不會被切到。
+    /// </remarks>
+    private void ApplyCardNotch(float coverFrameHeight)
+    {
+        if (_classicalSongInfoPanel == null) return;
+        float cardW = _classicalSongInfoPanel.sizeDelta.x;
+        float cardH = _classicalSongInfoPanel.sizeDelta.y;
+        float used = CoverFrameTopInset + Mathf.Max(0f, coverFrameHeight) + CoverFrameBottomGap;
+        Vector2 notch = new Vector2(
+            Mathf.Max(0f, cardW - NotchLeft),
+            Mathf.Clamp(cardH - used, 0f, cardH));
+
+        var paper = _classicalSongInfoPanel.GetComponent<NotchedRectGraphic>();
+        if (paper != null) paper.SetNotch(notch);
+        Transform rule = _classicalSongInfoPanel.Find("GiltRule");
+        var ruleGraphic = rule != null ? rule.GetComponent<NotchedRectGraphic>() : null;
+        // 金級內縮 6，所以它的缺口也要跟著內縮同樣的量。
+        if (ruleGraphic != null) ruleGraphic.SetNotch(notch - new Vector2(6f, 6f));
+        if (_difficultyFrame != null) _difficultyFrame.SetNotch(notch);
     }
 
     /// <summary>
@@ -754,7 +874,7 @@ public class GameBackgroundManager : MonoBehaviour
         Vector2 position, Vector2 size, bool mask)
     {
         GameObject cardObject = new GameObject(name, typeof(RectTransform),
-            typeof(CanvasRenderer), typeof(UnityEngine.UI.Image));
+            typeof(CanvasRenderer));
         cardObject.layer = 5;
         RectTransform rect = cardObject.GetComponent<RectTransform>();
         rect.SetParent(parent, false);
@@ -762,10 +882,13 @@ public class GameBackgroundManager : MonoBehaviour
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
 
-        UnityEngine.UI.Image paper = cardObject.GetComponent<UnityEngine.UI.Image>();
-        paper.sprite = ClassicalBookUITheme.GetPaperTextureSprite();
-        paper.type = UnityEngine.UI.Image.Type.Tiled;
-        paper.pixelsPerUnitMultiplier = 0.72f;
+        // 紙面是一個右下角被切掉的 L，不是矩形 —— 右邊那塊紙唯一的作用是撐住曲繪，
+        // 曲繪底下就不需要紙。缺口大小由 ApplyCoverAspect 每次換圖時算。
+        //
+        // 用一份 mesh 而不是兩張 Image 拼：棕框和落影是 Outline／Shadow 從 mesh
+        // 複製出來的，兩張圖會在內部接縫上也描一條線。
+        var paper = cardObject.AddComponent<NotchedRectGraphic>();
+        paper.Configure(ClassicalBookUITheme.GetPaperTextureSprite(), Vector2.zero, 220f);
         paper.color = new Color(0.94f, 0.90f, 0.82f, 0.98f);
         paper.raycastTarget = false;
 
@@ -777,7 +900,7 @@ public class GameBackgroundManager : MonoBehaviour
         drop.effectDistance = new Vector2(6f, -6f);
 
         GameObject ruleObject = new GameObject("GiltRule", typeof(RectTransform),
-            typeof(CanvasRenderer), typeof(UnityEngine.UI.Image));
+            typeof(CanvasRenderer));
         ruleObject.layer = 5;
         RectTransform rule = ruleObject.GetComponent<RectTransform>();
         rule.SetParent(rect, false);
@@ -785,7 +908,10 @@ public class GameBackgroundManager : MonoBehaviour
         rule.anchorMax = Vector2.one;
         rule.offsetMin = new Vector2(6f, 6f);
         rule.offsetMax = new Vector2(-6f, -6f);
-        UnityEngine.UI.Image ruleImage = ruleObject.GetComponent<UnityEngine.UI.Image>();
+        // 金級也要是 L，否則它會橫過缺口、在空的地方畫一條線。
+        // 本體全透明，那圈金是底下 Outline 複製 mesh 做出來的。
+        var ruleImage = ruleObject.AddComponent<NotchedRectGraphic>();
+        ruleImage.Configure(null, Vector2.zero, 0f);
         ruleImage.color = new Color(0f, 0f, 0f, 0f);       // 只要那圈框
         ruleImage.raycastTarget = false;
         UnityEngine.UI.Outline gilt = ruleObject.AddComponent<UnityEngine.UI.Outline>();

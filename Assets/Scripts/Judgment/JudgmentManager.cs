@@ -279,6 +279,9 @@ public class JudgmentManager : MonoBehaviour
         private TMPro.TextMeshProUGUI comboTMP = null;
         [SerializeField]
         private TMPro.TextMeshProUGUI scoreTMP = null;
+
+        /// <summary>畫面上分數那一塊。別的 UI 要貼著分數排時拿這個當基準。</summary>
+        public RectTransform ScoreAnchor => scoreTMP != null ? scoreTMP.rectTransform : null;
         [SerializeField]
         private TMPro.TextMeshProUGUI achievementTMP = null;
         private Canvas classicalHudCanvas;
@@ -2491,13 +2494,29 @@ public class JudgmentManager : MonoBehaviour
                         try
                         {
                             ParticleEffectPlayer.NextSealIsPrecise =
-                                _cachedRecitalMode && !note.IsTrill && !note.IsSlide
+                                PreciseEvaluated(note) && !note.IsTrill && !note.IsSlide
                                 && note.NoteData != null
                                 && DynamicMatches(note.NoteData, buttonId);
+                            // payload 住在上面那個 if 裡，這裡拿不到。beginInfo 是方法層
+                            // 的變數，走 else 那條路時它還是 default —— 而
+                            // default(JudgmentResult) 正好是 Perfect，和自動演奏那個
+                            // 呼叫點給的值一樣，所以這個退路是對的而不只是不會炸。
+                            ParticleEffectPlayer.NextSealTint =
+                                NoteJudgementMeshManager.EnsureCreated()
+                                    .BaseColorFor(forcedResult ?? beginInfo.Result);
+                            // 準時**而且**力度對：第七種封印，自己一套顏色。
+                            ParticleEffectPlayer.NextSealIsFlawless =
+                                ParticleEffectPlayer.NextSealIsPrecise
+                                && (forcedResult ?? beginInfo.Result) == JudgmentResult.Perfect;
                             HitEffectRouter.BeginHold(note, buttonId);
                         }
                         catch { }
-                        finally { ParticleEffectPlayer.NextSealIsPrecise = false; }
+                        finally
+                        {
+                            ParticleEffectPlayer.NextSealIsPrecise = false;
+                            ParticleEffectPlayer.NextSealIsFlawless = false;
+                            ParticleEffectPlayer.NextSealTint = null;
+                        }
                         // KeyHitEffectManager disabled: per-key visual removed (Judge mesh only).
                     }
 
@@ -2534,7 +2553,33 @@ public class JudgmentManager : MonoBehaviour
                 st.pressedLanes.Add(lane);
                 laneToHoldState[lane] = st;
                 try { NoteJudgementMeshManager.EnsureCreated().SetPersistentLit(note, true); } catch { }
-                try { HitEffectRouter.BeginHold(note, lane); } catch { }
+                // **這條路以前什麼旗標都沒設。** BeginHoldTracking 有兩條：handler
+                // 那條會設判定色與力度，這條（真的按鍵進來的那條）沒有 —— 於是
+                // NextSealTint 是 null，封印退回去用「手的顏色」（紅／藍），而且
+                // 永遠不會是精準、更不會是完全完美。長音看不到力度正確的顏色就是
+                // 這個。兩條路要說同一件事。
+                try
+                {
+                    ParticleEffectPlayer.NextSealIsPrecise =
+                        PreciseEvaluated(note) && !note.IsTrill && !note.IsSlide
+                        && note.NoteData != null
+                        && DynamicMatches(note.NoteData, lane);
+                    // 這裡跑在頭被判定之前，拿不到判定結果 —— 和 handler 那條走
+                    // 同一個退路：default(JudgmentResult) 就是 Perfect。
+                    ParticleEffectPlayer.NextSealTint =
+                        NoteJudgementMeshManager.EnsureCreated()
+                            .BaseColorFor(JudgmentResult.Perfect);
+                    ParticleEffectPlayer.NextSealIsFlawless =
+                        ParticleEffectPlayer.NextSealIsPrecise;
+                    HitEffectRouter.BeginHold(note, lane);
+                }
+                catch { }
+                finally
+                {
+                    ParticleEffectPlayer.NextSealIsPrecise = false;
+                    ParticleEffectPlayer.NextSealIsFlawless = false;
+                    ParticleEffectPlayer.NextSealTint = null;
+                }
                 if (_cachedDebugMode) { try { BuildLogger.Log($"[JMgr] BeginHoldTracking(input) state for note={note?.name ?? "<null>"} lane={lane} pressSongPos={songPos} maxExtra={st.maxExtra}"); } catch { } }
                     // KeyHitEffectManager disabled: per-key visual removed (Judge mesh only).
             }
@@ -2549,7 +2594,30 @@ public class JudgmentManager : MonoBehaviour
                 if (!laneToHoldState.TryGetValue(lane, out var st)) return;
                 // For now we don't re-judge the head here — head judgments are routed through Protection and
                 // committed later via ApplyJudgmentPayload. We can trigger local effects and extra per-eighth judgments.
-                try { HitEffectRouter.Play(st.note, lane, JudgmentResult.Perfect); } catch { }
+                // 按著的時候又按一次 —— 還是同一顆音符，所以用同一套顏色。
+                // 不設的話這個爆點會是手的顏色，和它底下那圈封印對不起來。
+                try
+                {
+                    var pressed = st.note;
+                    ParticleEffectPlayer.NextSealIsPrecise =
+                        pressed != null && PreciseEvaluated(pressed)
+                        && !pressed.IsTrill && !pressed.IsSlide
+                        && pressed.NoteData != null
+                        && DynamicMatches(pressed.NoteData, lane);
+                    ParticleEffectPlayer.NextSealTint =
+                        NoteJudgementMeshManager.EnsureCreated()
+                            .BaseColorFor(JudgmentResult.Perfect);
+                    ParticleEffectPlayer.NextSealIsFlawless =
+                        ParticleEffectPlayer.NextSealIsPrecise;
+                    HitEffectRouter.Play(pressed, lane, JudgmentResult.Perfect);
+                }
+                catch { }
+                finally
+                {
+                    ParticleEffectPlayer.NextSealIsPrecise = false;
+                    ParticleEffectPlayer.NextSealIsFlawless = false;
+                    ParticleEffectPlayer.NextSealTint = null;
+                }
                 // extra award now handled by per-frame ProcessHoldExtraAwards
             }
             catch { }
@@ -2708,16 +2776,6 @@ public class JudgmentManager : MonoBehaviour
             _hudDirty = true;
         }
 
-        /// <summary>
-        /// The colour a centre hit's light turns: violet carrying gold.
-        /// </summary>
-        /// <remarks>
-        /// Not plain violet. The rest of this game's light is gold, and a hit
-        /// that swapped to a cold purple would read as a different *kind* of
-        /// event rather than as a better one. Keeping the warmth in it says
-        /// "the same thing, but richer", which is exactly what it is.
-        /// </remarks>
-        private static readonly Color PreciseGlow = new Color(1.06f, 0.72f, 1.24f, 1f);
 
         /// <summary>
         /// 這一顆判定該拿到的配分比例。非演奏會模式永遠是 1。
@@ -2788,9 +2846,48 @@ public class JudgmentManager : MonoBehaviour
             return 1m;
         }
 
+        /// <summary>
+        /// 長押「一直亮著」的那根光柱要不要也帶力度的紫。
+        /// </summary>
+        /// <remarks>
+        /// **這翻掉了一個先前的決定，理由是那個決定的前提變了。** 原本寫著「紫光只屬於
+        /// 落鍵的那一下，持續的接觸光柱回到金色 —— 一路紫下去，紫色就不再是『你剛剛按
+        /// 得很準』，而只是『這是一條長音』」。那是在紫色**整個取代**判定色的時代寫的：
+        /// 當時一條長音會從頭到尾是純紫，判定色完全看不到，所以確實只剩「這是長音」。
+        ///
+        /// 現在紫是疊在判定色上的漸層 —— 柱底仍然是 JUST／GREAT／GOOD 的顏色，紫只在
+        /// 往上淡出的那一截。長音一路亮著的時候，底部那一圈判定色也一路在說話，所以
+        /// 「紫＝長音」的歧義不成立了。
+        ///
+        /// 翻回去只要把這個改成 false：落鍵那一下仍然有紫，持續的柱子回到金色。
+        /// </remarks>
+        private const bool PreciseTintsHoldColumn = true;
+
+        /// <summary>
+        /// 這一顆的強弱該不該被評（＝看得到 PRECISE）。
+        /// </summary>
+        /// <remarks>
+        /// 強弱本來只在演奏會模式評 —— 那是這個功能的家。但**自動演奏按的就是
+        /// 譜面自己的力度**：`AutoJudgeTap` 和 `ApplyJudgmentForHoldStart` 都用
+        /// `PianoKeysound.RecordInput(..., auto: true)` 下鍵，判定端也認得
+        /// `autoPressed` 而跳過玩家手勁的換算。自動演奏是「完美地彈完一次」的
+        /// 樣子，它在強弱這一維本來就是對的，所以不管哪個模式都該看得到那個顏色
+        /// —— 教學示範和選單的自動演奏也才會顯示完整的封印。
+        ///
+        /// **只影響看得到的東西。** 計分與統計（<see cref="RecitalWeight"/>）仍然
+        /// 只在演奏會模式計：自動演奏在那邊本來就不該被當成一次演出。
+        ///
+        /// 代價講清楚：演奏會模式關著的時候，玩家自己彈永遠拿不到 PRECISE，
+        /// 但看自動演奏會看到。要拿掉就把這裡改回 `_cachedRecitalMode`。
+        /// </remarks>
+        private bool PreciseEvaluated(NoteController note)
+        {
+            return _cachedRecitalMode || AutoFor(note);
+        }
+
         private bool IsPrecise(JudgmentPayload payload)
         {
-            if (!_cachedRecitalMode || payload == null) return false;
+            if (payload == null || !PreciseEvaluated(payload.note)) return false;
             // **時間不管。** PRECISE 問的是「力度對不對」，而時間準不準旁邊的
             // JUST / GREAT / GOOD 已經在講了。一個判定名稱只回答一個問題 ——
             // 把兩件事綁在一起的話，玩家看到 PRECISE 少了也不知道該改哪一邊。
@@ -3823,9 +3920,14 @@ public class JudgmentManager : MonoBehaviour
             try
             {
                 using (HitchProbe.Measure("judgeMesh"))
+                    // **不再拿紫色把判定色換掉。** 舊寫法是
+                    // 舊寫法是把一個紫色當成 overrideColor 傳進去 —— 彈對力度的那一下整個網格變紫，
+                    // 於是 JUST 和 GOOD 只要都彈對力度就長得一模一樣，「打得準不準」
+                    // 被「彈得輕重對不對」蓋掉了。兩件事都要說，所以改成：主色永遠
+                    // 是判定，力度對了則往上漸層成紫。
                     NoteJudgementMeshManager.EnsureCreated().ShowEffect(
                         note, res, persistent, signedTimingOffsetMs, useTimingColor, inputLane,
-                        precise ? PreciseGlow : (Color?)null);
+                        null, precise);
             }
             catch { }
             if (playHitParticles)
@@ -3833,11 +3935,22 @@ public class JudgmentManager : MonoBehaviour
                 try
                 {
                     // 魔法陣的外框跟著判定走：精準的那一下連封印的邊都是紫的。
+                    // 內圈則是判定本身的顏色（JUST 奶油／GREAT 綠／GOOD 藍）。
                     ParticleEffectPlayer.NextSealIsPrecise = precise;
+                    ParticleEffectPlayer.NextSealTint =
+                        NoteJudgementMeshManager.EnsureCreated().BaseColorFor(res);
+                    // 準時**而且**力度對：第七種封印，自己一套顏色。
+                    ParticleEffectPlayer.NextSealIsFlawless =
+                        precise && res == JudgmentResult.Perfect;
                     HitEffectRouter.Play(note, inputLane >= 0 ? inputLane : (note.NoteData?.startLane ?? -1), res);
                 }
                 catch { }
-                finally { ParticleEffectPlayer.NextSealIsPrecise = false; }
+                finally
+                {
+                    ParticleEffectPlayer.NextSealIsPrecise = false;
+                    ParticleEffectPlayer.NextSealIsFlawless = false;
+                    ParticleEffectPlayer.NextSealTint = null;
+                }
             }
         }
 
@@ -3933,14 +4046,13 @@ public class JudgmentManager : MonoBehaviour
                         // First show the timing-position burst, then keep the
                         // Hold contact core anchored on the judgment line.
                         //
-                        // 紫光只屬於**落鍵的那一下**。持續的接觸光柱回到金色：
-                        // 精準講的是手放在哪裡，那是一個瞬間的事實，不是這條
-                        // 長音接下來三秒鐘的狀態 —— 一路紫下去，紫色就不再是
-                        // 「你剛剛按得很準」，而只是「這是一條長音」。
+                        // 兩條都帶力度的紫，見 PreciseTintsHoldColumn —— 紫現在是
+                        // 疊在判定色上的漸層，柱底還是 JUST／GREAT／GOOD 的顏色，
+                        // 所以長音一路亮著也不會把「準」讀成「長」。
                         ShowNoteMeshEffect(note, payload.result, false, true, headTimingOffset, true,
                             payload.buttonId, preciseHead);
                         ShowNoteMeshEffect(note, payload.result, true, false, 0f, false,
-                            payload.buttonId);
+                            payload.buttonId, PreciseTintsHoldColumn && preciseHead);
                     }
                     else
                     {
@@ -4066,7 +4178,8 @@ public class JudgmentManager : MonoBehaviour
                 // 和一般音符同一條規則（DynamicMatches）：判不出強弱就放行。以前這裡要求
                 // 「有力度資料」，於是沒量到強弱分界的譜面上，自動演奏的點擊是 PRECISE、
                 // 長條頭卻不是。
-                bool precise = _cachedRecitalMode && head != null && !note.IsTrill && !note.IsSlide;
+                bool precise = PreciseEvaluated(note) && head != null
+                    && !note.IsTrill && !note.IsSlide;
                 // 自動演奏的長條頭不經過 payload，所以也不會經過 RecitalWeight。
                 // 沒有補這一筆的話，自動演奏測出來的統計會少掉所有的長音。
                 if (_cachedRecitalMode && head != null && !note.IsTrill && !note.IsSlide)
@@ -4090,20 +4203,29 @@ public class JudgmentManager : MonoBehaviour
                 }
                 try
                 {
-                    // 先閃一下（精準的話是紫的），再放上一直亮著的金色光柱。
+                    // 先閃一下，再放上一直亮著的光柱。兩條都吃力度的紫。
                     ShowNoteMeshEffect(note, JudgmentResult.Perfect, false, true, 0f, false,
                         centreLane, precise);
                     ShowNoteMeshEffect(note, JudgmentResult.Perfect, true, false, 0f, false,
-                        centreLane);
+                        centreLane, PreciseTintsHoldColumn && precise);
                 }
                 catch { }
                 try
                 {
                     ParticleEffectPlayer.NextSealIsPrecise = precise;
+                    ParticleEffectPlayer.NextSealTint =
+                        NoteJudgementMeshManager.EnsureCreated().BaseColorFor(JudgmentResult.Perfect);
+                    // 這條路的判定固定是 Perfect，所以力度對就是完全完美。
+                    ParticleEffectPlayer.NextSealIsFlawless = precise;
                     HitEffectRouter.BeginHold(note, centreLane >= 0 ? centreLane : (note.NoteData?.startLane ?? -1));
                 }
                 catch { }
-                finally { ParticleEffectPlayer.NextSealIsPrecise = false; }
+                finally
+                {
+                    ParticleEffectPlayer.NextSealIsPrecise = false;
+                    ParticleEffectPlayer.NextSealIsFlawless = false;
+                    ParticleEffectPlayer.NextSealTint = null;
+                }
                 try { SimpleJudgePopupManager.Instance?.ShowAtPosition(note.transform.position,
                     JudgmentResult.Perfect, precise); } catch { }
                 // Also show persistent key-level mesh(s) for the lanes belonging to this note so

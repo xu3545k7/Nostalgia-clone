@@ -27,8 +27,25 @@ public sealed class PracticeRoomScreen : MonoBehaviour
     private const int SortingOrder = 25000;     // 低於譜面檢視器（26500），它要蓋在這上面
     private const float TopBarHeight = 92f;
     private const float Margin = 36f;
+
+    /// <summary>三欄的底部要內縮多少。</summary>
+    /// <remarks>
+    /// 畫面最下面那條 <see cref="KeyZoneBar"/> 是全域的覆蓋層，不屬於這個畫面，
+    /// 所以它不會自動把內容推開 —— 三欄必須自己讓出那段高度，否則難度鈕和
+    /// 「開始練習」會被蓋在底下。
+    ///
+    /// **讓的是整欄，不是把按鈕搬到別處。** 難度鈕屬於左邊那份曲目清單、開始練習
+    /// 屬於右邊那份設定；搬到頂部會把它們和自己的上下文拆開。
+    /// </remarks>
+    private const float BottomInset = Margin + 92f;
     private const float ListWidth = 520f;
     private const float RailWidth = 520f;
+    /// <summary>「全部」這一格的**代號**，不是顯示的字。</summary>
+    /// <remarks>
+    /// 它同時被 <c>string.Equals</c> 拿去比（分類清單裡的哨兵），所以不能翻 ——
+    /// 翻了之後換一次語言，比對就不成立，分類篩選會整個失效。要印出來時才過
+    /// <see cref="Localize.S"/>。const 本來也只能放編譯期常數。
+    /// </remarks>
     private const string AllCategories = "全部";
     // ── 中欄的高度預算 ────────────────────────────────────────────────
     //
@@ -494,14 +511,14 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             new Vector2(ChipTabletX, 0f), new Vector2(58f, 46f));
         tablet.gameObject.AddComponent<CanvasRenderer>();
         courseTablet = tablet.gameObject.AddComponent<RomanTabletGraphic>();
-        Chip(tablet, courseTablet);
+        Chip(tablet, courseTablet, SyllabusExamHall.Open);
 
         RectTransform seal = AddRect("CourseSeal", bar);
         Place(seal, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
             new Vector2(ChipSealX, 0f), new Vector2(50f, 50f));
         seal.gameObject.AddComponent<CanvasRenderer>();
         courseSeal = seal.gameObject.AddComponent<GradeSealGraphic>();
-        Chip(seal, courseSeal);
+        Chip(seal, courseSeal, SyllabusExamHall.OpenGrade);
 
         // 級數是印面上唯一的字。畫在印之後，才蓋得在朱砂上面。
         courseSealDigit = AddText(seal, "Digit", string.Empty, TextLabel,
@@ -513,12 +530,17 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         SyllabusProgress.Changed += RefreshCourse;
     }
 
-    /// <summary>把一枚記號變成可以按的東西：投影、滑過變亮、按了翻開考程。</summary>
+    /// <summary>把一枚記號變成可以按的東西：投影、滑過變亮、按了做一件事。</summary>
     /// <remarks>
     /// 投影用 <c>Shadow</c> 不是一張方形底圖：這兩枚記號都不是方的（一塊切角的牌、一
     /// 枚圓印），方形的影子會露出輪廓外面。<c>Shadow</c> 複製的是圖形自己的網格。
     /// </remarks>
-    private void Chip(RectTransform rect, MaskableGraphic art)
+    /// <remarks>
+    /// 兩枚記號開不同的東西，因為它們代表不同的階梯：**階數牌→技階考場**
+    /// （技階的動作在考場）、**級數印→考程書**（檢定的動作在結算頁的「送審」，
+    /// 所以印能做的就是翻帳）。兩枚都開書的話，技階永遠沒有入口。
+    /// </remarks>
+    private void Chip(RectTransform rect, MaskableGraphic art, System.Action open)
     {
         art.raycastTarget = true;
         ClassicalBookUITheme.AddShadow(rect.gameObject, new Color(0f, 0f, 0f, 0.45f),
@@ -538,7 +560,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         button.onClick.AddListener(() =>
         {
             UiSfx.Open();
-            SyllabusBookOverlay.Open();
+            open?.Invoke();
         });
     }
 
@@ -585,6 +607,38 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             screen.previewRoutine = null;
         }
         if (screen.previewSource != null) screen.previewSource.Stop();
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  鍵盤（MIDI）操作
+    // ──────────────────────────────────────────────────────────────
+
+    /// <summary>這個房間現在開著嗎。</summary>
+    /// <remarks>
+    /// 這個畫面是**每次重建**的（按開始練習前會 Destroy 自己），所以不需要額外的
+    /// 開關旗標 —— 物件還活著而且沒在關閉途中，就等於開著。
+    /// </remarks>
+    public bool IsOpen => this != null && !closing && isActiveAndEnabled;
+
+    /// <summary>鍵盤：在曲目清單裡往前／往後一首。</summary>
+    /// <remarks>
+    /// 走的是 <c>filtered</c>（畫面上真正列出來的那份），不是完整的 <c>songs</c> ——
+    /// 有篩選的時候，鍵盤跳到一首看不見的歌會像是壞掉。
+    /// </remarks>
+    public void StepSelection(int delta)
+    {
+        if (!IsOpen || filtered.Count == 0 || delta == 0) return;
+        int at = selectedSong != null ? filtered.IndexOf(selectedSong) : -1;
+        at = at < 0 ? (delta > 0 ? 0 : filtered.Count - 1)
+                    : ((at + delta) % filtered.Count + filtered.Count) % filtered.Count;
+        SelectSong(filtered[at]);
+    }
+
+    /// <summary>鍵盤：開始練習。按鈕自己的 onClick 走一遍，不要複製它的內容。</summary>
+    public void ConfirmFromKeyboard()
+    {
+        if (!IsOpen || startButton == null) return;
+        startButton.onClick.Invoke();
     }
 
     public void Close()
@@ -820,7 +874,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
 
         // 左上角是模式切換，不是「返回」—— 練習室和演奏會是兩個空間，互為彼此的
         // 出口。選曲轉盤是演奏會那一側的畫面，所以切過去就等於回去了。
-        Button toRecital = MakeButton(bar, "ToRecital", "切換至演奏會", TextLabel, new Vector2(248f, 56f));
+        Button toRecital = MakeButton(bar, "ToRecital", Localize.S("切換至演奏會"), TextLabel, new Vector2(248f, 56f));
         RectTransform toRecitalRect = toRecital.GetComponent<RectTransform>();
         Place(toRecitalRect, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
             new Vector2(Margin, 0f), new Vector2(248f, 56f));
@@ -841,7 +895,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
 
         // 標題的間隔用字距屬性，不是在字串裡打空格 —— 打空格的那一版，選字、搜尋
         // 和翻譯拿到的都是「練 習 室」。
-        TextMeshProUGUI title = AddText(bar, "Title", "練習室", TextDisplay, Ink,
+        TextMeshProUGUI title = AddText(bar, "Title", Localize.S("練習室"), TextDisplay, Ink,
             TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         // 框從 420 收到 150：「練習室」在 32 級加 4 字距下是 108 寬，420 的框會伸到
         // x=726，和中央的托木（左緣 460）重疊 266。框重疊本身不會畫出東西，但翻譯換
@@ -851,7 +905,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         title.characterSpacing = Tracking;
 
         // 設定：練習室是一個完整的畫面，不能為了改一個設定還要先切回演奏會。
-        Button settings = MakeButton(bar, "Settings", "設定", TextLabel, new Vector2(120f, 56f));
+        Button settings = MakeButton(bar, "Settings", Localize.S("設定"), TextLabel, new Vector2(120f, 56f));
         Place(settings.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
             new Vector2(-Margin, 0f), new Vector2(120f, 56f));
         settings.onClick.AddListener(OpenSettings);
@@ -875,10 +929,10 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         panel.anchorMin = new Vector2(0f, 0f);
         panel.anchorMax = new Vector2(0f, 1f);
         panel.pivot = new Vector2(0f, 0.5f);
-        panel.offsetMin = new Vector2(Margin, Margin);
+        panel.offsetMin = new Vector2(Margin, BottomInset);
         panel.offsetMax = new Vector2(Margin + ListWidth, -ColumnTop);
 
-        TextMeshProUGUI heading = AddText(panel, "Heading", "曲目", TextTitle, InkCream,
+        TextMeshProUGUI heading = AddText(panel, "Heading", Localize.S("曲目"), TextTitle, InkCream,
             TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         Place(heading.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(24f, -20f), new Vector2(200f, 40f));
@@ -991,7 +1045,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         AddChevron(categoryNext.GetComponent<RectTransform>(), true);
         categoryNext.onClick.AddListener(() => StepCategory(1));
 
-        tutorialButton = MakeButton(drawerRoot, "Tutorial", "新手教學", TextBody, new Vector2(150f, 34f));
+        tutorialButton = MakeButton(drawerRoot, "Tutorial", Localize.S("新手教學"), TextBody, new Vector2(150f, 34f));
         Place(tutorialButton.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(8f, -66f), new Vector2(150f, 34f));
         tutorialButton.onClick.AddListener(() =>
@@ -1058,7 +1112,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             TextAlignmentOptions.MidlineLeft, FontStyles.Normal);
         Stretch(searchText.rectTransform, 16f, 4f, 16f, 4f);
         // 提示字用實色，不用半透明：半透明的字疊在紙紋上會被紋理吃掉一半。
-        TextMeshProUGUI placeholder = AddText(searchRect, "Placeholder", "搜尋曲名或作曲家",
+        TextMeshProUGUI placeholder = AddText(searchRect, "Placeholder", Localize.S("搜尋曲名或作曲家"),
             TextLabel, new Color(0.520f, 0.430f, 0.310f, 1f),
             TextAlignmentOptions.MidlineLeft, FontStyles.Normal);
         Stretch(placeholder.rectTransform, 16f, 4f, 16f, 4f);
@@ -1209,7 +1263,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             RatingCardHeight, RatingCardWidth);
         AddInnerRule(card);
 
-        TextMeshProUGUI caption = AddText(card, "Caption", "實力評分・練習模式", TextCaption,
+        TextMeshProUGUI caption = AddText(card, "Caption", Localize.S("實力評分・練習模式"), TextCaption,
             InkMuted, TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         Place(caption.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(pad, -8f), new Vector2(200f, 18f));
@@ -1306,12 +1360,16 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         //
         // 三個數字和兩個詞也是從常數和 Title() 長出來的：這句話是新玩家唯一看得到刻度
         // 說明的地方，寫死的話門檻一改它就開始騙人。
-        string ladder = "還沒有練習模式的紀錄。打完一首就會開始累積："
-            + $"{Mathf.RoundToInt(PlayerRating.Ordinary)} 是"
-            + PlayerRating.Title(PlayerRating.Ordinary, false) + "、"
-            + $"{Mathf.RoundToInt(PlayerRating.Proficient)} 是"
-            + PlayerRating.Title(PlayerRating.Proficient, false) + "，"
-            + $"{Mathf.RoundToInt(ceiling)} 表示 Lv15 也能 S 而且一個 Miss 都沒有。";
+        // 整句一起翻，不要逐段相接：日文的語序和中文不同，接出來會是中文骨架配
+        // 日文零件。數字和兩個評語照樣是參數，門檻一改這句話還是對的。
+        string ladder = Localize.SF(
+            "還沒有練習模式的紀錄。打完一首就會開始累積：{0} 是{1}、{2} 是{3}，" +
+            "{4} 表示 Lv15 也能 S 而且一個 Miss 都沒有。",
+            Mathf.RoundToInt(PlayerRating.Ordinary),
+            PlayerRating.Title(PlayerRating.Ordinary, false),
+            Mathf.RoundToInt(PlayerRating.Proficient),
+            PlayerRating.Title(PlayerRating.Proficient, false),
+            Mathf.RoundToInt(ceiling));
         ratingEmpty = AddText(card, "Empty", ladder,
             TextCaption, InkMuted, TextAlignmentOptions.TopLeft, FontStyles.Normal);
         Place(ratingEmpty.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
@@ -1355,7 +1413,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         standRoot = centre;
         centre.anchorMin = new Vector2(0f, 0f);
         centre.anchorMax = new Vector2(1f, 1f);
-        centre.offsetMin = new Vector2(Margin * 2f + ListWidth, Margin);
+        centre.offsetMin = new Vector2(Margin * 2f + ListWidth, BottomInset);
         centre.offsetMax = new Vector2(-(Margin * 2f + RailWidth), -ColumnTop);
 
         // 中間是一幅掛起來的畫：外框、卡紙、曲繪，底下曲名和作者。
@@ -1439,13 +1497,13 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         scoreCard.pivot = new Vector2(0.5f, 1f);
         scoreCard.anchoredPosition = new Vector2(0f, ScoreTopY);
 
-        TextMeshProUGUI scoreCaption = AddText(scoreCard, "Caption", "最佳成績", TextCaption, InkMuted,
+        TextMeshProUGUI scoreCaption = AddText(scoreCard, "Caption", Localize.S("最佳成績"), TextCaption, InkMuted,
             TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         Place(scoreCaption.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
             new Vector2(24f, 0f), new Vector2(160f, 40f));
         scoreCaption.characterSpacing = Tracking;
 
-        scoreValue = AddText(scoreCard, "Score", "無紀錄", TextHero, Ink,
+        scoreValue = AddText(scoreCard, "Score", Localize.S("無紀錄"), TextHero, Ink,
             TextAlignmentOptions.MidlineRight, FontStyles.Bold);
         Place(scoreValue.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
             new Vector2(-96f, 0f), new Vector2(320f, 52f));
@@ -1478,7 +1536,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         trendCard.pivot = new Vector2(0.5f, 1f);
         trendCard.anchoredPosition = new Vector2(0f, TrendTopY);
 
-        TextMeshProUGUI trendCaption = AddText(trendCard, "Caption", "密度走勢・難點・得分",
+        TextMeshProUGUI trendCaption = AddText(trendCard, "Caption", Localize.S("密度走勢・難點・得分"),
             TextCaption, InkMuted, TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         Place(trendCaption.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(18f, -10f), new Vector2(336f, 22f));
@@ -1504,7 +1562,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         rail.anchorMin = new Vector2(1f, 0f);
         rail.anchorMax = new Vector2(1f, 1f);
         rail.pivot = new Vector2(1f, 0.5f);
-        rail.offsetMin = new Vector2(-(Margin + RailWidth), Margin);
+        rail.offsetMin = new Vector2(-(Margin + RailWidth), BottomInset);
         rail.offsetMax = new Vector2(-Margin, -ColumnTop);
 
         float cardWidth = RailWidth - 48f;
@@ -1514,11 +1572,11 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         //
         // 三張圖各回答一個問題 —— 雷達說「靠什麼技巧」、密度說「哪一段最擠、兩手
         // 怎麼分」、BPM 曲線說「速度變不變」。文字那一行是給不想讀圖的人的摘要。
-        y = AddSectionHeading(rail, "譜面分析", y, 116f);
+        y = AddSectionHeading(rail, Localize.S("譜面分析"), y, 116f);
 
         // 譜面預覽接在分析標題旁：它們回答的是同一個問題（這份譜長什麼樣），只是
         // 一個用數字、一個用眼睛。
-        Button viewChart = MakeButton(rail, "ViewChart", "預覽", TextLabel, new Vector2(104f, 38f));
+        Button viewChart = MakeButton(rail, "ViewChart", Localize.S("預覽"), TextLabel, new Vector2(104f, 38f));
         Place(viewChart.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f),
             new Vector2(-24f, -20f), new Vector2(104f, 38f));
         viewChart.onClick.AddListener(OpenChartViewer);
@@ -1538,7 +1596,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         analysisArea.offsetMax = new Vector2(cardWidth * 0.5f, y - 8f);
 
         RectTransform summaryCard = MakeStretchCard(analysisArea, "Summary", 0.80f, 1.00f);
-        analysisText = AddText(summaryCard, "Text", "分析中…", TextBody, Ink,
+        analysisText = AddText(summaryCard, "Text", Localize.S("分析中…"), TextBody, Ink,
             TextAlignmentOptions.TopLeft, FontStyles.Normal);
         Stretch(analysisText.rectTransform, 18f, 12f, 18f, 12f);
         analysisText.textWrappingMode = TextWrappingModes.Normal;   // 只有這張要換行
@@ -1555,7 +1613,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         radar.Ink = Ink;
 
         RectTransform densityCard = MakeStretchCard(analysisArea, "Density", 0.185f, 0.335f);
-        AddCardCaption(densityCard, "密度／左右手");
+        AddCardCaption(densityCard, Localize.S("密度／左右手"));
         RectTransform densityRect = AddRect("Graphic", densityCard);
         Stretch(densityRect, 14f, 12f, 14f, 32f);
         densityRect.gameObject.AddComponent<CanvasRenderer>();
@@ -1572,7 +1630,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         bpm.raycastTarget = false;
 
         // 速度和開始固定在最底下：不管分析長多高，手要按的東西永遠在同一個位置。
-        startButton = MakeButton(rail, "Start", "開始練習", TextTitle,
+        startButton = MakeButton(rail, "Start", Localize.S("開始練習"), TextTitle,
             new Vector2(cardWidth, 80f), true);
         Place(startButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
             new Vector2(0f, 24f), new Vector2(cardWidth, 80f));
@@ -1584,7 +1642,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         speedRow.pivot = new Vector2(0.5f, 0f);
         speedRow.anchoredPosition = new Vector2(0f, 118f);
 
-        TextMeshProUGUI speedCaption = AddText(speedRow, "Caption", "速度", TextCaption, InkMuted,
+        TextMeshProUGUI speedCaption = AddText(speedRow, "Caption", Localize.S("速度"), TextCaption, InkMuted,
             TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         Place(speedCaption.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
             new Vector2(18f, -10f), new Vector2(120f, 22f));
@@ -1606,7 +1664,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             new Vector2(-112f, -12f), new Vector2(64f, 54f));
         AddRepeat(faster, () => NudgeSpeed(0.05f));
 
-        Button reset = MakeButton(speedRow, "Reset", "原速", TextLabel, new Vector2(84f, 56f));
+        Button reset = MakeButton(speedRow, "Reset", Localize.S("原速"), TextLabel, new Vector2(84f, 56f));
         Place(reset.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
             new Vector2(-14f, -12f), new Vector2(84f, 54f));
         reset.onClick.AddListener(() => SetSpeed(1f));
@@ -1629,7 +1687,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             return;
         }
 
-        SettingsUiKit.SetText(analysisText, "分析中…");
+        SettingsUiKit.SetText(analysisText, Localize.S("分析中…"));
         StartCoroutine(ChartAnalysisCache.Build(chartFile,
             result => ApplyAnalysis(result, chartFile)));
     }
@@ -1642,7 +1700,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
 
         if (analysis == null)
         {
-            SettingsUiKit.SetText(analysisText, "這一份譜沒有分析資料");
+            SettingsUiKit.SetText(analysisText, Localize.S("這一份譜沒有分析資料"));
             trend?.Clear();
             SettingsUiKit.SetText(trendNote, string.Empty);
             radar?.Clear();
@@ -1657,8 +1715,10 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         try { character = ChartAnalysisVocabulary.DescribeCharacter(analysis); } catch { }
 
         SettingsUiKit.SetText(analysisText,
-            $"音符 {analysis.noteCount:N0}　長押 {analysis.holdCount:N0}\n" +
-            $"平均 {analysis.averageDensity:0.0}/s　峰值 {analysis.peakDensity:0}/s\n" +
+            Localize.SF("音符 {0:N0}　長押 {1:N0}", analysis.noteCount,
+                analysis.holdCount) + "\n" +
+            Localize.SF("平均 {0:0.0}/s　峰值 {1:0}/s", analysis.averageDensity,
+                analysis.peakDensity) + "\n" +
             (string.IsNullOrEmpty(techniques) ? character : techniques));
 
         radar?.SetData(analysis);
@@ -1667,7 +1727,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             trend.SetChart(analysis.leftDensity, analysis.rightDensity, analysis.peakBucketTotal);
             // 每小節的得分要在遊玩時記錄下來才有；目前還沒有那一份資料。
             trend.SetPlayerScores(null, null);
-            SettingsUiKit.SetText(trendNote, "尚無遊玩紀錄");
+            SettingsUiKit.SetText(trendNote, Localize.S("尚無遊玩紀錄"));
         }
         RefreshHotspots(forChartFile);
         density?.SetData(analysis.leftDensity, analysis.rightDensity, analysis.peakBucketTotal);
@@ -2025,9 +2085,10 @@ public sealed class PracticeRoomScreen : MonoBehaviour
 
     private void RefreshList()
     {
-        SettingsUiKit.SetText(categoryLabel,
+        // 分類名是使用者自己取的，查不到就原樣印；只有「全部」這個內建的會被翻到。
+        SettingsUiKit.SetText(categoryLabel, Localize.S(
             categories.Count > 0 ? categories[Mathf.Clamp(categoryIndex, 0, categories.Count - 1)]
-                                 : AllCategories);
+                                 : AllCategories));
         // SetText 會照字串的語言換字型，而換字型會把投影用的材質丟掉。
         AddSoftShadow(categoryLabel);
         filtered.Clear();
@@ -2102,20 +2163,20 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         filtered.AddRange(withTier);
         filtered.AddRange(withoutTier);
 
-        SettingsUiKit.SetText(sortLabel, sortMode == SortMode.Name ? "曲名"
-            : sortMode == SortMode.Level ? "等級" : "作曲");
+        SettingsUiKit.SetText(sortLabel, sortMode == SortMode.Name ? Localize.S("曲名")
+            : sortMode == SortMode.Level ? Localize.S("等級") : Localize.S("作曲"));
 
         foreach (var song in filtered) AddSongRow(song);
         HighlightSelectedRow();
-        SettingsUiKit.SetText(listCount, $"{filtered.Count} 首");
+        SettingsUiKit.SetText(listCount, Localize.SF("{0} 首", filtered.Count));
         if (listEmptyLabel != null)
         {
             // 空白的清單讀起來像還沒載入完。講清楚是「找不到」還是「這一階沒有」。
             bool searching = searchField != null && !string.IsNullOrWhiteSpace(searchField.text);
             listEmptyLabel.gameObject.SetActive(filtered.Count == 0);
             SettingsUiKit.SetText(listEmptyLabel, searching
-                ? "找不到符合的曲目"
-                : showTutorials ? "沒有新手教學曲目" : "這一階沒有曲目");
+                ? Localize.S("找不到符合的曲目")
+                : showTutorials ? Localize.S("沒有新手教學曲目") : Localize.S("這一階沒有曲目"));
         }
     }
 
@@ -2250,7 +2311,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         // 全連：一圈金月桂。做到過就算 —— 不是只看最高分那一局，因為全連是一件做
         // 到過就成立的事，而分數是比大小的；綁在同一筆會讓玩家刷分之後失去記號。
         bool fullCombo = false;
-        try { fullCombo = LocalScoreRecords.EverFullCombo(song); } catch { }
+        try { fullCombo = LocalScoreRecords.EverFullCombo(song, true); } catch { }
         if (fullCombo)
         {
             RectTransform wreath = AddRect("FullCombo", row);
@@ -2267,7 +2328,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         // 名次勳章：結算頁用的那七張。沒打過就不畫 —— 一個空的位置比一個灰掉的
         // 勳章誠實。
         LocalScoreEntry best = null;
-        try { best = LocalScoreRecords.GetBest(song); } catch { }
+        try { best = LocalScoreRecords.GetBest(song, true); } catch { }
         if (best != null && !string.IsNullOrEmpty(best.rank))
         {
             Texture2D badge = LocalScoreRecords.LoadRankTexture(best.rank);
@@ -2731,7 +2792,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         SettingsUiKit.SetText(ratingValue, any ? Mathf.RoundToInt(rating).ToString() : "—");
         SettingsUiKit.SetText(ratingTitle, PlayerRating.Title(rating, false));
         SettingsUiKit.SetText(ratingBest, any && !string.IsNullOrEmpty(best)
-            ? $"目前由《{ClipName(best, 14)}》撐起" : string.Empty);
+            ? Localize.SF("目前由《{0}》撐起", ClipName(best, 14)) : string.Empty);
         SettingsUiKit.SetText(ratingNote, DescribeAttempt(last));
         // 低於目前實力的那一局不會把評分拉下來，但也不能當作沒發生。那一行要讀得清
         // 楚，所以用全墨色，不是註解的淡墨 —— 「怎麼打完數字沒動」就是在這裡回答的。
@@ -2762,12 +2823,12 @@ public sealed class PracticeRoomScreen : MonoBehaviour
     private static string DescribeAttempt(PlayerRating.Attempt last)
     {
         if (last == null) return string.Empty;
-        string band = last.recital ? "演奏會" : "練習";
-        string head = $"上次{band}《{ClipName(last.song, 12)}》Lv{last.level}"
-            + $" 換算 {Mathf.RoundToInt(last.value)}";
+        string band = last.recital ? Localize.S("演奏會") : Localize.S("練習");
+        string head = Localize.SF("上次{0}《{1}》Lv{2} 換算 {3}", band,
+            ClipName(last.song, 12), last.level, Mathf.RoundToInt(last.value));
         return last.gap > 0.5f
-            ? $"{head}，比目前實力低 {Mathf.RoundToInt(last.gap)}，沒有計入"
-            : $"{head}，已經計入";
+            ? head + Localize.SF("，比目前實力低 {0}，沒有計入", Mathf.RoundToInt(last.gap))
+            : head + Localize.S("，已經計入");
     }
 
     /// <summary>太長的曲名切短：銘牌上是一行字，滿出去會壓到旁邊那一句。</summary>
@@ -2855,15 +2916,15 @@ public sealed class PracticeRoomScreen : MonoBehaviour
     {
         if (selectedVariant == null)
         {
-            SettingsUiKit.SetText(scoreValue, "無紀錄");
+            SettingsUiKit.SetText(scoreValue, Localize.S("無紀錄"));
             ShowRank(null);
             return;
         }
         int best = 0;
-        try { best = LocalScoreRecords.GetBestScore(selectedVariant); } catch { }
+        try { best = LocalScoreRecords.GetBestScore(selectedVariant, true); } catch { }
         if (best <= 0)
         {
-            SettingsUiKit.SetText(scoreValue, "無紀錄");
+            SettingsUiKit.SetText(scoreValue, Localize.S("無紀錄"));
             ShowRank(null);
             return;
         }
@@ -3312,7 +3373,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
         // 還會把場上所有 AudioSource 靜音一次。
         if (ChartOverviewViewer.Instance != null && ChartOverviewViewer.Instance.IsOpen) return;
         if (SongScoreBookOverlay.IsOpen) return;
-        if (SyllabusBookOverlay.IsOpen) return;
+        if (SyllabusBookOverlay.IsOpen || SyllabusExamHall.IsOpen) return;
         if (searchField != null && searchField.isFocused) return;
         var keyboard = UnityEngine.InputSystem.Keyboard.current;
         if (keyboard == null) return;
@@ -4182,6 +4243,20 @@ public sealed class PracticeRoomScreen : MonoBehaviour
             TextMeshProUGUI label = AddText(rect, "Label", caption, fontSize, Ink,
                 TextAlignmentOptions.Center, FontStyles.Bold);
             Stretch(label.rectTransform, 8f, 2f, 8f, 2f);
+            // 鈕寬是版面訂的，字長是語言訂的：「預覽」兩個字在日文是「プレビュー」
+            // 五個（104 寬的鈕裡要 107px），「原速」在英文是 Reset。AddText 開的是
+            // Overflow，所以放不下的字是**畫到鈕外面去**，不是被截斷。
+            // 和 SettingsUiKit.CreateButton 同一套處理：放得下就用原字級，放不下
+            // 才降，下限 0.72。實測最糟的一顆是 ×1.22，還有餘裕。
+            //
+            // 這裡不能寫進 AddText：那支也用在清單的曲名上，而曲名放不下是交給
+            // TextMarquee 跑的，它的條件是「preferredWidth 比框寬」—— 字先縮到
+            // 放得下，跑馬燈就永遠不會動。
+            // 上限取 label.fontSize 不是參數 fontSize：AddText 會把字級吸到六階上，
+            // 呼叫端給 19 的時候實際畫的是 20，拿參數當上限會把那顆鈕做小一級。
+            label.enableAutoSizing = true;
+            label.fontSizeMin = label.fontSize * 0.72f;
+            label.fontSizeMax = label.fontSize;
             label.raycastTarget = false;
         }
 

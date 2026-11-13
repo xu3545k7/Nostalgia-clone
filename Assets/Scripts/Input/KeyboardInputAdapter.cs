@@ -296,8 +296,10 @@ public class KeyboardInputAdapter : MonoBehaviour
 
     void Update()
     {
+        // 不能因為沒有鍵盤就整段跳過：iPad／手機沒有 Keyboard.current，
+        // 觸控（TouchLaneInput）的事件也是從下面這個佇列進來的。
         var kb = Keyboard.current;
-        if (kb == null || Judgment.JudgmentManager.Instance == null) return;
+        if (Judgment.JudgmentManager.Instance == null) return;
 
         var jm = Judgment.JudgmentManager.Instance;
         float songPos = 0f;
@@ -323,7 +325,9 @@ public class KeyboardInputAdapter : MonoBehaviour
             while (rtBuffer.TryDequeueGameplayEvent(
                 out int lane, out bool isPress, out double eventTimestamp))
             {
-                if ((uint)lane >= LaneCount || laneKeys[lane] == Key.None) continue;
+                // 不看 laneKeys：佇列只會有綁了鍵的道或觸控注入的道，
+                // 觸控的道不一定有綁鍵。
+                if ((uint)lane >= LaneCount) continue;
                 if (isPress)
                     ProcessPress(jm, lane, songPos, judgmentOffset,
                         eventTimestamp, conductor);
@@ -334,7 +338,6 @@ public class KeyboardInputAdapter : MonoBehaviour
 
             for (int lane = 0; lane < LaneCount; lane++)
             {
-                if (laneKeys[lane] == Key.None) continue;
                 if (pressedState[lane] && rtBuffer.IsPressed(lane))
                     jm.TryAutoSoftOnHold(lane, songPos + judgmentOffset);
             }
@@ -342,6 +345,7 @@ public class KeyboardInputAdapter : MonoBehaviour
         }
 
         // Fallback for platforms where the realtime event buffer is absent.
+        if (kb == null) return;
         for (int lane = 0; lane < LaneCount; lane++)
         {
             var key = laneKeys[lane];

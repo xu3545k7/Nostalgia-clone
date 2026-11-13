@@ -394,6 +394,11 @@ public class HitParticleManager : MonoBehaviour
         }
         catch { }
 
+        // 判定線在**被打到的那一格**掀一道波。上面那個 TriggerGlow 照舊（整條
+        // 一起亮、不帶位置），兩個同時在才比得出「有位置的反應」差多少。
+        Effects.JudgmentLineWave.Strike(spawnPos.x, laneId,
+            note != null ? note.NoteData : null, result);
+
         EmitLaserBeam(note, spawnPos, trackNormal, result, themedHitColor);
         // Keep repeated Hold flashes centred on the judgment line. The
         // persistent mesh is responsible for enclosing the remaining tail.

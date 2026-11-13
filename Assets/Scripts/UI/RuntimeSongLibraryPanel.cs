@@ -892,8 +892,17 @@ public sealed class RuntimeSongLibraryPanel : MonoBehaviour
         root.GetComponent<Outline>().effectColor = new Color(0.75f, 0.57f, 0.22f);
         Button button = root.GetComponent<Button>();
         if (action != null) button.onClick.AddListener(action);
-        AddLabel(root.transform, caption, 0f, 0f, 1f, 1f, 16f,
-            TextAlignmentOptions.Center).raycastTarget = false;
+        TextMeshProUGUI label = AddLabel(root.transform, caption, 0f, 0f, 1f, 1f, 16f,
+            TextAlignmentOptions.Center);
+        label.raycastTarget = false;
+        // 鈕的寬度是面板寬的一個比例，字長是語言訂的：「開啟曲庫資料夾」在英文是
+        // Open Library Folder。TMP 預設會換行，而這些鈕只有一行的高度 ——
+        // 換成兩行是上下各被切掉一截，比字小一點難讀得多。改成單行＋放不下就縮。
+        // 只動按鈕上的字：AddLabel 也用在說明文字上，那些該換行。
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 16f * 0.72f;
+        label.fontSizeMax = 16f;
         return button;
     }
 

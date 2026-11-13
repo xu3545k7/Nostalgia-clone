@@ -1075,12 +1075,23 @@ public class PianoVoiceManager : MonoBehaviour
     /// quietest voice instead means the note that disappears is the one closest
     /// to inaudible already, so a stolen voice is not heard as a dropout.
     /// </remarks>
+    /// <summary>
+    /// 只動用聲部池的前幾個（0 ＝ 全部）。效能設定用的：每個聲部都是一個要即時
+    /// 變調混音的 AudioSource，平板的 CPU 撐不住整池同時響。
+    /// </summary>
+    /// <remarks>
+    /// 只限制「新的一顆音去哪裡找聲部」，不重建池：調低時，超出範圍、還在響的
+    /// 聲部讓它自然結束，不會在演奏中途被一刀切掉。
+    /// </remarks>
+    public static int VoiceLimit;
+
     private Voice TakeVoice()
     {
         Voice quietest = null;
         float quietestLevel = float.MaxValue;
 
-        for (int i = 0; i < voices.Length; i++)
+        int usable = VoiceLimit > 0 ? Mathf.Min(VoiceLimit, voices.Length) : voices.Length;
+        for (int i = 0; i < usable; i++)
         {
             Voice voice = voices[i];
             if (voice.Stage == VoiceStage.Idle) return voice;
@@ -1099,7 +1110,7 @@ public class PianoVoiceManager : MonoBehaviour
         if (!warnedPoolExhausted)
         {
             warnedPoolExhausted = true;
-            Debug.LogWarning($"PianoVoiceManager: all {voices.Length} voices busy; " +
+            Debug.LogWarning($"PianoVoiceManager: all {usable} voices busy; " +
                              "stealing the quietest. Constant stealing means voices are leaking.");
         }
 

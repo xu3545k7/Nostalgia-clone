@@ -113,10 +113,19 @@ public class UIManager : MonoBehaviour
         speedResolved = true;
     }
 
+    /// <summary>設定裡有沒有把「跟著密度走」打開。預設是關的。</summary>
+    private static bool ScalingEnabled
+    {
+        get
+        {
+            var settings = SettingsManager.Instance;
+            return settings != null && settings.DensityScaledScroll;
+        }
+    }
+
     private float ScrollSpeedForCurrentChart()
     {
-        var settings = SettingsManager.Instance;
-        if (settings != null && !settings.DensityScaledScroll) return currentSpeed;
+        if (!ScalingEnabled) return currentSpeed;
         var game = GameManager.Instance;
         if (game == null) return currentSpeed;
         return ChartScrollSpeed.Resolve(game.CurrentChart, currentSpeed);
@@ -126,7 +135,8 @@ public class UIManager : MonoBehaviour
     /// 把算好的流速推給兩個 spawner。
     /// </summary>
     /// <remarks>
-    /// **譜還沒載好就不推。** 比例是從 <c>CurrentChart</c> 算的，而這個函式有兩個
+    /// **要套比例而譜還沒載好就不推**（不套的話設定值本身就是最終值，早推晚推
+    /// 都一樣）。比例是從 <c>CurrentChart</c> 算的，而這個函式有兩個
     /// 會在載譜之前跑的呼叫者：Start() 和 <c>SettingsManager.ApplySettings</c>。那時
     /// <c>CurrentChart</c> 不是 null（→ 比例 1，推原始設定值）就是**上一首的譜**
     /// （→ 推上一首的比例），等 GameManager 載完再推一次正確的。
@@ -140,7 +150,8 @@ public class UIManager : MonoBehaviour
     private void UpdateSpeedDependencies()
     {
         ResolvePlayerSpeed();
-        if (GameManager.Instance != null && GameManager.Instance.CurrentChart != null)
+        if (GameManager.Instance != null
+            && (!ScalingEnabled || GameManager.Instance.CurrentChart != null))
         {
             float applied = ScrollSpeedForCurrentChart();
             // Only write to spawners when the value actually changed to avoid triggering

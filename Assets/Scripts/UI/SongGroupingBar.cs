@@ -32,6 +32,21 @@ public sealed class SongGroupingBar
     private const float SpacingRatio = 0.60f;   // of the viewport width
     private const float CardWidthRatio = 0.56f;
 
+    /// <summary>槽兩側那幾顆控制項的尺寸：兩顆箭頭和漏斗共用一組。</summary>
+    /// <remarks>
+    /// **為什麼是 72 而不是「看起來夠」。** 牌面是九宮切片、邊框 20，所以寬度扣掉
+    /// 左右兩條鎏金線腳才是可以放圖示的凹面。52 寬的漏斗鈕凹面只有 12，而漏斗圖示
+    /// 22 寬 —— 圖示是壓在線腳上的；箭頭鈕更慘，31.7 寬連邊框都擺不下（見
+    /// <see cref="ClassicalBookUITheme.StylePlate"/>）。72 給出 32×28 的凹面，
+    /// 26 的圖示四周各留 3。
+    ///
+    /// 三顆同尺寸，所以槽兩側讀起來是同一排五金，不是三顆各自長大的鈕。
+    /// </remarks>
+    public const float SideButtonWidth = 72f;
+    public const float SideButtonHeight = 68f;
+    /// <summary>控制項彼此之間、以及和槽之間的縫。</summary>
+    public const float SideButtonGap = 6f;
+
     private sealed class Card
     {
         public RectTransform root;
@@ -88,12 +103,19 @@ public sealed class SongGroupingBar
         if (retiredLabel != null) retiredLabel.gameObject.SetActive(false);
 
         viewport = CreateChild(frame, "CategoryViewport");
-        viewport.anchorMin = new Vector2(0.14f, 0f);
-        viewport.anchorMax = new Vector2(0.86f, 1f);
-        viewport.offsetMin = new Vector2(6f, 4f);
-        viewport.offsetMax = new Vector2(-6f, -4f);
+        // 吃滿整個槽（原本是 0.14～0.86）。那兩成是留給槽裡面的箭頭的，而箭頭早就
+        // 搬到槽外面去了 —— 留著的結果是一條 258 寬的緞帶坐在 640 寬的槽裡，兩邊各
+        // 空 95，讀起來是「這塊東西配錯了尺寸」。
+        viewport.anchorMin = new Vector2(0.03f, 0f);
+        viewport.anchorMax = new Vector2(0.97f, 1f);
+        viewport.offsetMin = new Vector2(8f, 4f);
+        viewport.offsetMax = new Vector2(-8f, -4f);
         // Neighbouring cards must not spill out over the gold frame.
-        viewport.gameObject.AddComponent<RectMask2D>();
+        var cardMask = viewport.gameObject.AddComponent<RectMask2D>();
+        // **柔邊，不是切邊。** 旁邊那兩張是被裁一半的，而硬裁出來的那一條垂直切口
+        // 本身就是一條邊 —— 眼睛讀到的是「一張貼圖被切掉」，不是「後面還有」。
+        // 柔化之後它是淡出去的，「兩側還有別的分類」這件事才由淡出本身講。
+        cardMask.softness = new Vector2Int(30, 0);
 
         for (int i = 0; i < CardCount; i++)
         {
@@ -122,7 +144,7 @@ public sealed class SongGroupingBar
             label.enableAutoSizing = true;
             label.fontSizeMin = 15f;
             label.fontSizeMax = 27f;
-            label.enableWordWrapping = false;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
             label.overflowMode = TextOverflowModes.Ellipsis;
             label.fontStyle = FontStyles.Bold | FontStyles.SmallCaps;
             label.color = ClassicalBookUITheme.ParchmentLight;
@@ -150,39 +172,58 @@ public sealed class SongGroupingBar
         songPositionRoot.anchorMin = new Vector2(0f, 0f);
         songPositionRoot.anchorMax = new Vector2(1f, 0f);
         songPositionRoot.pivot = new Vector2(0.5f, 1f);
-        songPositionRoot.anchoredPosition = new Vector2(0f, -6f);
-        songPositionRoot.sizeDelta = new Vector2(0f, 22f);
+        songPositionRoot.anchoredPosition = new Vector2(0f, -8f);
+        songPositionRoot.sizeDelta = new Vector2(0f, 26f);
 
         songPositionLabel = songPositionRoot.gameObject.AddComponent<TextMeshProUGUI>();
         songPositionLabel.alignment = TextAlignmentOptions.Center;
-        songPositionLabel.fontSize = 14f;
+        // 14 在這塊畫布上是 10.5 個實體像素（參考解析度 2560 對 1080p ＝ 0.75）——
+        // 那是給註腳的字級，而這一行是在回答「我在曲庫的哪裡」。
+        songPositionLabel.fontSize = 18f;
         songPositionLabel.fontStyle = FontStyles.Bold;
         songPositionLabel.color = ClassicalBookUITheme.AgedPaper;
         songPositionLabel.raycastTarget = false;
         ClassicalBookUITheme.ApplyLocalizedFont(songPositionLabel);
     }
 
+    /// <summary>分組下拉的寬度。照最長的選項訂，和漏斗鈕的寬度無關。</summary>
+    private const float PopupWidth = 230f;
+    /// <summary>一列選項多高。</summary>
+    /// <remarks>
+    /// 38 不夠：選項的底是同一塊九宮切片的牌面，上下兩條線腳各 20，38 高的話
+    /// uGUI 會把它們等比壓到 19、中間的凹面歸零 —— 字直接坐在糊掉的線腳上。
+    /// 見 <see cref="ClassicalBookUITheme.StylePlate"/>。
+    /// </remarks>
+    private const float OptionHeight = 44f;
+    private const float OptionSpacing = 4f;
+    /// <summary>選單四周留多寬。</summary>
+    /// <remarks>
+    /// 必須大於 20：選單自己也是一塊牌，而它的鎏金線腳就佔掉最外面那 20。留 6 的話
+    /// 選項會蓋在外框的線腳上，變成「牌中牌」互相切。
+    /// </remarks>
+    private const float PopupPadding = 22f;
+
     private void BuildModeSelector()
     {
-        RectTransform parent = frame.parent as RectTransform;
-        if (parent == null) return;
-
-        modeButtonRoot = CreateChild(parent, "GroupingModeButton");
-        // 分類槽是固定 1180 寬的一條，分組鈕貼在它左邊。分數錨點在寬螢幕上會把這顆
-        // 推到槽外面去，所以用固定值。
+        // **掛在槽底下，不是掛在槽的父層。**
         //
-        // −684 不是 −614：分類的「‹」已經從槽裡搬到槽外，佔掉 −669..−604，而這顆鈕
-        // 從 −614 起算就正好壓在它上面 —— 實機上左箭頭整顆看不見。往左讓 70，留 15
-        // 的縫。（原本的 −614 是為了和右邊的演奏會開關對稱，而那顆開關已經退場。）
-        modeButtonRoot.anchorMin = new Vector2(0.5f, 1f);
-        modeButtonRoot.anchorMax = new Vector2(0.5f, 1f);
-        modeButtonRoot.pivot = new Vector2(1f, 1f);
+        // 原本這顆和槽是兄弟，位置抄了一份 <c>frame.anchoredPosition.y</c>。那是一個
+        // **快照**：分類列整條是捲簾（<see cref="RecitalCategoryBlind"/>），拉繩的時候
+        // 簾子只搬布和槽，所以槽、箭頭（它們是槽的小孩）一起往下走，而這顆釘在原地
+        // 被遮罩一格一格擦出來 —— 整排五金裡就它不會動。
+        //
+        // 改成槽的小孩，位置改用槽的左緣當錨點：它跟著槽走，y 也不再是抄來的。
+        modeButtonRoot = CreateChild(frame, "GroupingModeButton");
         // 改成一顆漏斗：「音樂類型」這四個字只是在說「這是一個篩選器」，
         // 而漏斗圖示說的是同一件事、只要四分之一的寬度。目前選了哪一個
         // 在下拉選單裡用勾勾標記，不必写在鈕上。
-        // 跟著槽的寬度走：槽半寬 320，左箭頭占 −365..−325，漏斗緊貼在它外面。
-        modeButtonRoot.anchoredPosition = new Vector2(-375f, frame.anchoredPosition.y);
-        modeButtonRoot.sizeDelta = new Vector2(52f, frame.sizeDelta.y);
+        modeButtonRoot.anchorMin = new Vector2(0f, 0.5f);
+        modeButtonRoot.anchorMax = new Vector2(0f, 0.5f);
+        modeButtonRoot.pivot = new Vector2(1f, 0.5f);
+        // 左箭頭佔掉槽緣外的 6..78，漏斗再往外一個縫。
+        modeButtonRoot.anchoredPosition =
+            new Vector2(-(SideButtonGap * 2f + SideButtonWidth), 0f);
+        modeButtonRoot.sizeDelta = new Vector2(SideButtonWidth, SideButtonHeight);
 
         var buttonImage = modeButtonRoot.gameObject.AddComponent<Image>();
         ClassicalBookUITheme.StylePlate(buttonImage, false);
@@ -192,7 +233,7 @@ public sealed class SongGroupingBar
         iconRoot.anchorMax = new Vector2(0.5f, 0.5f);
         iconRoot.pivot = new Vector2(0.5f, 0.5f);
         iconRoot.anchoredPosition = Vector2.zero;
-        iconRoot.sizeDelta = new Vector2(22f, 24f);
+        iconRoot.sizeDelta = new Vector2(26f, 28f);
         var funnel = iconRoot.gameObject.AddComponent<FunnelIconGraphic>();
         funnel.color = ClassicalBookUITheme.ParchmentLight;
         funnel.raycastTarget = false;
@@ -218,32 +259,41 @@ public sealed class SongGroupingBar
         button.colors = buttonColors;
         button.onClick.AddListener(TogglePopup);
 
-        BuildPopup(parent);
+        BuildPopup(frame);
     }
 
     private void BuildPopup(RectTransform parent)
     {
         popupRoot = CreateChild(parent, "GroupingModePopup");
-        popupRoot.anchorMin = modeButtonRoot.anchorMin;
-        popupRoot.anchorMax = modeButtonRoot.anchorMax;
-        // 和鈕同一個樞紐。(0.5,1) 配上鈕的 (1,1)，選單會橫移半個寬。
-        popupRoot.pivot = modeButtonRoot.pivot;
-        popupRoot.anchoredPosition = modeButtonRoot.anchoredPosition +
-            new Vector2(0f, -frame.sizeDelta.y - 6f);
+        // 掛在槽的左下角：右緣和漏斗對齊、往左長、往下掉。
+        //
+        // 原本是抄漏斗的錯點再往下位移一個槽高。那時它和漏斗同一層，所以位移算的是
+        // 「從鈕的上緣往下」—— 現在兩個都掛在槽上，直接用槽的下緣當錨點，少一次換算
+        // 也少一個會被槽高改動帶歪的地方。
+        popupRoot.anchorMin = new Vector2(0f, 0f);
+        popupRoot.anchorMax = new Vector2(0f, 0f);
+        popupRoot.pivot = new Vector2(1f, 1f);
+        popupRoot.anchoredPosition =
+            new Vector2(modeButtonRoot.anchoredPosition.x, -SideButtonGap);
 
+        // **選單就是那顆鈕的另一面，所以用同一塊銅牌。**
+        //
+        // 原本是「深色紙面 ＋ uGUI 的 Outline 畫一圈金」。Outline 不是描邊，它是把整
+        // 張圖再畫四份、各偏移兩格 —— 底是平鋪的紙紋，所以那一圈金其實是四份錯開的
+        // 紙紋疊起來，糊、而且四倍的填充。牌面的鎏金是**算過光的**（每一格邊框知道
+        // 自己朝哪邊），上緣亮下緣暗，不必再描。
+        //
+        // 落影留著，而且只留一份：它是這一層浮在絨布上的唯一線索。
         var background = popupRoot.gameObject.AddComponent<Image>();
-        ClassicalBookUITheme.ApplyDarkSurface(background,
-            new Color(0.13f, 0.06f, 0.03f, 0.99f), ClassicalBookUITheme.Surface.Paper, 4f);
-        var outline = popupRoot.gameObject.AddComponent<Outline>();
-        outline.effectColor = ClassicalBookUITheme.Gold;
-        outline.effectDistance = new Vector2(2f, -2f);
+        ClassicalBookUITheme.StylePlate(background, false);
         var shadow = popupRoot.gameObject.AddComponent<Shadow>();
         shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
         shadow.effectDistance = new Vector2(6f, -6f);
 
         var layout = popupRoot.gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(6, 6, 6, 6);
-        layout.spacing = 4f;
+        int pad = Mathf.RoundToInt(PopupPadding);
+        layout.padding = new RectOffset(pad, pad, pad, pad);
+        layout.spacing = OptionSpacing;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
@@ -258,18 +308,30 @@ public sealed class SongGroupingBar
             var optionImage = optionRoot.gameObject.AddComponent<Image>();
             ClassicalBookUITheme.StylePlate(optionImage, true);
             var optionLayout = optionRoot.gameObject.AddComponent<LayoutElement>();
-            optionLayout.preferredHeight = 38f;
+            optionLayout.preferredHeight = OptionHeight;
 
             RectTransform optionLabelRoot = CreateChild(optionRoot, "Label");
             optionLabelRoot.anchorMin = Vector2.zero;
             optionLabelRoot.anchorMax = Vector2.one;
-            // 右邊留 26 給勾勾：標籤居中而勾勾靠右，兩個搶位置的話長名字會壓上去。
-            optionLabelRoot.offsetMin = new Vector2(10f, 0f);
-            optionLabelRoot.offsetMax = new Vector2(-26f, 0f);
+            // 左邊讓開 24、右邊讓開 48。
+            //
+            // 這一列也是一塊九宮切片的牌，左右兩條鎏金線腳各佔 20 —— 字帶要從 20
+            // 以後才開始，不然字是坐在線腳上的。右邊那 48 是線腳加勾勾。
+            optionLabelRoot.offsetMin = new Vector2(24f, 0f);
+            optionLabelRoot.offsetMax = new Vector2(-48f, 0f);
             var optionLabel = optionLabelRoot.gameObject.AddComponent<TextMeshProUGUI>();
             optionLabel.text = DescribeMode(mode);
             optionLabel.alignment = TextAlignmentOptions.Center;
-            optionLabel.fontSize = 15f;
+            // 19 不是 15：一列 44 高，15 級的字在裡面讀起來是標註不是選項。
+            optionLabel.fontSize = 19f;
+            // 換行要關掉、超長要縮字：這一格的寬度是版面訂的，字長是語言訂的。
+            // 預設是會換行的，而一列只有 44 高 —— 換成兩行就是上下都被切掉，
+            // 而不是「字小了一點」。
+            optionLabel.textWrappingMode = TextWrappingModes.NoWrap;
+            optionLabel.overflowMode = TextOverflowModes.Overflow;
+            optionLabel.enableAutoSizing = true;
+            optionLabel.fontSizeMin = 13f;
+            optionLabel.fontSizeMax = 19f;
             optionLabel.fontStyle = FontStyles.Bold;
             optionLabel.color = ClassicalBookUITheme.ParchmentLight;
             optionLabel.raycastTarget = false;
@@ -289,8 +351,9 @@ public sealed class SongGroupingBar
             tickRoot.anchorMin = new Vector2(1f, 0.5f);
             tickRoot.anchorMax = new Vector2(1f, 0.5f);
             tickRoot.pivot = new Vector2(1f, 0.5f);
-            tickRoot.anchoredPosition = new Vector2(-8f, 0f);
-            tickRoot.sizeDelta = new Vector2(16f, 16f);
+            // −26 不是 −8：靠到 −8 的話勾勾疊在牌的鎏金線腳上。
+            tickRoot.anchoredPosition = new Vector2(-26f, 0f);
+            tickRoot.sizeDelta = new Vector2(18f, 18f);
             var tick = tickRoot.gameObject.AddComponent<CheckMarkGraphic>();
             tick.color = ClassicalBookUITheme.Gold;
             tick.raycastTarget = false;
@@ -301,14 +364,24 @@ public sealed class SongGroupingBar
             optionModes.Add(mode);
         }
 
-        // **寬度不能留 0。**
+        // **寬度不能留 0，也不能跟著鈕。**
         //
-        // popupRoot 複製了鈕的錯點 (0.5,1)/(0.5,1) —— 零尺寸錯點，所以 sizeDelta
-        // 就是實際尺寸，而這裡只給了高。寬 0 的 VerticalLayoutGroup 把每一個選項
-        // 壓成 0 寬，標籤就一個字一行往下排 —— 實機上看到的是一條直的字。
-        // 這行應該是在鈕還是拉伸錯點的年代寫的，鈕改成固定寬之後就沒人跟著改。
-        popupRoot.sizeDelta =
-            new Vector2(modeButtonRoot.sizeDelta.x, modes.Length * 42f + 12f);
+        // 零尺寸錯點，所以 sizeDelta 就是實際尺寸，而原本這裡只給了高。寬 0 的
+        // VerticalLayoutGroup 把每一個選項壓成 0 寬，標籤就一個字一行往下排 ——
+        // 實機上看到的是一條直的字。
+        //
+        // 第一次修是改成「跟鈕一樣寬」，那時鈕上還寫著「音樂類型」四個字。鈕後來
+        // 換成一顆漏斗圖示、寬度剩 52，這一行卻沒跟著改 —— 選項的字帶等於
+        // 52 − 10（左）− 26（右邊留給勾勾）＝ **16 寬**，於是同一個症狀換個樣子
+        // 回來了：四個字擠成四行。所以寬度寫死一個「照字訂」的值，和鈕脫鉤。
+        //
+        // 230：扣掉四周的 22、兩條線腳的 20、右邊勾勾的 48 之後，字帶剩 114，而最長
+        // 的選項在各語言量起來是 5 個全角字 —— 19 級時 95 寬，放得下。
+        //
+        // 高度照內容算，不是一個湊出來的數字：四周 22 ×2 ＋ 每列 44 ＋ 列間 4。
+        popupRoot.sizeDelta = new Vector2(PopupWidth,
+            PopupPadding * 2f + modes.Length * OptionHeight
+                + Mathf.Max(0, modes.Length - 1) * OptionSpacing);
         popupRoot.gameObject.SetActive(false);
         RefreshOptionHighlight();
     }
@@ -321,9 +394,12 @@ public sealed class SongGroupingBar
             var graphic = modeOptionButtons[i].targetGraphic as Image;
             if (graphic == null) continue;
             bool current = optionModes[i] == Mode;
+            // 在白色附近動。這組顏色是**乘在**酒紅牌面的貼圖上的，原本那對
+            // （0.46／0.30）會把兩張牌都乘到近黑 —— 字是亮的、牌是黑的，所以看起來
+            // 兩列都沒有底。這一條在分類卡上已經踩過一次（見 Layout 的註解）。
             graphic.color = current
-                ? new Color(0.46f, 0.22f, 0.09f, 1f)
-                : new Color(0.30f, 0.115f, 0.085f, 1f);
+                ? Color.white
+                : new Color(0.70f, 0.64f, 0.60f, 1f);
             // 勾勾是該選項是不是目前這一個的唯一記號 —— 底色的差別在深色選單
             // 上太微弱，靠它一個人讀不出來。
             if (i < modeOptionTicks.Count && modeOptionTicks[i] != null)
@@ -540,7 +616,12 @@ public sealed class SongGroupingBar
 
             // The neighbours stay legible but clearly secondary; anything beyond
             // one card out is only there to cover the edge while sliding.
-            float alpha = Mathf.Clamp01(1f - absDistance * 0.72f);
+            //
+            // 斜率從 0.72 放到 0.50。0.72 的時候隔壁只剩 0.28，再乘上牌面自己的
+            // 0.68 —— 實際是 0.19，名字完全讀不出來，於是這一條讀起來是「一條紅
+            // 緞帶加兩塊暗斑」，而不是「一排可以翻過去的分類」。**次要不等於看不
+            // 見**：隔壁那張的用處就是讓人知道下一個是什麼。
+            float alpha = Mathf.Clamp01(1f - absDistance * 0.50f);
             bool visible = entries.Count > 0 && alpha > 0.01f;
             if (card.root.gameObject.activeSelf != visible) card.root.gameObject.SetActive(visible);
             if (!visible) continue;
@@ -556,10 +637,13 @@ public sealed class SongGroupingBar
             // 焦點的強調由緞帶本身的顏色負責：中間那條是完整的酒紅，兩側退回
             // 暗木色並且淡出。緞帶的絲光和金線是從這個顏色推出來的，所以整條
             // 帶子會一起亮起來，而不是只有邊框變色。
+            //
+            // 兩側退到**暗酒紅**，不是退到木色。退成木色的時候隔壁那張連「它也是
+            // 一條緞帶」都看不出來 —— 木色正好和槽底同一個色系，所以它讀起來是槽
+            // 上的一塊髒。留著酒紅，退的就只是亮度。
             if (card.plate != null)
                 card.plate.color = Color.Lerp(
-                    new Color(ClassicalBookUITheme.Wood.r, ClassicalBookUITheme.Wood.g,
-                        ClassicalBookUITheme.Wood.b, 0.68f),
+                    new Color(0.26f, 0.085f, 0.062f, 0.78f),
                     ClassicalBookUITheme.Burgundy, 1f - eased);
         }
     }

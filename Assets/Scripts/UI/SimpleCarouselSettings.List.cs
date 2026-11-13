@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UIHelpers;
 using UnityEngine;
@@ -13,9 +13,14 @@ using UnityEngine.InputSystem;
 /// 設定畫面的兩種版面：攤開的設定頁，和左邊留一條側欄的譜面預覽。
 /// </summary>
 /// <remarks>
-/// **為什麼一打開就全部攤開。** 旋轉卡片一次只給看一項，玩家要先知道自己要的東西
-/// 叫什麼、在哪一類，才找得到它 —— 那等於要求他先讀過這份設定。攤開之後眼睛可以
-/// 直接掃，要改的東西會自己跳出來；同一類的東西框在一起，框本身就是目錄。
+/// **兩層：先六個大項，按進去才有細部。** 這一頁一次該攤開的是六個名詞，不是六十
+/// 個參數 —— 六十個全擺在眼前的時候，眼睛讀到的不是「有什麼」而是「好多東西」，
+/// 要找的那一行就埋在裡面。收起來的代價是多按一下，換到的是**玩家知道自己在找哪
+/// 一類**；而那一下不是盲按：卡片第二行就寫著這一類裡面有什麼。
+///
+/// 旋轉卡片（最早那一版）是另一個極端 —— 一次只給看一項，玩家得先知道自己要的
+/// 東西叫什麼、在哪一類才找得到它，那等於要求他先讀過這份設定。兩層是中間值：
+/// 第一層一眼掃完，進去之後那一類**整份攤開**，同一類的東西框在一起，框就是目錄。
 ///
 /// **為什麼預覽另外一個畫面。** 預覽要開一整場遊戲在背後跑：放音樂、佔效能、而且
 /// 對「語言」「曲目管理」這種設定什麼都說明不了。所以它不再是設定頁的背景，而是
@@ -65,8 +70,19 @@ public partial class SimpleCarouselSettings
     {
         public SettingsCategory Category;
         public GameObject Root;
+        public GameObject Header;
         public TextMeshProUGUI Title;
         public readonly List<GroupView> Groups = new List<GroupView>();
+    }
+
+    /// <summary>大項清單上的一張卡片。</summary>
+    private sealed class MenuCardView
+    {
+        public SettingsCategory Category;
+        public GameObject Root;
+        public Button Button;
+        public TextMeshProUGUI Title;
+        public TextMeshProUGUI Detail;
     }
 
     private sealed class ListView
@@ -79,6 +95,13 @@ public partial class SimpleCarouselSettings
         public bool WheelActive;
         public float WheelTarget;
         public float WheelVelocity;
+
+        /// <summary>這一份是抽屜式的（只露出正在看的那一類）還是整份攤開。</summary>
+        /// <remarks>
+        /// 設定頁是抽屜，預覽的側欄不是：側欄只有兩類、而且它存在的理由就是
+        /// 「一邊看著譜面一邊改」—— 在那裡多一層要按進去，等於把它拆掉。
+        /// </remarks>
+        public bool DrillDown;
     }
 
     /// <summary>一份清單的尺寸。設定頁和側欄是同一套結構，只有大小不同。</summary>
@@ -115,6 +138,20 @@ public partial class SimpleCarouselSettings
         boxPadX: 18f, boxPadTop: 6f, boxPadBottom: 14f, headerHeight: 56f, headerSize: 24f,
         groupHeight: 42f, groupSize: 16f, spacing: 16f, wheelPixels: 96f);
 
+    /// <summary>大項卡片的尺寸。兩欄三列，1684 x 720，置中。</summary>
+    private const float CardWidth = 820f;
+    private const float CardHeight = 216f;
+    private const float CardGapX = 44f;
+    private const float CardGapY = 36f;
+
+    /// <summary>進到一類之後，那一欄有多寬。</summary>
+    /// <remarks>
+    /// 一次只有一類，所以不再分兩欄 —— 一欄的話讀的順序就是子分類寫下來的順序。
+    /// 寬度寫死而不是用比例：2560 的參考寬度下一欄攤到滿會讓標題和數值隔著一整個
+    /// 螢幕，眼睛得在兩端之間來回。
+    /// </remarks>
+    private const float DetailWidth = 1240f;
+
     /// <summary>預覽畫面的側欄只留這兩類 —— 看著譜面判斷得了的東西。</summary>
     private static readonly SettingsCategory[] PreviewCategories =
     {
@@ -123,8 +160,18 @@ public partial class SimpleCarouselSettings
     };
 
     private ScreenMode screenMode = ScreenMode.Page;
+
+    /// <summary>現在進到哪一個大項裡面。沒有值＝停在大項清單上。</summary>
+    private SettingsCategory? openCategory;
+
     private GameObject gameplayPreviewFrame;
     private GameObject settingsPageRoot;
+    private GameObject settingsMenuRoot;
+    private GameObject settingsListHost;
+    private readonly List<MenuCardView> menuCards = new List<MenuCardView>(6);
+
+    /// <summary>大項清單上的鍵盤游標。-1 ＝ 還沒選。</summary>
+    private int menuFocus = -1;
     private GameObject previewRailRoot;
     private GameObject chromeRoot;
     private ListView pageList;
@@ -160,6 +207,7 @@ public partial class SimpleCarouselSettings
         BuildPreviewRail(overlay);
         BuildChrome(overlay);
         SetScreenMode(ScreenMode.Page);
+        SetOpenCategory(null);
     }
 
     private void BuildSettingsPage(Transform overlay)
@@ -187,10 +235,169 @@ public partial class SimpleCarouselSettings
         SettingsUiKit.AddImage(rule.gameObject, SettingsUiKit.RuleSprite(true),
             WithAlpha(SettingsUiKit.Gold, 0.55f), false);
 
+        BuildCategoryMenu(root);
+
+        // 細部那一層：置中的一欄，上面讓出頁首、下面留一點。
+        // anchorMin/Max 的 x 都是 0.5 ＝ 寬度寫死，只有高度跟著畫面。
         RectTransform host = SettingsUiKit.CreateRect("ListHost", root);
-        SettingsUiKit.Stretch(host, 0f, 0f, 0f, 120f);
-        pageList = BuildList(host, CategoryOrder, 2, PageMetrics, 120f);
+        host.anchorMin = new Vector2(0.5f, 0f);
+        host.anchorMax = new Vector2(0.5f, 1f);
+        host.pivot = new Vector2(0.5f, 0.5f);
+        host.sizeDelta = new Vector2(DetailWidth, -148f);
+        host.anchoredPosition = new Vector2(0f, -46f);
+        pageList = BuildList(host, CategoryOrder, 1, PageMetrics, 0f);
+        pageList.DrillDown = true;
+        settingsListHost = host.gameObject;
         settingsPageRoot = root.gameObject;
+    }
+
+    /// <summary>
+    /// 第一層：六張大項卡片。
+    /// </summary>
+    /// <remarks>
+    /// 卡片而不是一排文字按鈕：第二行要寫得下「裡面有什麼」，而那一行正是這一層
+    /// 能不能用的關鍵 —— 少了它，六張卡片就是六個都叫「○○設定」的盒子。
+    /// </remarks>
+    private void BuildCategoryMenu(Transform parent)
+    {
+        RectTransform root = SettingsUiKit.CreateRect("CategoryMenu", parent);
+        SettingsUiKit.Stretch(root, 0f, 96f, 0f, 150f);
+
+        var grid = root.gameObject.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(CardWidth, CardHeight);
+        grid.spacing = new Vector2(CardGapX, CardGapY);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 2;
+        // 整塊置中。靠上的話六張卡片會黏在頁首底下，下面空一大片。
+        grid.childAlignment = TextAnchor.MiddleCenter;
+
+        menuCards.Clear();
+        for (int i = 0; i < CategoryOrder.Length; i++)
+        {
+            MenuCardView card = BuildCategoryCard(root, CategoryOrder[i]);
+            if (card != null) menuCards.Add(card);
+        }
+        settingsMenuRoot = root.gameObject;
+    }
+
+    private MenuCardView BuildCategoryCard(Transform parent, SettingsCategory category)
+    {
+        if (!GroupOrder.TryGetValue(category, out SettingsGroup[] groups) || groups.Length == 0)
+            return null;
+
+        var view = new MenuCardView { Category = category };
+        Button button = SettingsUiKit.CreateButton(parent, "Card_" + category,
+            SettingsUiKit.Tone.Lacquer, CategoryGlyph(category), GetCategoryName(category), 34f,
+            new Vector2(CardWidth, CardHeight), out view.Title, out SettingsGlyph glyph);
+        view.Root = button.gameObject;
+        view.Button = button;
+
+        // CreateButton 排的是「圖示靠左、字填滿剩下的」。卡片要的是名字在上、
+        // 內容在下，所以圖示和名字都重擺一次。
+        const float textLeft = 164f;
+        float textWidth = CardWidth - textLeft - 82f;
+        if (glyph != null)
+            SettingsUiKit.Place(glyph.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(60f, 0f), new Vector2(72f, 72f));
+
+        SettingsUiKit.Place(view.Title.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(textLeft, 34f), new Vector2(textWidth, 50f));
+        view.Title.alignment = TextAlignmentOptions.MidlineLeft;
+        view.Title.characterSpacing = 2f;
+
+        view.Detail = SettingsUiKit.CreateLabel(button.transform, "Detail", 21f,
+            SettingsUiKit.MutedText, TextAlignmentOptions.MidlineLeft);
+        // 這一行的長度是語言決定的（英文的子分類名比中文長一倍以上），寬度是版面
+        // 決定的 —— 讓字縮，不要讓它被截成「Track · Notes · Judgm…」。
+        view.Detail.enableAutoSizing = true;
+        view.Detail.fontSizeMin = 15f;
+        view.Detail.fontSizeMax = 21f;
+        SettingsUiKit.Place(view.Detail.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(textLeft, -32f), new Vector2(textWidth, 44f));
+
+        RectTransform enter = SettingsUiKit.CreateRect("Enter", button.transform);
+        var arrow = enter.gameObject.AddComponent<SettingsGlyph>();
+        arrow.Kind = SettingsGlyph.Shape.ChevronRight;
+        arrow.color = WithAlpha(SettingsUiKit.Gold, 0.72f);
+        arrow.raycastTarget = false;
+        SettingsUiKit.Place(enter, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+            new Vector2(-36f, 0f), new Vector2(28f, 28f));
+
+        SettingsCategory captured = category;
+        button.onClick.AddListener(() => OpenCategory(captured));
+        return view;
+    }
+
+    /// <summary>每一類自己的圖示。</summary>
+    /// <remarks>
+    /// 六個名字長得太像（音效設定／判定設定／顯示設定／系統設定），差別只在第一
+    /// 個字。圖形是先被看到的那一層，所以每一類都要有一個分得開的形狀，不是六個
+    /// 一樣的菱形。
+    /// </remarks>
+    private static SettingsGlyph.Shape CategoryGlyph(SettingsCategory category)
+    {
+        switch (category)
+        {
+            case SettingsCategory.Audio: return SettingsGlyph.Shape.Speaker;
+            case SettingsCategory.Judgment: return SettingsGlyph.Shape.Judge;
+            case SettingsCategory.Visual: return SettingsGlyph.Shape.Track;
+            case SettingsCategory.Gameplay: return SettingsGlyph.Shape.Hourglass;
+            case SettingsCategory.SongManagement: return SettingsGlyph.Shape.Quaver;
+            default: return SettingsGlyph.Shape.Gear;
+        }
+    }
+
+    /// <summary>卡片第二行：這一類**裡面有什麼**。</summary>
+    /// <remarks>
+    /// 收起來的代價是「要按下去才知道裡面有沒有我要找的東西」，這一行就是那個代價
+    /// 的補償。子分類多的列子分類名；只有一組的直接列項目名 —— 那種情況下再寫一次
+    /// 「曲目管理」只是把卡片的標題抄一遍。
+    ///
+    /// 藏起來的項目（換判定預設、換落下模式會藏掉好幾個）不算在裡面：這一行要說的
+    /// 是**按進去會看到什麼**，不是這一類本來有幾項。
+    /// </remarks>
+    private string CategorySummary(SettingsCategory category)
+    {
+        if (settings == null) return string.Empty;
+        if (!GroupOrder.TryGetValue(category, out SettingsGroup[] groups) || groups.Length == 0)
+            return string.Empty;
+
+        var parts = new List<string>(6);
+        if (groups.Length > 1)
+        {
+            for (int g = 0; g < groups.Length; g++)
+                if (VisibleRowCount(groups[g]) > 0) parts.Add(GetGroupName(groups[g]));
+        }
+        else if (groupMembers.TryGetValue(groups[0], out List<int> members))
+        {
+            int shown = 0;
+            int total = 0;
+            for (int i = 0; i < members.Count; i++)
+            {
+                SettingData data = members[i] >= 0 && members[i] < settings.Length
+                    ? settings[members[i]] : null;
+                if (data == null || data.isHidden) continue;
+                total++;
+                if (shown >= 4) continue;
+                parts.Add(data.title);
+                shown++;
+            }
+            if (total > shown) parts.Add("…");
+        }
+        return string.Join("  ·  ", parts.ToArray());
+    }
+
+    private int VisibleRowCount(SettingsGroup group)
+    {
+        if (settings == null || !groupMembers.TryGetValue(group, out List<int> members)) return 0;
+        int count = 0;
+        for (int i = 0; i < members.Count; i++)
+        {
+            SettingData data = members[i] >= 0 && members[i] < settings.Length
+                ? settings[members[i]] : null;
+            if (data != null && !data.isHidden) count++;
+        }
+        return count;
     }
 
     private void BuildPreviewRail(Transform overlay)
@@ -229,7 +436,7 @@ public partial class SimpleCarouselSettings
         backRect.anchorMin = backRect.anchorMax = new Vector2(0f, 1f);
         backRect.pivot = new Vector2(0f, 1f);
         backRect.anchoredPosition = new Vector2(36f, -32f);
-        back.onClick.AddListener(HideSettings);
+        back.onClick.AddListener(BackOrClose);
 
         Button mode = SettingsUiKit.CreateButton(root, "ModeButton", SettingsUiKit.Tone.Accent,
             SettingsGlyph.Shape.Play, Localize.T("譜面預覽", "谱面预览", "Chart Preview"), 21f,
@@ -374,6 +581,7 @@ public partial class SimpleCarouselSettings
 
         RectTransform header = SettingsUiKit.CreateRect("Header", box);
         FixHeight(header, m.HeaderHeight);
+        view.Header = header.gameObject;
 
         float ornament = Mathf.Round(m.HeaderSize * 0.40f);
         RectTransform ornamentRect = SettingsUiKit.CreateRect("Ornament", header);
@@ -589,8 +797,21 @@ public partial class SimpleCarouselSettings
         return RowKind.Number;
     }
 
-    private static bool IsOffWord(string label) => label == "Off" || label == "關" || label == "关";
-    private static bool IsOnWord(string label) => label == "On" || label == "開" || label == "开";
+    /// <summary>這個字是不是「關」。</summary>
+    /// <remarks>
+    /// 日／韓的開關字是查表翻出來的（オフ／オン、끔／켬），所以不能只比寫死的那三個。
+    /// 比不中的話每一個開關都會從 <see cref="RowKind.Switch"/> 掉到
+    /// <see cref="RowKind.Choice"/> —— 整頁的開關變成「用名字切換的選項」，
+    /// 而且只有日韓會這樣，很難從中文介面發現。
+    ///
+    /// 拿和設定畫面同一個查表函式去要那兩個字，加語言時這裡自動跟上。
+    /// </remarks>
+    private static bool IsOffWord(string label) =>
+        label == "Off" || label == "關" || label == "关" || label == LocalizedSetting("關");
+
+    /// <summary>這個字是不是「開」。見 <see cref="IsOffWord"/>。</summary>
+    private static bool IsOnWord(string label) =>
+        label == "On" || label == "開" || label == "开" || label == LocalizedSetting("開");
 
     private string ActionCaption(int index)
     {
@@ -618,6 +839,236 @@ public partial class SimpleCarouselSettings
     /// 數值會吸附到步距的格線上。一路加 0.05 下去，浮點誤差會讓 30% 變成
     /// 30.000004%，下一次比較「是不是到頂了」就會差那一點點而多按一次沒反應。
     /// </remarks>
+    // ──────────────────────────────────────────────────────────────
+    //  鍵盤游標
+    // ──────────────────────────────────────────────────────────────
+
+    /// <summary>現在選到設定陣列的哪一格。-1 ＝ 還沒選。</summary>
+    private int focusedSetting = -1;
+
+    /// <summary>列上的游標：一層很淡的金。</summary>
+    private static readonly Color RowFocusTint = new Color(0.98f, 0.80f, 0.36f, 0.22f);
+
+    /// <summary>卡片上的游標：同一個顏色，但淡得多。</summary>
+    /// <remarks>
+    /// 一張卡片的面積是一列的六倍以上。同樣的透明度鋪滿整張卡片，讀起來不是
+    /// 「游標停在這裡」而是「這張卡片自己亮著」—— 那是另一個意思。
+    /// </remarks>
+    private static readonly Color CardFocusTint = new Color(0.98f, 0.80f, 0.36f, 0.085f);
+
+    /// <summary>高光。整個介面只有一條，被搬到目前那一列底下。</summary>
+    /// <remarks>
+    /// 每一列各掛一條、再逐條開關的話，列是動態重建的（語言、可見性、預設值都會
+    /// 重建），高光就得跟著重建與同步。一條搬家的只有一份狀態。
+    /// </remarks>
+    private Image focusHighlight;
+
+    private readonly List<RowView> focusable = new List<RowView>(64);
+
+    /// <summary>設定畫面現在開著嗎。</summary>
+    public bool SettingsOpen => settingsPanel != null && settingsPanel.activeInHierarchy;
+
+    /// <summary>
+    /// 把游標往下（+1）或往上（-1）移一列，並捲動到看得見的地方。
+    /// </summary>
+    /// <remarks>
+    /// 走訪順序是「分類 → 群組 → 列」，也就是這些設定被分組的順序。進到一類之後
+    /// 那一類是單欄的，所以它同時也是螢幕上的順序 —— 但照結構走這件事本身要留著：
+    /// 版面哪天又變成多欄，照幾何走就會在欄與欄之間跳來跳去。
+    /// </remarks>
+    public void MoveSettingFocus(int delta)
+    {
+        if (CategoryMenuShowing) { MoveMenuFocus(delta); return; }
+        CollectFocusable();
+        if (focusable.Count == 0) return;
+
+        int at = -1;
+        for (int i = 0; i < focusable.Count; i++)
+        {
+            if (focusable[i].Index == focusedSetting) { at = i; break; }
+        }
+        // 還沒選過就從第一列開始，而不是從「第 0 格的下一格」—— 第一次按下應該
+        // 停在開頭，不是跳過開頭。
+        at = at < 0 ? (delta > 0 ? 0 : focusable.Count - 1)
+                    : ((at + delta) % focusable.Count + focusable.Count) % focusable.Count;
+
+        focusedSetting = focusable[at].Index;
+        ShowFocus(focusable[at]);
+    }
+
+    /// <summary>調整目前選到的那一列的數值。</summary>
+    public void StepFocusedSetting(int direction)
+    {
+        if (CategoryMenuShowing) { ConfirmSettingFocus(); return; }
+        if (focusedSetting < 0) { MoveSettingFocus(1); return; }
+        StepSetting(focusedSetting, direction);
+    }
+
+    /// <summary>現在停在大項清單上嗎。</summary>
+    private bool CategoryMenuShowing =>
+        screenMode == ScreenMode.Page && !openCategory.HasValue && menuCards.Count > 0;
+
+    /// <summary>設定開著、而且停在大項清單上。區域條靠它決定那幾塊鍵要印什麼。</summary>
+    public bool SettingsMenuShowing => SettingsOpen && CategoryMenuShowing;
+
+    /// <summary>在大項清單上按「選定」：進到游標那一類。</summary>
+    /// <remarks>
+    /// 還沒選過就先讓游標停在第一張卡片上，而不是直接進去 —— 看不見游標的時候
+    /// 按下去會進到一個自己沒挑的地方。
+    /// </remarks>
+    public void ConfirmSettingFocus()
+    {
+        if (!CategoryMenuShowing) return;
+        if (menuFocus < 0 || menuFocus >= menuCards.Count) { MoveMenuFocus(1); return; }
+        MenuCardView card = menuCards[menuFocus];
+        if (card != null) OpenCategory(card.Category);
+    }
+
+    /// <summary>
+    /// 大項清單上的游標。
+    /// </summary>
+    /// <remarks>
+    /// 走的是陣列順序，而格線正是照這個順序填的（左到右、再往下）—— 也就是讀的
+    /// 順序。這裡和列的游標不同：那邊的結構順序不見得等於螢幕順序，這邊兩者一樣。
+    /// </remarks>
+    private void MoveMenuFocus(int delta)
+    {
+        int count = menuCards.Count;
+        if (count == 0) return;
+        int at = menuFocus < 0
+            ? (delta > 0 ? 0 : count - 1)
+            : ((menuFocus + delta) % count + count) % count;
+        menuFocus = at;
+
+        MenuCardView card = menuCards[at];
+        if (card == null || card.Root == null) return;
+        EnsureFocusHighlight();
+        if (focusHighlight == null) return;
+
+        focusHighlight.color = CardFocusTint;
+        RectTransform hl = focusHighlight.rectTransform;
+        hl.SetParent(card.Root.transform, false);
+        hl.anchorMin = Vector2.zero;
+        hl.anchorMax = Vector2.one;
+        hl.offsetMin = new Vector2(3f, 3f);
+        hl.offsetMax = new Vector2(-3f, -3f);
+        hl.SetAsFirstSibling();
+        focusHighlight.gameObject.SetActive(true);
+    }
+
+    private void CollectFocusable()
+    {
+        focusable.Clear();
+        if (pageList == null || settings == null) return;
+        for (int c = 0; c < pageList.Categories.Count; c++)
+        {
+            CategoryView cat = pageList.Categories[c];
+            if (cat == null || cat.Root == null || !cat.Root.activeInHierarchy) continue;
+            for (int g = 0; g < cat.Groups.Count; g++)
+            {
+                GroupView grp = cat.Groups[g];
+                if (grp == null) continue;
+                for (int r = 0; r < grp.Rows.Count; r++)
+                {
+                    RowView row = grp.Rows[r];
+                    if (row == null || row.Root == null || !row.Root.activeInHierarchy) continue;
+                    if (row.Index < 0 || row.Index >= settings.Length) continue;
+                    SettingData data = settings[row.Index];
+                    if (data == null || data.isHidden) continue;
+                    focusable.Add(row);
+                }
+            }
+        }
+    }
+
+    private void ShowFocus(RowView row)
+    {
+        if (row == null || row.Root == null) return;
+        EnsureFocusHighlight();
+        if (focusHighlight == null) return;
+
+        focusHighlight.color = RowFocusTint;
+        RectTransform hl = focusHighlight.rectTransform;
+        hl.SetParent(row.Root.transform, false);
+        hl.anchorMin = Vector2.zero;
+        hl.anchorMax = Vector2.one;
+        hl.offsetMin = new Vector2(-6f, -2f);
+        hl.offsetMax = new Vector2(6f, 2f);
+        // 排在最底下：它是墊在這一列背後的光，不是蓋在字上面的一層膜。
+        hl.SetAsFirstSibling();
+        focusHighlight.gameObject.SetActive(true);
+
+        ScrollRowIntoView(row);
+    }
+
+    private void EnsureFocusHighlight()
+    {
+        if (focusHighlight != null) return;
+        if (settingsPanel == null) return;
+        var go = new GameObject("~FocusHighlight", typeof(RectTransform));
+        go.layer = settingsPanel.layer;
+        focusHighlight = go.AddComponent<Image>();
+        focusHighlight.raycastTarget = false;
+        focusHighlight.color = RowFocusTint;
+        focusHighlight.sprite = SettingsUiKit.PlainRoundedSprite(8f);
+        focusHighlight.type = Image.Type.Sliced;
+        focusHighlight.pixelsPerUnitMultiplier = 1f;
+
+        // 左緣一條實心的細線。只有一塊淡色底的話，在做舊的紙上讀起來像污漬；
+        // 一條線才讀得出是「指著這一列」。
+        var edge = new GameObject("Edge", typeof(RectTransform));
+        edge.layer = go.layer;
+        edge.transform.SetParent(go.transform, false);
+        RectTransform er = (RectTransform)edge.transform;
+        er.anchorMin = new Vector2(0f, 0f);
+        er.anchorMax = new Vector2(0f, 1f);
+        er.pivot = new Vector2(0f, 0.5f);
+        er.offsetMin = new Vector2(0f, 3f);
+        er.offsetMax = new Vector2(4f, -3f);
+        var edgeImage = edge.AddComponent<Image>();
+        edgeImage.raycastTarget = false;
+        edgeImage.color = new Color(1f, 0.86f, 0.44f, 0.95f);
+    }
+
+    /// <summary>把那一列捲進可視範圍。</summary>
+    /// <remarks>
+    /// 只在它真的跑出去的時候才捲，而且只捲到剛好進來 —— 每次都置中的話，
+    /// 一列一列往下移會變成整頁跟著跳，讀不出自己移動了多少。
+    /// </remarks>
+    private void ScrollRowIntoView(RowView row)
+    {
+        if (pageList == null || pageList.Scroll == null) return;
+        RectTransform viewport = pageList.Viewport;
+        RectTransform content = pageList.Content;
+        if (viewport == null || content == null) return;
+        var target = row.Root.transform as RectTransform;
+        if (target == null) return;
+
+        Canvas.ForceUpdateCanvases();
+        float viewHeight = viewport.rect.height;
+        float contentHeight = content.rect.height;
+        if (contentHeight <= viewHeight + 1f) return;
+
+        // 這一列在 content 座標裡的上下緣（往下為負）。
+        Vector3 localTop = content.InverseTransformPoint(
+            target.TransformPoint(new Vector3(0f, target.rect.yMax, 0f)));
+        Vector3 localBottom = content.InverseTransformPoint(
+            target.TransformPoint(new Vector3(0f, target.rect.yMin, 0f)));
+        float top = -localTop.y;              // 距 content 上緣多遠
+        float bottom = -localBottom.y;
+
+        float scrollable = contentHeight - viewHeight;
+        float offset = (1f - pageList.Scroll.verticalNormalizedPosition) * scrollable;
+
+        const float margin = 18f;
+        if (top - margin < offset) offset = top - margin;
+        else if (bottom + margin > offset + viewHeight) offset = bottom + margin - viewHeight;
+        else return;
+
+        offset = Mathf.Clamp(offset, 0f, scrollable);
+        pageList.Scroll.verticalNormalizedPosition = 1f - offset / scrollable;
+    }
+
     private void StepSetting(int index, int direction)
     {
         if (settings == null || index < 0 || index >= settings.Length) return;
@@ -684,6 +1135,54 @@ public partial class SimpleCarouselSettings
         }
     }
 
+    /// <summary>進到一個大項裡面。</summary>
+    private void OpenCategory(SettingsCategory category)
+    {
+        UiSfx.Select();
+        SetOpenCategory(category);
+    }
+
+    /// <summary>
+    /// 退一層：在某一類裡面就回到大項清單，已經在大項清單就離開設定。
+    /// </summary>
+    /// <remarks>
+    /// 左上那顆鈕和 MIDI 的「返回（長按）」走同一個出口。兩個退法不一樣的話，用
+    /// 鍵盤的人會被關在某一類裡面出不去 —— 他看得到的那顆鈕按不到。
+    ///
+    /// 譜面預覽裡的「返回」直接離開設定，不先回大項清單：預覽的側欄不分層，那裡
+    /// 沒有「上一層」這個位置。
+    /// </remarks>
+    public void BackOrClose()
+    {
+        if (screenMode == ScreenMode.Page && openCategory.HasValue)
+        {
+            UiSfx.Back();
+            SetOpenCategory(null);
+            return;
+        }
+        HideSettings();
+    }
+
+    /// <summary>切換「大項清單」和「某一類的細部」。</summary>
+    private void SetOpenCategory(SettingsCategory? category)
+    {
+        openCategory = category;
+        bool detail = category.HasValue;
+        if (settingsMenuRoot != null) settingsMenuRoot.SetActive(!detail);
+        if (settingsListHost != null) settingsListHost.SetActive(detail);
+
+        // 換層就把游標收掉：它原本指著的那一列（或那張卡片）已經不在畫面上了。
+        focusedSetting = -1;
+        menuFocus = -1;
+        if (focusHighlight != null) focusHighlight.gameObject.SetActive(false);
+
+        // 每一類都從最上面看起。沿用上一類捲到哪裡的話，項目少的那幾類會一打開
+        // 就是空白 —— 捲動位置是屬於那一份清單的，不是屬於這一頁的。
+        ResetListScroll(pageList);
+        RefreshChrome();
+        RefreshLists();
+    }
+
     private void ToggleScreenMode()
     {
         SetScreenMode(screenMode == ScreenMode.Page ? ScreenMode.Preview : ScreenMode.Page);
@@ -711,7 +1210,11 @@ public partial class SimpleCarouselSettings
     private void RefreshChrome()
     {
         bool preview = screenMode == ScreenMode.Preview;
-        SettingsUiKit.SetText(pageTitle, Localize.T("設定", "设置", "SETTINGS"));
+        // 進到某一類之後，頁首就是那一類的名字 —— 整頁只有它在說「你現在在哪」。
+        SettingsUiKit.SetText(pageTitle,
+            screenMode == ScreenMode.Page && openCategory.HasValue
+                ? GetCategoryName(openCategory.Value)
+                : Localize.T("設定", "设置", "SETTINGS"));
         SettingsUiKit.SetText(chromeBackLabel, Localize.T("返回", "返回", "Back"));
         SettingsUiKit.SetText(chromeModeLabel, preview
             ? Localize.T("設定", "设置", "Settings")
@@ -726,8 +1229,21 @@ public partial class SimpleCarouselSettings
 
     private void RefreshLists()
     {
+        RefreshMenu();
         RefreshList(pageList);
         RefreshList(railList);
+    }
+
+    /// <summary>大項卡片上的字。語言換了、或哪一項被藏起來了，這一行都要跟著變。</summary>
+    private void RefreshMenu()
+    {
+        for (int i = 0; i < menuCards.Count; i++)
+        {
+            MenuCardView card = menuCards[i];
+            if (card == null || card.Root == null) continue;
+            SettingsUiKit.SetText(card.Title, GetCategoryName(card.Category));
+            SettingsUiKit.SetText(card.Detail, CategorySummary(card.Category));
+        }
     }
 
     /// <summary>
@@ -772,11 +1288,20 @@ public partial class SimpleCarouselSettings
                 SettingsUiKit.SetText(group.Label, GetGroupName(group.Group));
             }
 
-            bool anything = visibleGroups > 0;
+            // 抽屜式的那一份只露出正在看的那一類；側欄不抽屜，有東西就攤開。
+            bool anything = visibleGroups > 0
+                && (!view.DrillDown || openCategory == category.Category);
             if (category.Root.activeSelf != anything) category.Root.SetActive(anything);
+
+            // 抽屜式的那一份不要框內標題：進去之後頁首就是那一類的名字，框裡再寫
+            // 一次只是同一句話用兩種大小各說一遍。側欄一次攤開兩類，那裡的標題是
+            // 唯一分得出哪一段是哪一類的東西，不能拿掉。
+            if (category.Header != null && category.Header.activeSelf == view.DrillDown)
+                category.Header.SetActive(!view.DrillDown);
             SettingsUiKit.SetText(category.Title, GetCategoryName(category.Category));
         }
-        if (view.Content != null) LayoutRebuilder.MarkLayoutForRebuild(view.Content);
+        if (view.Content != null && view.Content.gameObject.activeInHierarchy)
+            LayoutRebuilder.MarkLayoutForRebuild(view.Content);
     }
 
     private void RefreshRow(RowView row)

@@ -99,51 +99,23 @@ public sealed class RecitalCategoryBlind : MonoBehaviour
         // 上緣釘住。捲簾是布從軸上放下來，不是整塊布往下滑。
         cloth.sizeDelta = new Vector2(ClothWidth, full);
         Image clothImage = clothObject.GetComponent<Image>();
-        // 緋紅，和簷幕同一套語彙。
+        // **這塊布是透明的：簾子後面直接就是演奏會的絨布。**
         //
-        // 上一版用深皮革（近乎黑），結果它疊在同樣深色的簷幕上讀不出來 ——
-        // 看起來只是一條暗帶，不是一塊布。它既然是從台口降下來的，就該是同一
-        // 匹天鵝絨；亮度取在簷幕的布本色和褶脊之間，所以它浮在簷幕前面。
-        ClassicalBookUITheme.ApplyDarkSurface(clothImage,
-            new Color(0.340f, 0.060f, 0.090f, 1f), ClassicalBookUITheme.Surface.Leather, 4f);
+        // 原本是一塊緋紅的皮革面，左右各一條 7 寬的金立框，下緣再一條金壓條 ——
+        // 那一整套是在演「從台口降下來的一塊捲簾」。但它降下來的位置本來就在簾幕
+        // 上，而簾幕已經是一匹有褶有光的布；再掛一塊布上去，讀起來不是「簾子前面
+        // 有簾子」，而是兩種材質各說各話地疊著，中間那圈金還把它框成一個方盒。
+        //
+        // 拿掉之後分類列不會變成裸字 —— 它自己有槽（ApplyDarkSurface ＋ 凹槽線），
+        // 漏斗和箭頭各自有金框，每張分類卡有自己的木牌。
+        //
+        // 「這是一塊會捲起來的簾子」現在由拉繩單獨承擔。代價是拉到一半時看不到布
+        // 緣在哪裡；換來的是分類列直接坐在絨布上。
+        //
+        // 元件留著、alpha 不是 0：簾子放下來的時候這塊要擋住 raycast，否則點在分類
+        // 列的空白處會穿過去打到後面的曲目轉盤。
+        clothImage.color = new Color(0f, 0f, 0f, 0.012f);
         clothImage.raycastTarget = true;
-
-        // 下緘的壓條：捲簾底下那根帶重量的條子。演奏會的是鐶金。
-        var battenObject = new GameObject("Batten", typeof(RectTransform), typeof(CanvasRenderer),
-            typeof(Image));
-        battenObject.layer = panel.gameObject.layer;
-        var batten = battenObject.GetComponent<RectTransform>();
-        // 左右兩邊的立框：掛在**布**上，所以跟著布一起被簾口裁 —— 拉到哪裡
-        // 就看到哪裡。只有下緘一條的話，這塊布讀起來是一條橫帶，不是一塊板。
-        for (int side = -1; side <= 1; side += 2)
-        {
-            var railObject = new GameObject(side < 0 ? "RailLeft" : "RailRight",
-                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            railObject.layer = panel.gameObject.layer;
-            var rail = railObject.GetComponent<RectTransform>();
-            rail.SetParent(cloth, false);
-            Vector2 edge = new Vector2(side < 0 ? 0f : 1f, 0f);
-            rail.anchorMin = edge;
-            rail.anchorMax = new Vector2(edge.x, 1f);
-            rail.pivot = new Vector2(side < 0 ? 0f : 1f, 0.5f);
-            rail.offsetMin = new Vector2(0f, 0f);
-            rail.offsetMax = new Vector2(0f, 0f);
-            rail.sizeDelta = new Vector2(7f, 0f);
-            Image railImage = railObject.GetComponent<Image>();
-            railImage.color = new Color(0.878f, 0.802f, 0.596f, 1f);
-            railImage.raycastTarget = false;
-        }
-
-        // 掛在**簾口的下緣**而不是布的下緣：壓條是捲簾最下面那根帶重量的
-        // 條子，它永遠在布目前垂到的那一條邊上，而不是在布卷完的地方。
-        batten.SetParent(host, false);
-        batten.anchorMin = batten.anchorMax = new Vector2(0.5f, 0f);
-        batten.pivot = new Vector2(0.5f, 0f);
-        batten.anchoredPosition = new Vector2(ClothCentre, 0f);
-        batten.sizeDelta = new Vector2(ClothWidth, 9f);
-        Image battenImage = battenObject.GetComponent<Image>();
-        battenImage.color = new Color(0.878f, 0.802f, 0.596f, 1f);
-        battenImage.raycastTarget = false;
 
         strip.SetParent(host, false);
         strip.anchorMin = strip.anchorMax = new Vector2(0.5f, 1f);

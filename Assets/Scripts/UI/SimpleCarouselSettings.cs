@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UIHelpers;
@@ -58,6 +59,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         Session,
         Library,
         General,
+        Performance,
     }
 
     [System.Serializable]
@@ -131,14 +133,25 @@ public partial class SimpleCarouselSettings : MonoBehaviour
 
     /// <summary>「一鍵套用本家」剛按過：那一列的按鈕顯示「已套用」，動到其他設定就收掉。</summary>
     private bool arcadeAppliedShown;
+    /// <summary>分類在設定頁上的順序。</summary>
+    /// <remarks>
+    /// **系統設定排第一，為了語言。** 兩欄排版是「放進目前比較矮的那一欄」，
+    /// 而一開始兩欄都是空的，所以這個陣列的第一項一定落在左欄最上面 ——
+    /// 第一個框、第一列。
+    ///
+    /// 看不懂目前介面語言的人，整頁的字對他來說都是一樣的；他唯一讀得懂的是
+    /// 語言那一列的選項本身（每種語言印自己的名字）。那一列要是埋在最後一個
+    /// 框的第二列，他得先看懂別的字才找得到它 —— 而他正是因為看不懂才要改。
+    /// 代價是音效設定從第一個變成第二個，換一個「改回來的路一定走得通」。
+    /// </remarks>
     private static readonly SettingsCategory[] CategoryOrder =
     {
+        SettingsCategory.System,
         SettingsCategory.Audio,
         SettingsCategory.Judgment,
         SettingsCategory.Visual,
         SettingsCategory.Gameplay,
-        SettingsCategory.SongManagement,
-        SettingsCategory.System
+        SettingsCategory.SongManagement
     };
 
     /// <summary>每個分類底下有哪些子分類，照玩家最常找的順序排。</summary>
@@ -154,7 +167,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             SettingsGroup.Combo, SettingsGroup.Background } },
         { SettingsCategory.Gameplay, new[] { SettingsGroup.Session } },
         { SettingsCategory.SongManagement, new[] { SettingsGroup.Library } },
-        { SettingsCategory.System, new[] { SettingsGroup.General } },
+        { SettingsCategory.System, new[] { SettingsGroup.General, SettingsGroup.Performance } },
     };
 
     private const int InputModeIndex = 0;
@@ -219,6 +232,10 @@ public partial class SimpleCarouselSettings : MonoBehaviour
     private const int NoteArcLengthIndex = 57;
     private const int NoteArcCurveIndex = 58;
     private const int NoteArcSpawnIndex = 59;
+    private const int FrameRateCapIndex = 60;
+    private const int RenderScaleIndex = 61;
+    private const int BloomQualityIndex = 62;
+    private const int PianoVoicesIndex = 63;
 
     /// <summary>
     /// 只有在判定預設是「自訂」的時候才看得到的那幾項。
@@ -724,7 +741,21 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             // 音符從離判定線多遠開始生成。曲線本身不動——距離短就是從路線上
             // 比較靠近判定線的那一點開始，不是把整條曲線壓進來。
             new SettingData { title = "Spawn Distance", value = 160f, min = 20f, max = 800f,
-                step = 10f, unit = "" }
+                step = 10f, unit = "" },
+            // ── 效能（PerformanceSettings）。預設值依平台不同，實際值由 SettingsManager 回填。
+            new SettingData { title = "Frame Rate", value = 2f, min = 0f, max = 2f,
+                step = 1f, unit = "",
+                discreteLabels = new[] { "30", "60", "Display" } },
+            // 3D 畫面的渲染解析度；UI 永遠是原生解析度，字不會糊。
+            new SettingData { title = "Render Resolution", value = 1f, min = 0.5f, max = 1f,
+                step = 0.05f, unit = "%", isPercentage = true },
+            new SettingData { title = "Bloom", value = 2f, min = 0f, max = 2f,
+                step = 1f, unit = "",
+                discreteLabels = new[] { "Off", "Normal", "High" } },
+            // 同時響的鋼琴聲部上限。不夠時偷最小聲的那個，踏板長的曲子尾音會先少。
+            new SettingData { title = "Piano Voices", value = 3f, min = 0f, max = 3f,
+                step = 1f, unit = "",
+                discreteLabels = new[] { "32", "64", "128", "All" } }
         };
 
         groupMembers.Clear();
@@ -781,8 +812,13 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             StartDelayIndex, DebugModeIndex);
         SetGroup(SettingsCategory.SongManagement, SettingsGroup.Library,
             AddSongsIndex, EditSongsIndex, DeleteSongsIndex, CreateSongCategoryIndex);
+        // 語言擺在輸入模式前面：這裡的參數順序就是列的順序，而語言是
+        // 整頁唯一一列「看不懂介面的人也讀得懂」的東西（選項印的是各語言
+        // 自己的名字），所以它要是第一列。
         SetGroup(SettingsCategory.System, SettingsGroup.General,
-            InputModeIndex, LanguageIndex);
+            LanguageIndex, InputModeIndex);
+        SetGroup(SettingsCategory.System, SettingsGroup.Performance,
+            FrameRateCapIndex, RenderScaleIndex, BloomQualityIndex, PianoVoicesIndex);
 
         LoadFromSettingsManager();
     }
@@ -865,11 +901,13 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         SettingsManager.Instance?.ApplySettings();
         ConfigurePreviewSong(true);
 
-        // 每次打開都從設定頁開始，而且捲回最上面。上次停在預覽的話，一打開就
-        // 會有一首歌開始播，而玩家這一次也許只是來換語言的。
+        // 每次打開都從設定頁、從大項清單開始，而且捲回最上面。上次停在預覽的話，
+        // 一打開就會有一首歌開始播，而玩家這一次也許只是來換語言的；上次停在某
+        // 一類裡面的話，他會看到一份細部參數而不是「這裡有哪幾類」。
         ResetListScroll(pageList);
         ResetListScroll(railList);
         SetScreenMode(ScreenMode.Page);
+        SetOpenCategory(null);
 
         if (hideSelectionPanelWhenOpen && SongSelectionManager.Instance != null)
         {
@@ -905,6 +943,44 @@ public partial class SimpleCarouselSettings : MonoBehaviour
     /// 兩者是同一件事的兩種講法——音符的高度從哪裡來——所以同時擺出來只會讓人
     /// 以為可以一起用。選了哪個模式就只留哪一個。
     /// </summary>
+    /// <summary>
+    /// 自己踩踏板的時候，踏板特效不給關。
+    /// </summary>
+    /// <remarks>
+    /// **關掉踏板特效等於把踏板的譜面拿掉。** 落下的踏板音符、踩下／放開的框、
+    /// 判定線上的光牆，全部由同一個開關控制。自動踩的時候它們只是裝飾，關不關都
+    /// 不影響演奏；自己踩的時候它們是**唯一**告訴你什麼時候踩、什麼時候放的東西，
+    /// 關掉就是閉著眼睛踩。
+    ///
+    /// **做法是鎖住，不是隱藏那一列。** 這個介面有 <c>isHidden</c>，用它比較省事，
+    /// 但玩家只會發現開關不見了而不知道為什麼 —— 而「為什麼」正是這條規則唯一需要
+    /// 傳達的東西。標題帶一句理由，切回自動就解鎖。
+    ///
+    /// 鎖住時順手把值推回開啟：玩家可能是先關掉特效、之後才改成自己踩的。
+    /// </remarks>
+    private void RefreshPedalEffectLock()
+    {
+        if (settings == null || settings.Length <= ShowPedalCuesIndex) return;
+        SettingsManager manager = SettingsManager.Instance;
+        bool locked = manager != null &&
+            manager.CurrentPianoPedalSource == PianoPedalSource.Player;
+
+        if (locked)
+        {
+            settings[ShowPedalCuesIndex].value = 1f;
+            if (manager != null && !manager.ShowPedalCues) manager.SetShowPedalCues(true);
+        }
+
+        bool zh = IsChinese;
+        bool simplified = CurrentLanguage == AppLanguage.SimplifiedChinese;
+        string name = simplified ? "踏板特效" : zh ? "踏板特效" : "Pedal Effects";
+        name = LocalizedSetting(name);
+        settings[ShowPedalCuesIndex].title = !locked ? name
+            : simplified ? name + "（自己踩时固定开启）"
+            : zh ? name + LocalizedSetting("（自己踩時固定開啟）")
+            : name + " (on while you pedal)";
+    }
+
     private void RefreshNoteFallVisibility()
     {
         if (settings == null || settings.Length <= NoteFallModeIndex) return;
@@ -989,8 +1065,9 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         {
             // 按下之後給一句確認，不然一個沒有數值的列按了看起來像沒反應。
             if (arcadeAppliedShown && ReferenceEquals(setting, settings[ApplyArcadeIndex]))
-                return CurrentLanguage == AppLanguage.SimplifiedChinese ? "已套用"
-                    : IsChinese ? "已套用" : "Applied";
+                return LocalizedSetting(
+                    CurrentLanguage == AppLanguage.SimplifiedChinese ? "已套用"
+                    : IsChinese ? "已套用" : "Applied");
             return "";
         }
         if (setting.discreteLabels != null && setting.discreteLabels.Length > 0)
@@ -1046,8 +1123,13 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         settings[NoteArcLengthIndex].value = manager.ArcTravelWorldUnits();
         settings[NoteArcCurveIndex].value = manager.NoteArcCurve;
         settings[NoteArcSpawnIndex].value = manager.ArcSpawnWorldUnits();
+        settings[FrameRateCapIndex].value = manager.FrameRateCap;
+        settings[RenderScaleIndex].value = manager.RenderScale;
+        settings[BloomQualityIndex].value = manager.BloomQuality;
+        settings[PianoVoicesIndex].value = manager.PianoVoiceOption;
         RefreshNoteFallVisibility();
         RefreshJudgmentDetailVisibility();
+        RefreshPedalEffectLock();
         settings[TrackVideoDimmerIndex].value = manager.TrackVideoDimmer;
         settings[VisualLayoutModeIndex].value = manager.CurrentVisualLayoutMode == VisualLayoutMode.Piano88 ? 1f : 0f;
         settings[NoteVisualHeightIndex].value = manager.NoteVisualHeight;
@@ -1065,9 +1147,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         settings[JudgmentMeshHeightIndex].value = manager.JudgmentMeshHeight;
         settings[TimingSensitiveVisualsIndex].value = manager.TimingSensitiveJudgmentVisuals ? 1f : 0f;
         settings[KeyboardScreenBottomIndex].value = manager.AutoAlignKeyboardToScreenBottom ? 1f : 0f;
-        settings[LanguageIndex].value = manager.CurrentLanguage == AppLanguage.SimplifiedChinese
-            ? 1f
-            : manager.CurrentLanguage == AppLanguage.English ? 2f : 0f;
+        settings[LanguageIndex].value = LanguageSlot(manager.CurrentLanguage);
         settings[ComboDisplayIndex].value = (float)manager.CurrentComboDisplayPosition;
         settings[ComboFontSizeIndex].value = manager.ComboFontSize;
         settings[TrackComboHeightIndex].value = manager.TrackComboScreenHeight;
@@ -1135,6 +1215,8 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 manager.SetPianoPedalSource(settings[PianoPedalSourceIndex].value >= 0.5f
                     ? PianoPedalSource.Player
                     : PianoPedalSource.Chart);
+                // 改成自己踩就把特效鎖回開啟；改回自動就解鎖。
+                RefreshPedalEffectLock();
                 break;
             case PianoAutoPedalIndex:
                 manager.SetPianoAutoPedal((PianoAutoPedal)Mathf.Clamp(
@@ -1165,8 +1247,14 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 manager.SetHoldMagicCircleEnabled(settings[HoldMagicCircleIndex].value >= 0.5f);
                 break;
             case ShowPedalCuesIndex:
-                manager.SetShowPedalCues(settings[ShowPedalCuesIndex].value >= 0.5f);
+            {
+                // 自己踩的時候只進不出：撥到關也會被推回開。
+                bool pedalLocked = manager.CurrentPianoPedalSource == PianoPedalSource.Player;
+                bool show = pedalLocked || settings[ShowPedalCuesIndex].value >= 0.5f;
+                settings[ShowPedalCuesIndex].value = show ? 1f : 0f;
+                manager.SetShowPedalCues(show);
                 break;
+            }
             case ShowCentreCueIndex:
                 manager.SetShowCentreCue(settings[ShowCentreCueIndex].value >= 0.5f);
                 break;
@@ -1195,6 +1283,18 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             case NoteFallModeIndex:
                 manager.SetNoteFallMode(Mathf.RoundToInt(settings[NoteFallModeIndex].value));
                 RefreshNoteFallVisibility();
+                break;
+            case FrameRateCapIndex:
+                manager.SetFrameRateCap(Mathf.RoundToInt(settings[FrameRateCapIndex].value));
+                break;
+            case RenderScaleIndex:
+                manager.SetRenderScale(settings[RenderScaleIndex].value);
+                break;
+            case BloomQualityIndex:
+                manager.SetBloomQuality(Mathf.RoundToInt(settings[BloomQualityIndex].value));
+                break;
+            case PianoVoicesIndex:
+                manager.SetPianoVoiceOption(Mathf.RoundToInt(settings[PianoVoicesIndex].value));
                 break;
             case JudgmentPresetIndex:
                 manager.SetJudgmentPreset((JudgmentPreset)Mathf.Clamp(
@@ -1263,13 +1363,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                     settings[KeyboardScreenBottomIndex].value >= 0.5f);
                 break;
             case LanguageIndex:
-                int selectedLanguage = Mathf.Clamp(
-                    Mathf.RoundToInt(settings[LanguageIndex].value), 0, 2);
-                manager.SetLanguage(selectedLanguage == 1
-                    ? AppLanguage.SimplifiedChinese
-                    : selectedLanguage == 2
-                        ? AppLanguage.English
-                        : AppLanguage.TraditionalChinese);
+                manager.SetLanguage(LanguageAt(Mathf.RoundToInt(settings[LanguageIndex].value)));
                 break;
             case ComboDisplayIndex:
                 manager.SetComboDisplayPosition((ComboDisplayPosition)Mathf.Clamp(
@@ -1289,12 +1383,67 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         gameplayPreview?.RefreshNow();
     }
 
+    /// <summary>選單上的順序。這個順序只是顯示用的，和存進設定檔的列舉值無關。</summary>
+    private static readonly AppLanguage[] LanguageOrder =
+    {
+        AppLanguage.TraditionalChinese,
+        AppLanguage.SimplifiedChinese,
+        AppLanguage.English,
+        AppLanguage.Japanese,
+        AppLanguage.Korean,
+    };
+
+    private static AppLanguage LanguageAt(int slot) =>
+        LanguageOrder[Mathf.Clamp(slot, 0, LanguageOrder.Length - 1)];
+
+    private static float LanguageSlot(AppLanguage language)
+    {
+        for (int i = 0; i < LanguageOrder.Length; i++)
+            if (LanguageOrder[i] == language) return i;
+        return 0f;
+    }
+
     private AppLanguage CurrentLanguage => SettingsManager.Instance != null
         ? SettingsManager.Instance.CurrentLanguage
         : AppLanguage.TraditionalChinese;
+    /// <summary>
+    /// 日／韓：把三元式算出來的**繁體**換成譯文（<c>IsChinese</c> 對日韓也是 true，
+    /// 所以它們拿到的就是繁體，而繁體正是譯文檔的鍵）。其他語言原樣回傳。
+    /// </summary>
+    /// <remarks>
+    /// 設定畫面專用：先查「設定|繁體」。「關閉」在這裡是 Off 不是 Close，
+    /// 「一般」在這裡是 General 不是難度 Normal。
+    ///
+    /// 查不到就留著繁體。這一段拿不到英文原字（三元式已經塌成一個字串了），
+    /// 而留繁體至少還看得到是哪一項；新加的設定忘了翻，Editor 會叫。
+    /// </remarks>
+    private static string LocalizedSetting(string traditional)
+    {
+        if (string.IsNullOrEmpty(traditional)) return traditional;
+        string found = Localize.Translate("設定", traditional);
+#if UNITY_EDITOR
+        if (found == null && Localize.UsesTable(Localize.Current) &&
+            warnedMissing.Add(traditional))
+            Debug.LogWarning($"[SimpleCarouselSettings] {Localize.CodeOf(Localize.Current)}" +
+                             $".json 缺這一條設定字串：\"{traditional}\"");
+#endif
+        return found ?? traditional;
+    }
+
+    /// <summary>和別的畫面共用的字（視窗按鈕），不加「設定|」前綴。</summary>
+    private static string LocalizedShared(string traditional) =>
+        Localize.Translate(traditional) ?? traditional;
+
+#if UNITY_EDITOR
+    private static readonly HashSet<string> warnedMissing = new HashSet<string>();
+#endif
+
     private bool IsChinese => CurrentLanguage != AppLanguage.English;
 
-    private string GetCategoryName(SettingsCategory category)
+    private string GetCategoryName(SettingsCategory category) =>
+        LocalizedSetting(CategoryNameSource(category));
+
+    private string CategoryNameSource(SettingsCategory category)
     {
         bool simplified = CurrentLanguage == AppLanguage.SimplifiedChinese;
         switch (category)
@@ -1322,7 +1471,10 @@ public partial class SimpleCarouselSettings : MonoBehaviour
     /// 回饋的垂直位置」。名字要能被搜尋 —— 即使這裡沒有搜尋框，玩家的眼睛也是在
     /// 搜尋。
     /// </remarks>
-    private string GetGroupName(SettingsGroup group)
+    private string GetGroupName(SettingsGroup group) =>
+        LocalizedSetting(GroupNameSource(group));
+
+    private string GroupNameSource(SettingsGroup group)
     {
         bool simplified = CurrentLanguage == AppLanguage.SimplifiedChinese;
         bool zh = IsChinese;
@@ -1356,6 +1508,8 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 return simplified ? "曲目管理" : zh ? "曲目管理" : "Library";
             case SettingsGroup.Session:
                 return simplified ? "开始" : zh ? "開始" : "Session";
+            case SettingsGroup.Performance:
+                return simplified ? "效能" : zh ? "效能" : "Performance";
             default:
                 return simplified ? "一般" : zh ? "一般" : "General";
         }
@@ -1455,7 +1609,9 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         settings[TimingSensitiveVisualsIndex].maxLabel = simplified ? "实际击打位置" : zh ? "實際擊打位置" : "Actual Timing";
         settings[KeyboardScreenBottomIndex].minLabel = simplified ? "轨道旁" : zh ? "軌道旁" : "Beside Track";
         settings[KeyboardScreenBottomIndex].maxLabel = simplified ? "画面底部" : zh ? "畫面底部" : "Screen Bottom";
-        settings[LanguageIndex].discreteLabels = new[] { "繁體中文", "简体中文", "English" };
+        // 每種語言印自己的名字，不跟著介面語言翻 —— 看得懂那個名字的人才是要選它的人。
+        settings[LanguageIndex].discreteLabels =
+            new[] { "繁體中文", "简体中文", "English", "日本語", "한국어" };
         settings[ComboDisplayIndex].discreteLabels = IsChinese
             ? new[] { "左上", "中上", "Track 上", "中央" }
             : new[] { "Top Left", "Top Center", "On Track", "Center" };
@@ -1515,9 +1671,12 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             : zh ? "長條魔法陣" : "Hold Magic Circle";
         SetOnOffLabels(HoldMagicCircleIndex, zh);
 
-        settings[ShowPedalCuesIndex].title = simplified ? "踏板提示"
-            : zh ? "踏板提示" : "Pedal Cues";
+        // 改叫「特效」不是「提示」：這個開關關掉的不只是落下的踏板音符，而是
+        // 整組踏板視覺 —— 踩下／放開的框、判定線上的光牆、火花、側光全部一起沒。
+        // PedalNoteRenderer.Place 的 cuesHidden 早退排在 PlaceBracket 前面，所以
+        // 它本來就是一個總開關，只是名字沒有說出來。
         SetOnOffLabels(ShowPedalCuesIndex, zh);
+        RefreshPedalEffectLock();
 
         settings[ShowCentreCueIndex].title = simplified ? "中央提示"
             : zh ? "中央提示" : "Centre Cue";
@@ -1553,6 +1712,30 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             : zh
                 ? new[] { "傾斜", "拋物線" }
                 : new[] { "Tilt", "Arc" };
+
+        settings[FrameRateCapIndex].title = simplified ? "帧率上限"
+            : zh ? "幀率上限" : "Frame Rate";
+        settings[FrameRateCapIndex].discreteLabels = simplified
+            ? new[] { "30", "60", "跟随屏幕" }
+            : zh
+                ? new[] { "30", "60", "跟隨螢幕" }
+                : new[] { "30", "60", "Display" };
+        settings[RenderScaleIndex].title = simplified ? "渲染分辨率"
+            : zh ? "渲染解析度" : "Render Resolution";
+        settings[BloomQualityIndex].title = simplified ? "光晕"
+            : zh ? "光暈" : "Bloom";
+        settings[BloomQualityIndex].discreteLabels = simplified
+            ? new[] { "关", "一般", "高画质" }
+            : zh
+                ? new[] { "關", "一般", "高畫質" }
+                : new[] { "Off", "Normal", "High" };
+        settings[PianoVoicesIndex].title = simplified ? "钢琴发声数"
+            : zh ? "鋼琴發聲數" : "Piano Voices";
+        settings[PianoVoicesIndex].discreteLabels = simplified
+            ? new[] { "32", "64", "128", "全部" }
+            : zh
+                ? new[] { "32", "64", "128", "全部" }
+                : new[] { "32", "64", "128", "All" };
         settings[ApplyArcadeIndex].title = simplified ? "一键套用本家"
             : zh ? "一鍵套用本家" : "Apply Arcade Settings";
 
@@ -1564,8 +1747,12 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 ? new[] { "即時反饋", "類原型", "自訂" }
                 : new[] { "Responsive", "Classic", "Custom" };
 
-        SetButtonCaption(closeButton, simplified ? "关闭" : zh ? "關閉" : "Close");
-        SetButtonCaption(settingsButton, simplified ? "设置" : zh ? "設定" : "Settings");
+        // 這兩個是和別的畫面共用的字：「關閉」在這裡是 Close（閉じる），
+        // 不是設定下拉裡那個 Off（オフ）—— 所以走不加前綴的那一支。
+        SetButtonCaption(closeButton,
+            LocalizedShared(simplified ? "关闭" : zh ? "關閉" : "Close"));
+        SetButtonCaption(settingsButton,
+            LocalizedShared(simplified ? "设置" : zh ? "設定" : "Settings"));
         if (settingsPanel != null)
         {
             TextMeshProUGUI[] localizedText =
@@ -1573,9 +1760,41 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             for (int i = 0; i < localizedText.Length; i++)
                 ClassicalBookUITheme.ApplyLocalizedFont(localizedText[i]);
         }
+        // 日／韓：上面整段算出來的是繁體，這裡一次換成譯文。**一定要在
+        // UpdateDisplay 之前**，畫面上的字是從 settings[] 讀的。
+        LocalizeSettingStrings();
         RuntimeSongLibraryPanel.RefreshActiveLocalization();
         ConfigurePreviewSong(false);
         UpdateDisplay();
+    }
+
+    /// <summary>
+    /// 日／韓：把 <c>settings[]</c> 裡每一條字串換成譯文。
+    /// </summary>
+    /// <remarks>
+    /// 掃陣列而不是在 110 個指派上各加一次呼叫：新加一項設定時不必記得加，
+    /// 自動就被蓋到。重複跑也沒事 —— 日文字串不是鍵，查不到就原樣留著。
+    /// </remarks>
+    private void LocalizeSettingStrings()
+    {
+        if (settings == null || !Localize.UsesTable(CurrentLanguage)) return;
+        for (int i = 0; i < settings.Length; i++)
+        {
+            SettingData setting = settings[i];
+            if (setting == null) continue;
+            setting.title = LocalizedSetting(setting.title);
+            setting.unit = LocalizedSetting(setting.unit);
+            setting.minLabel = LocalizedSetting(setting.minLabel);
+            setting.maxLabel = LocalizedSetting(setting.maxLabel);
+            // 標題（「語言」→「言語」）要翻，**選項不翻**：那是各語言自己的名字
+            // （繁體中文／English／日本語…），看得懂那個名字的人才是要選它的人。
+            // 今天那五個名字都還不是鍵，但只要有誰把「繁體中文」加成鍵，這一列就會
+            // 被偷偷翻掉，而那種錯很難追。明寫跳過。
+            string[] labels = i == LanguageIndex ? null : setting.discreteLabels;
+            if (labels == null) continue;
+            for (int j = 0; j < labels.Length; j++)
+                labels[j] = LocalizedSetting(labels[j]);
+        }
     }
 
     private void SetOnOffLabels(int index, bool zh)

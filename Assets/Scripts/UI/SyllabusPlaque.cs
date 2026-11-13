@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -62,13 +62,18 @@ public sealed class SyllabusPlaque : MonoBehaviour
         textBody = ClassicalType.On(this, ClassicalType.Body);
         textLabel = ClassicalType.On(this, ClassicalType.Label);
 
-        Button strip = SelectionRail.Plate(root, "Certification", new Vector2(0f, 0f),
-            new Vector2(SelectionRail.FootMargin, SelectionRail.FootMargin),
-            new Vector2(Width, SelectionRail.FootHeight));
+        // 放進頂部導覽列那一排，接在「前往練習模式」外側；右邊的評分明細對稱。
+        // 寬度用 SelectionRail.NavPlaqueWidth 而不是自己的 Width —— 桿上的空檔比
+        // 這塊牌原本的寬度窄，見那邊的說明。
+        Button strip = SelectionRail.Plate(root, "Certification", new Vector2(0f, 1f),
+            new Vector2(SelectionRail.NavPlaqueInset, -SelectionRail.NavPlaqueDrop),
+            new Vector2(SelectionRail.NavPlaqueWidth, SelectionRail.FootHeight));
         strip.onClick.AddListener(() =>
         {
             UiSfx.Open();
-            SyllabusBookOverlay.Open();
+            // 檢定住在演奏廳，所以這塊牌子直接開檢定考場；整本帳在考場底下的
+            // 「翻開考程」後面。帳本不該是入口。
+            SyllabusExamHall.OpenGrade();
         });
         RectTransform rect = strip.GetComponent<RectTransform>();
 
@@ -92,7 +97,7 @@ public sealed class SyllabusPlaque : MonoBehaviour
         sealDigit.rectTransform.offsetMax = new Vector2(-4f, -4f);
 
         // 字級和右下那條同一套（見 SelectionRail 的字級表）。
-        TextMeshProUGUI caption = Label(rect, "Caption", "檢定", textLabel, Ink,
+        TextMeshProUGUI caption = Label(rect, "Caption", Localize.S("檢定"), textLabel, Ink,
             TextAlignmentOptions.MidlineLeft, FontStyles.Bold);
         Place(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(68f, 0f),
             new Vector2(90f, 36f));

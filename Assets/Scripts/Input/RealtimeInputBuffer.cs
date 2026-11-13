@@ -460,6 +460,21 @@ public class RealtimeInputBuffer : MonoBehaviour
         RefreshKeyControls();
     }
 
+    /// <summary>
+    /// 鍵盤以外的輸入來源（觸控）直接送一個鍵道的按下／放開進來。
+    /// </summary>
+    /// <remarks>
+    /// 走和鍵盤同一條 <see cref="QueueStateChange"/>，所以防彈跳、確認窗、
+    /// 佇列順序全部一樣 —— 判定那邊分不出這一下是鍵盤還是手指。
+    /// 同一道有兩根手指時要由呼叫端自己數，這裡只收「這道現在算不算按著」。
+    /// </remarks>
+    public void InjectLaneState(int lane, bool isPressed, double timestamp)
+    {
+        if ((uint)lane >= LaneCount) return;
+        QueueStateChange(lane, isPressed, timestamp);
+        ProcessPending(timestamp);
+    }
+
     public bool WasPressedThisFrame(int lane)
     {
         if ((uint)lane >= LaneCount)

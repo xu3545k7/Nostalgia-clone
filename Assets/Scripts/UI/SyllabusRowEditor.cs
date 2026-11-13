@@ -103,7 +103,7 @@ public sealed class SyllabusRowEditor : MonoBehaviour
         else BuildStage(body);
 
         // 底下兩顆：還原這一列、完成。
-        Button reset = Btn(body, "還原自動編定", new Vector2(0f, 0f), new Vector2(44f, 34f),
+        Button reset = Btn(body, Localize.S("還原自動編定"), new Vector2(0f, 0f), new Vector2(44f, 34f),
             new Vector2(220f, 52f));
         reset.onClick.AddListener(() =>
         {
@@ -114,7 +114,7 @@ public sealed class SyllabusRowEditor : MonoBehaviour
         });
         SetInteractable(reset, SyllabusOverrides.IsTweaked(recital, index));
 
-        Button done = Btn(body, "完成", new Vector2(1f, 0f), new Vector2(-44f, 34f),
+        Button done = Btn(body, Localize.S("完成"), new Vector2(1f, 0f), new Vector2(-44f, 34f),
             new Vector2(180f, 52f));
         done.onClick.AddListener(Close);
     }
@@ -126,30 +126,33 @@ public sealed class SyllabusRowEditor : MonoBehaviour
         SyllabusLadder.Stage stage = SyllabusLadder.StageAt(index);
         if (stage == null) return;
 
-        Head(body, $"技階　{SyllabusProgress.Numeral(index)}階　{stage.Name}",
-            $"照「{SyllabusLadder.MetricName(stage.Key)}」{(stage.Ascending ? "最低" : "最高")}的三首排");
+        Head(body,
+            Localize.SF("技階　{0}階　{1}", SyllabusProgress.Numeral(index), stage.Name),
+            Localize.SF("照「{0}」{1}的三首排", SyllabusLadder.MetricName(stage.Key),
+                Localize.S(stage.Ascending ? "最低" : "最高")));
 
         int low = SyllabusOverrides.LowOf(stage);
         int high = SyllabusOverrides.HighOf(stage);
-        Field(body, "等級帶", 150f);
+        Field(body, Localize.S("等級帶"), 150f);
         Stepper(body, 200f, 150f, 120f, $"Lv{low}", () => Band(low - 1, high), () => Band(low + 1, high));
         Label(body, "–", 356f, 150f, 30f, 26f, InkSoft, TextAlignmentOptions.Center);
-        Stepper(body, 396f, 150f, 120f, high >= 99 ? "以上" : $"Lv{high}",
+        Stepper(body, 396f, 150f, 120f, high >= 99 ? Localize.S("以上") : $"Lv{high}",
             () => Band(low, high - 1), () => Band(low, high + 1));
 
         float rate = SyllabusOverrides.RateOf(stage);
         SyllabusCourse course = SyllabusProgress.CourseFor(index);
         int allowance = SyllabusCourses.AllowanceFor(SongSelectionManager.Instance, course);
-        Field(body, "容錯率", 214f);
+        Field(body, Localize.S("容錯率"), 214f);
         Stepper(body, 200f, 214f, 150f, (rate * 100f).ToString("0.0") + " %",
             () => SyllabusOverrides.SetRate(index, rate - 0.001f),
             () => SyllabusOverrides.SetRate(index, rate + 0.001f));
         // 比率本身沒有意義，點數才有 —— 三首譜的音符數決定它換算出多少條命。
-        Label(body, course != null && course.charts.Count > 0 ? $"目前 {allowance} 點" : "—",
+        Label(body, course != null && course.charts.Count > 0
+                ? Localize.SF("目前 {0} 點", allowance) : "—",
             376f, 218f, 200f, 20f, InkFaint, TextAlignmentOptions.MidlineLeft);
 
         Slots(body, 300f, SyllabusLadder.CourseSize,
-            new[] { "第一曲", "第二曲", "第三曲" }, course?.charts);
+            new[] { Localize.S("第一曲"), Localize.S("第二曲"), Localize.S("第三曲") }, course?.charts);
     }
 
     // ── 檢定 ──────────────────────────────────────────────────────────
@@ -159,17 +162,18 @@ public sealed class SyllabusRowEditor : MonoBehaviour
         SyllabusLadder.Grade grade = SyllabusLadder.GradeAt(index);
         if (grade == null) return;
 
-        Head(body, $"檢定　{SyllabusProgress.Numeral(index)}級",
+        Head(body, Localize.SF("檢定　{0}級", SyllabusProgress.Numeral(index)),
             grade.RequiredStage > 0
-                ? $"先修 技階{SyllabusProgress.Numeral(grade.RequiredStage)}階"
-                : "免先修");
+                ? Localize.SF("先修 技階{0}階",
+                    SyllabusProgress.Numeral(grade.RequiredStage))
+                : Localize.S("免先修"));
 
         int low = SyllabusOverrides.LowOf(grade);
         int high = SyllabusOverrides.HighOf(grade);
-        Field(body, "等級帶", 138f);
+        Field(body, Localize.S("等級帶"), 138f);
         Stepper(body, 200f, 138f, 120f, $"Lv{low}", () => Band(low - 1, high), () => Band(low + 1, high));
         Label(body, "–", 356f, 138f, 30f, 26f, InkSoft, TextAlignmentOptions.Center);
-        Stepper(body, 396f, 138f, 120f, high >= 99 ? "以上" : $"Lv{high}",
+        Stepper(body, 396f, 138f, 120f, high >= 99 ? Localize.S("以上") : $"Lv{high}",
             () => Band(low, high - 1), () => Band(low, high + 1));
 
         SyllabusLadder.Demand demand = SyllabusOverrides.DemandOf(grade);
@@ -177,21 +181,21 @@ public sealed class SyllabusRowEditor : MonoBehaviour
         {
             demand.Completeness, demand.Melody, demand.Mistakes, demand.Expression, demand.Average
         };
-        Field(body, "門檻", 202f);
+        Field(body, Localize.S("門檻"), 202f);
         // 0 = 這一級不看這一項。五格排兩列，順序和評審報告一致。
-        string[] names = { "完整", "旋律", "失誤", "情感", "平均" };
+        string[] names = { Localize.S("完整"), Localize.S("旋律"), Localize.S("失誤"), Localize.S("情感"), Localize.S("平均") };
         for (int i = 0; i < 5; i++)
         {
             int slot = i;
             float x = 200f + (i % 3) * 230f;
             float y = 202f + (i / 3) * 56f;
             Label(body, names[i], x, y + 6f, 60f, 20f, InkFaint, TextAlignmentOptions.MidlineLeft);
-            Stepper(body, x + 62f, y, 140f, marks[i] <= 0f ? "不看" : ((int)marks[i]).ToString(),
+            Stepper(body, x + 62f, y, 140f, marks[i] <= 0f ? Localize.S("不看") : ((int)marks[i]).ToString(),
                 () => Mark(marks, slot, -5f), () => Mark(marks, slot, 5f));
         }
 
         bool needs = SyllabusOverrides.NeedsExpressionOf(grade);
-        Button toggle = Btn(body, needs ? "✓ 需表情資料" : "　 需表情資料", new Vector2(0f, 1f),
+        Button toggle = Btn(body, needs ? Localize.S("✓ 需表情資料") : Localize.S("　 需表情資料"), new Vector2(0f, 1f),
             new Vector2(662f, -258f), new Vector2(200f, 46f));
         toggle.onClick.AddListener(() =>
         {
@@ -202,7 +206,7 @@ public sealed class SyllabusRowEditor : MonoBehaviour
         });
 
         SyllabusPaper paper = SyllabusProgress.PaperFor(index);
-        Slots(body, 330f, SyllabusLadder.PaperSize, new[] { "技巧曲", "歌唱曲" }, paper?.charts);
+        Slots(body, 330f, SyllabusLadder.PaperSize, new[] { Localize.S("技巧曲"), Localize.S("歌唱曲") }, paper?.charts);
     }
 
     private void Band(int low, int high)
@@ -227,7 +231,7 @@ public sealed class SyllabusRowEditor : MonoBehaviour
 
     private void Slots(RectTransform body, float top, int count, string[] names, List<string> charts)
     {
-        Field(body, "曲目", top);
+        Field(body, Localize.S("曲目"), top);
         for (int i = 0; i < count; i++)
         {
             int slot = i;
@@ -264,7 +268,7 @@ public sealed class SyllabusRowEditor : MonoBehaviour
             // 釘住的格子旁邊有一顆放開；沒釘的那幾格印「自動」而不是一顆按不下去的鈕。
             if (pinned)
             {
-                Button release = Btn(body, "放開", new Vector2(0f, 1f),
+                Button release = Btn(body, Localize.S("放開"), new Vector2(0f, 1f),
                     new Vector2(726f, -y), new Vector2(110f, 46f));
                 release.onClick.AddListener(() =>
                 {
@@ -276,17 +280,17 @@ public sealed class SyllabusRowEditor : MonoBehaviour
             }
             else
             {
-                Label(body, "自動", 738f, y + 12f, 90f, 20f, InkFaint, TextAlignmentOptions.MidlineLeft);
+                Label(body, Localize.S("自動"), 738f, y + 12f, 90f, 20f, InkFaint, TextAlignmentOptions.MidlineLeft);
             }
         }
     }
 
     private static string NameOf(string chart)
     {
-        if (string.IsNullOrEmpty(chart)) return "（尚未編定）";
+        if (string.IsNullOrEmpty(chart)) return Localize.S("（尚未編定）");
         SongSelectionManager.SongOption option =
             SyllabusCourses.Resolve(SongSelectionManager.Instance, chart);
-        if (option == null) return "（此譜已不在曲庫）";
+        if (option == null) return Localize.S("（此譜已不在曲庫）");
         string name = string.IsNullOrWhiteSpace(option.displayName) ? chart : option.displayName;
         return $"{name}　Lv{option.difficultyLevel}";
     }
@@ -329,7 +333,7 @@ public sealed class SyllabusRowEditor : MonoBehaviour
             FontStyles.Bold);
         Label(body, note, 44f, 78f, 640f, 22f, InkFaint, TextAlignmentOptions.MidlineLeft);
         if (SyllabusOverrides.IsTweaked(recital, index))
-            Label(body, "已手改", -44f, 40f, 160f, 24f, Vermilion, TextAlignmentOptions.MidlineRight,
+            Label(body, Localize.S("已手改"), -44f, 40f, 160f, 24f, Vermilion, TextAlignmentOptions.MidlineRight,
                 FontStyles.Bold, true);
     }
 

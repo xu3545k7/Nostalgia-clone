@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -203,6 +203,28 @@ public static class SettingsUiKit
         return sprite;
     }
 
+    /// <summary>
+    /// 純白的圓角九宮格。顏色交給呼叫端的 <c>Image.color</c>。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼需要一個通用的。** 這個工具箱裡每一張圓角貼圖都綁了自己的漸層、邊光和
+    /// 內線 —— 那是為按鈕和卡片調的，拿來當一條進度槽或一塊很淡的底色會多出一圈不該
+    /// 有的高光。這一張只有形狀：面是純白、沒有邊光、沒有內線，染什麼色就是什麼色。
+    ///
+    /// <paramref name="radius"/> 等於邊長的一半時就是一個圓 —— 圓點不必另外做一張。
+    ///
+    /// border 跟著半徑走：九宮格兩側的 border 相加不能超過元件的短邊，固定值會讓小
+    /// 元件的四個角互相吃掉。
+    /// </remarks>
+    public static Sprite PlainRoundedSprite(float radius = 10f)
+    {
+        int size = Mathf.Clamp(Mathf.CeilToInt(radius * 4f), 24, 128);
+        float r = Mathf.Clamp(radius, 1f, size * 0.5f);
+        int border = Mathf.Clamp(Mathf.CeilToInt(r) + 1, 2, size / 2 - 1);
+        return Rounded($"PlainRounded{size}_{r:0.##}", size, r, border,
+            Color.white, Color.white, 0f, Color.clear, Color.clear, 0f, Color.clear, 0f);
+    }
+
     /// <summary>練習室的紙面：圓角、反鋸齒、上亮下暗的漫射。</summary>
     /// <remarks>
     /// border 是 12 不是更大 —— 九宮格兩側的 border 相加不能超過元件的短邊，而這
@@ -318,6 +340,41 @@ public static class SettingsUiKit
     // ------------------------------------------------------------------
     // 物件
     // ------------------------------------------------------------------
+
+    /// <summary>
+    /// 把 <paramref name="plate"/> 裁成圓角，回傳裡面那層 —— 面和字都放進回傳的這一層。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼用遮罩，不是疊一塊圓角的色上去。** 這些牌子的面是**有貼圖的**（皮、木、
+    /// 紙），疊一塊平色圓角會把整片紋理蓋掉，四個角是圓了但面變成死的色塊。遮罩只動
+    /// 形狀，紋理原樣留著。
+    ///
+    /// 遮罩圖本身不畫（<c>showMaskGraphic = false</c>）：它只負責形狀，顏色是裡面那層
+    /// 的事。
+    /// </remarks>
+    public static RectTransform RoundCorners(RectTransform plate, float radius)
+    {
+        if (plate == null) return null;
+        Image shape = plate.GetComponent<Image>();
+        if (shape == null) shape = plate.gameObject.AddComponent<Image>();
+        shape.sprite = PlainRoundedSprite(radius);
+        shape.type = Image.Type.Sliced;
+        shape.pixelsPerUnitMultiplier = 1f;
+        shape.color = Color.white;
+
+        Mask mask = plate.GetComponent<Mask>();
+        if (mask == null) mask = plate.gameObject.AddComponent<Mask>();
+        mask.showMaskGraphic = false;
+
+        var inner = new GameObject("Inside", typeof(RectTransform));
+        inner.layer = plate.gameObject.layer;
+        var rect = inner.GetComponent<RectTransform>();
+        rect.SetParent(plate, false);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
+        return rect;
+    }
 
     public static RectTransform CreateRect(string name, Transform parent)
     {
@@ -478,7 +535,15 @@ public static class SettingsUiKit
 [RequireComponent(typeof(CanvasRenderer))]
 public sealed class SettingsGlyph : MaskableGraphic
 {
-    public enum Shape { Minus, Plus, ChevronLeft, ChevronRight, Back, Play, Diamond, Sliders }
+    /// <remarks>
+    /// 後半那六個是**設定大項**用的。六個大項的名字長得太像（音效設定／判定設定／
+    /// 顯示設定／系統設定……），差別只在第一個字；圖形先被看到，字才被讀到。
+    /// </remarks>
+    public enum Shape
+    {
+        Minus, Plus, ChevronLeft, ChevronRight, Back, Play, Diamond, Sliders,
+        Speaker, Judge, Track, Hourglass, Quaver, Gear
+    }
 
     [SerializeField] private Shape shape;
     [SerializeField] private float stroke = 2.6f;
@@ -542,6 +607,88 @@ public sealed class SettingsGlyph : MaskableGraphic
             case Shape.Diamond:
                 Quad(vh, c + new Vector2(0f, h), c + new Vector2(h, 0f), c + new Vector2(0f, -h), c + new Vector2(-h, 0f));
                 break;
+            case Shape.Speaker:
+            {
+                // 音箱、錐體、兩道波。
+                Quad(vh, c + new Vector2(-0.80f * h, -0.24f * h), c + new Vector2(-0.80f * h, 0.24f * h),
+                    c + new Vector2(-0.48f * h, 0.24f * h), c + new Vector2(-0.48f * h, -0.24f * h));
+                Quad(vh, c + new Vector2(-0.48f * h, -0.24f * h), c + new Vector2(-0.48f * h, 0.24f * h),
+                    c + new Vector2(-0.08f * h, 0.66f * h), c + new Vector2(-0.08f * h, -0.66f * h));
+                float wave = Mathf.Max(1.2f, w * 0.8f);
+                Line(vh, c + new Vector2(0.14f * h, -0.30f * h), c + new Vector2(0.32f * h, 0f), wave);
+                Line(vh, c + new Vector2(0.32f * h, 0f), c + new Vector2(0.14f * h, 0.30f * h), wave);
+                Line(vh, c + new Vector2(0.46f * h, -0.56f * h), c + new Vector2(0.74f * h, 0f), wave);
+                Line(vh, c + new Vector2(0.74f * h, 0f), c + new Vector2(0.46f * h, 0.56f * h), wave);
+                break;
+            }
+            case Shape.Judge:
+            {
+                // 一顆音符的尖端正落在判定線上。線底下不要有東西 —— 加了兩根短豎線
+                // 當「刻度」之後，整個圖案讀起來是一張桌子。
+                Line(vh, c + new Vector2(-0.86f * h, -0.34f * h), c + new Vector2(0.86f * h, -0.34f * h), w);
+                Quad(vh, c + new Vector2(0f, 0.70f * h), c + new Vector2(0.36f * h, 0.18f * h),
+                    c + new Vector2(0f, -0.34f * h), c + new Vector2(-0.36f * h, 0.18f * h));
+                break;
+            }
+            case Shape.Track:
+            {
+                // 往遠處收的兩條軌，中間三根橫檔。
+                //
+                // 橫檔的兩端**算在軌上**，不是自己訂一個寬度：隨便給寬度的話，靠上
+                // 那一根會穿出去，兩條斜線加一條橫線就讀成一個大寫 A。
+                const float Bottom = -0.72f;
+                const float Top = 0.74f;
+                const float Near = 0.86f;
+                const float Far = 0.34f;
+                Line(vh, c + new Vector2(-Near * h, Bottom * h), c + new Vector2(-Far * h, Top * h), w);
+                Line(vh, c + new Vector2(Near * h, Bottom * h), c + new Vector2(Far * h, Top * h), w);
+
+                float rung = Mathf.Max(1.2f, w * 0.75f);
+                float[] heights = { -0.40f, 0.05f, 0.50f };
+                for (int i = 0; i < heights.Length; i++)
+                {
+                    float t = (heights[i] - Bottom) / (Top - Bottom);
+                    float half = Mathf.Lerp(Near, Far, t) * h;
+                    Line(vh, c + new Vector2(-half, heights[i] * h),
+                        c + new Vector2(half, heights[i] * h), rung);
+                }
+                break;
+            }
+            case Shape.Hourglass:
+            {
+                Triangle(vh, c + new Vector2(-0.52f * h, 0.58f * h), c + new Vector2(0.52f * h, 0.58f * h), c);
+                Triangle(vh, c + new Vector2(-0.52f * h, -0.58f * h), c + new Vector2(0.52f * h, -0.58f * h), c);
+                Line(vh, c + new Vector2(-0.62f * h, 0.68f * h), c + new Vector2(0.62f * h, 0.68f * h), w);
+                Line(vh, c + new Vector2(-0.62f * h, -0.68f * h), c + new Vector2(0.62f * h, -0.68f * h), w);
+                break;
+            }
+            case Shape.Quaver:
+            {
+                Vector2 head = c + new Vector2(-0.24f * h, -0.40f * h);
+                Quad(vh, head + new Vector2(-0.38f * h, -0.08f * h), head + new Vector2(-0.30f * h, 0.22f * h),
+                    head + new Vector2(0.38f * h, 0.08f * h), head + new Vector2(0.30f * h, -0.22f * h));
+                Line(vh, c + new Vector2(0.30f * h, -0.32f * h), c + new Vector2(0.30f * h, 0.72f * h), w);
+                Line(vh, c + new Vector2(0.30f * h, 0.72f * h), c + new Vector2(0.78f * h, 0.36f * h),
+                    Mathf.Max(1.2f, w * 0.9f));
+                break;
+            }
+            case Shape.Gear:
+            {
+                // 八根齒加一圈十二邊的環。圓是用多邊形湊的 —— 這裡只有畫線段的工具，
+                // 而這個尺寸下十二邊已經看不出是多邊形。
+                const int teeth = 8;
+                // 齒要短而寬。細長的齒從小小的環上放射出去，那是一顆太陽不是齒輪。
+                float tooth = Mathf.Max(1.2f, w * 2.4f);
+                for (int i = 0; i < teeth; i++)
+                {
+                    float a = i * Mathf.PI * 2f / teeth;
+                    var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                    Line(vh, c + dir * (h * 0.58f), c + dir * (h * 0.90f), tooth);
+                }
+                Ring(vh, c, h * 0.58f, 12, Mathf.Max(1.2f, w * 0.95f));
+                Ring(vh, c, h * 0.22f, 8, Mathf.Max(1.2f, w * 0.8f));
+                break;
+            }
             case Shape.Sliders:
                 float[] knobs = { 0.68f, 0.30f, 0.56f };
                 for (int i = 0; i < knobs.Length; i++)
@@ -566,6 +713,18 @@ public sealed class SettingsGlyph : MaskableGraphic
         a -= dir * (width * 0.5f);
         b += dir * (width * 0.5f);
         Quad(vh, a - n, a + n, b + n, b - n);
+    }
+
+    /// <summary>用線段湊出來的圓。這個尺寸下十二邊就看不出是多邊形了。</summary>
+    private void Ring(VertexHelper vh, Vector2 centre, float radius, int sides, float width)
+    {
+        for (int i = 0; i < sides; i++)
+        {
+            float a0 = i * Mathf.PI * 2f / sides;
+            float a1 = (i + 1) * Mathf.PI * 2f / sides;
+            Line(vh, centre + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radius,
+                centre + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radius, width);
+        }
     }
 
     private void Quad(VertexHelper vh, Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3)

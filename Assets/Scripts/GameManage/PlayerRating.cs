@@ -81,11 +81,21 @@ public static class PlayerRating
 
     private static RatingFile data;
 
-    /// <summary>四項的名字，和結算畫面同一組。</summary>
+    /// <summary>四項的名字（繁體原文）。同時也是譯文檔的鍵，所以**不要**在這裡翻。</summary>
+    /// <remarks>
+    /// <c>static readonly</c> 的內容只算一次。在這裡包 <c>Localize.S</c> 的話，
+    /// 整個陣列會停在程式啟動時那個語言，換語言之後不會變。要翻的字從
+    /// <see cref="CriterionName"/> 拿。
+    /// </remarks>
     public static readonly string[] CriterionNames =
     {
         "完整度", "旋律", "失誤錯音", "情感表情"
     };
+
+    /// <summary>第 <paramref name="index"/> 項的名字，照目前語言。</summary>
+    public static string CriterionName(int index) =>
+        index >= 0 && index < CriterionNames.Length
+            ? Localize.S(CriterionNames[index]) : string.Empty;
 
     // ------------------------------------------------------------------
     // 讀
@@ -118,11 +128,14 @@ public static class PlayerRating
     public static string Title(float rating, bool recital)
     {
         float shift = recital ? RecitalBand : 0f;
-        if (rating >= 6000f + shift) return "名家";
-        if (rating >= Proficient + shift) return "精熟";
-        if (rating >= Ordinary + shift) return "普通";
-        if (rating > 0f) return "初學";
-        return "尚無紀錄";
+        // 四個畫面（簾桿、練習室、側牌、結算）都從這裡拿評語，所以翻這一個函式
+        // 就四個畫面一起好。距離下一級的那幾句在 SelectionRail.NextStep，用字要和
+        // 這裡對齊：精熟→熟練，所以那邊是「熟練まで」不是「精熟まで」。
+        if (rating >= 6000f + shift) return Localize.T("名家", "名家", "Master");
+        if (rating >= Proficient + shift) return Localize.T("精熟", "精熟", "Proficient");
+        if (rating >= Ordinary + shift) return Localize.T("普通", "普通", "Ordinary");
+        if (rating > 0f) return Localize.T("初學", "初学", "Beginner");
+        return Localize.T("尚無紀錄", "尚无纪录", "No Record");
     }
 
     /// <summary>最近幾次挑戰，新的在前。</summary>

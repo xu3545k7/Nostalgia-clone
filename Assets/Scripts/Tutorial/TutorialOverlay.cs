@@ -128,7 +128,7 @@ public class TutorialOverlay : MonoBehaviour
                 string title = !string.IsNullOrEmpty(segment.lessonLabel)
                     ? segment.lessonLabel
                     : segment.lesson > 0
-                        ? $"教學 {segment.lesson}：{segment.lessonTitle}"
+                        ? Localize.SF("教學 {0}：{1}", segment.lesson, segment.lessonTitle)
                         : segment.lessonTitle;
                 cues.Add(new Cue { start = t, end = t + introRead, badge = title, text = segment.goal });
                 t += introRead;
@@ -138,8 +138,8 @@ public class TutorialOverlay : MonoBehaviour
             seen[segment.lesson] = index;
             int count = perLesson[segment.lesson];
             string what = segment.IsDemo
-                ? "示範"
-                : (segment.recital ? "換你　演奏會模式" : "換你");
+                ? Localize.S("示範")
+                : Localize.S(segment.recital ? "換你　演奏會模式" : "換你");
             // 舊檔沒有 beatMs：沒有三拍，說明撐到段落開始後一下子。
             float end = beat > 0f ? countStart + LingerAfterCountMs : segment.startMs + 1200f;
             cues.Add(new Cue

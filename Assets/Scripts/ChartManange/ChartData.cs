@@ -53,6 +53,20 @@ public class NoteData
     public bool hidden;
     /// <summary>隱藏音符掛在 notes 的第幾顆上；-1 = 沒指定，改用音高最近的。</summary>
     public int hostIndex = -1;
+    /// <summary>
+    /// 編輯器說這顆隱藏音符**沒有寄主**：不要替它挑一顆，照自己的時間無條件播。
+    /// </summary>
+    /// <remarks>
+    /// 「無論如何都會響的 keysound」是使用者放這種音符的用途。隱藏音符平常是
+    /// 「寄主被打到才整組響」，所以寄主漏掉就跟著不響；編輯器找不到合格的寄主
+    /// 時（同一隻手、比它早、120ms 之內）就寫這個旗標，這一顆改走
+    /// <see cref="Chart.autoHidden"/> 那條自動播放佇列。
+    ///
+    /// 為什麼不能用「沒有 hostIndex」代替：那是舊檔的常態——這個欄位是後來才加
+    /// 的，而且 <see cref="Chart.ResolveHost"/> 對沒有 hostIndex 的音符會挑時間
+    /// 最近的那顆。挑到的若排在它前面，就只有玩家真的打到那顆時才會響。
+    /// </remarks>
+    public bool autoPlay;
     public List<SubNoteData> subNotes;
     /// <summary>
     /// 新手教學的示範段：自動彈、不計分、不接受玩家按鍵。只在執行期由
@@ -229,6 +243,8 @@ public class Chart
     [System.NonSerialized] public int hiddenByIndex;
     [System.NonSerialized] public int hiddenByFallback;
     [System.NonSerialized] public int hiddenWithoutHost;
+    /// <summary>編輯器標了 autoPlay 的：不挑寄主，無條件播。</summary>
+    [System.NonSerialized] public int hiddenAlwaysOn;
 
     public int NormaliseHiddenNotes()
     {
@@ -246,9 +262,24 @@ public class Chart
         if (buried.Count == 0) return 0;
 
         List<NoteData> all = notes;
-        hiddenByIndex = hiddenByFallback = hiddenWithoutHost = 0;
+        hiddenByIndex = hiddenByFallback = hiddenWithoutHost = hiddenAlwaysOn = 0;
         foreach (NoteData note in buried)
         {
+            if (note.autoPlay)
+            {
+                // 編輯器說這顆沒有寄主：不要挑一顆湊數的。挑到的那顆玩家沒打到
+                // 就不響，而這種音符的用途正是「無論如何都會響的 keysound」。
+                // 自動佇列不需要寄主，也不受 subNotes.Count >= 2 的限制。
+                SubNoteData solo = ToSub(note);
+                solo.autoPlay = true;
+                // 自動播放這條路沒有「玩家這一擊的力度」可以用，`ToSub` 又把
+                // velocity 留成 0（寄主那條路靠玩家的力度），不填就一律落到
+                // 預設的 90。這一顆的力度譜面自己有，用它。
+                solo.velocity = note.velocity;
+                autoHidden.Add(solo);
+                hiddenAlwaysOn++;
+                continue;
+            }
             bool direct = note.hostIndex >= 0 && note.hostIndex < all.Count
                           && all[note.hostIndex] != null && !all[note.hostIndex].hidden;
             NoteData host = ResolveHost(note, all, visible);

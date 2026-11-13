@@ -22,11 +22,14 @@ Shader "Nostalgia/HoldMagicOverlay"
         // geometry left to be drawn on, so the burst renders on an enlarged
         // quad and zooms the UV back out to keep the art its original size.
         _UvZoom ("UV Zoom", Range(1,3)) = 1.0
-        // Where the theme colour hands over to the gilding. A narrow band keeps
-        // the crossover from washing out through desaturated grey, which is what
-        // a wide blue-to-gold lerp does.
-        _GradientStart ("Gilding Start", Range(0,1)) = 0.40
-        _GradientEnd ("Gilding End", Range(0,1)) = 0.78
+        // Where the theme colour hands over to the gilding. Now a narrow step
+        // rather than a long ramp: it is placed inside one of the seal's own
+        // stroke gaps (r=0.50), so every engraved ring is wholly one colour
+        // instead of being dyed half theme and half gold across its width.
+        // Measured gaps: 0.19 / 0.412 / 0.50 / 0.688 / 0.802 / 0.912
+        // (tools/preview_hold_magic.py --rings).
+        _GradientStart ("Gilding Start", Range(0,1)) = 0.478
+        _GradientEnd ("Gilding End", Range(0,1)) = 0.522
         // The highlight lags the ink's handover, so stroke highlights stay
         // theme-tinted further out. Without the lag the crossover band mixes a
         // pale theme tint with a pale gold and reads as a white ring.
@@ -35,7 +38,66 @@ Shader "Nostalgia/HoldMagicOverlay"
         // through their desaturated average. Blue to gold are near-complementary,
         // so the middle of the ramp goes grey. This pushes the chroma back, and
         // only in the middle -- the ends are untouched.
-        _MidSaturation ("Crossover Saturation", Range(0,1.5)) = 0.55
+        // Was 0.55 when the crossover spanned 0.40..0.78 and really did pass
+        // through grey. Across a 0.044-wide step there is no grey to fix, and
+        // the term now only lays a thin chromatic edge right on the seam --
+        // which is worth keeping, but not at the old strength.
+        _MidSaturation ("Crossover Saturation", Range(0,1.5)) = 0.25
+
+        // ---- 多段：共用半徑上的色階 ----
+        // 一條等寬的兩端漸層讀起來就是「一個顏色淡進另一個顏色」。這幾段讓
+        // 半徑上有事情發生：白熱的核心 -> 本色 -> 壓深 -> 金 -> 暗金 -> 鉑亮的
+        // 主環 -> 外緣收深。換色的半徑全部取自雕花**自己的空檔**，換在筆畫上
+        // 只會把一圈染成兩半。
+        // _StageStrength 0 = 完全不分段（給接觸核心與線條幾何用：那兩個沒有
+        // 同心結構，硬切只會在它們身上切出莫名其妙的環）。
+        _StageStrength ("Stage Strength", Range(0,1)) = 1.0
+        _StageWidth ("Stage Step Width", Range(0.002,0.3)) = 0.022
+        _StageCore ("Stage: Core Ends", Range(0,1)) = 0.190
+        _StageDeep ("Stage: Theme Shadow", Range(0,1)) = 0.412
+        _StageGoldDeep ("Stage: Gold Shadow", Range(0,1)) = 0.688
+        _StageCrown ("Stage: Crown Ring", Range(0,1)) = 0.802
+        _StageEdge ("Stage: Outer Edge", Range(0,1)) = 0.912
+        // 本色那兩段的明暗。平常是 0（本色就是本色），「完全完美」會把金本體
+        // 壓暗一點，讓它變成隔開翡翠和靛藍的那道分隔。
+        _ToneBody ("Tone: Theme Body", Range(-1,1)) = 0.0
+        _ToneGold ("Tone: Gold Body", Range(-1,1)) = 0.0
+        _ToneCore ("Tone: Core", Range(-1,1)) = 0.75
+        _ToneDeep ("Tone: Theme Shadow", Range(-1,1)) = -0.85
+        _ToneGoldDeep ("Tone: Gold Shadow", Range(-1,1)) = -0.72
+        _ToneCrown ("Tone: Crown", Range(-1,1)) = 0.45
+        _ToneEdge ("Tone: Outer Edge", Range(-1,1)) = -0.82
+
+        // ---- 藏色：每一段藏的第二個色系 ----
+        // 同一個色相換明暗只是同一件事的強弱。讓一圈一圈讀得出來的是**凹下去
+        // 的那幾段藏著另一個顏色**：金的凹處藏綠（銅鏽就是這樣來的）、紫的凹處
+        // 藏藍（氧化銀）。亮處是新的、凹處是舊的，一圈雕花因此有年份。
+        //
+        // 而且藏的不是**一個**顏色，是一個**色系**：深／中／淺三支，同一個家族
+        // 裡深的偏本色、淺的偏青（真實的藍顏料就是這樣排的 —— 靛偏紫、鈷在中間、
+        // 天青偏青；綠也一樣，深的是橄欖銅鏽、淺的是青瓷）。用哪一支**跟著那一段
+        // 自己的明暗走**（_AccentFollow）：亮的段配淺支、凹的段配深支，所以整個
+        // 第二色系是被同一道光照著的，不是三個顏色輪流貼上去。
+        //
+        // 三支都由 C# 從本色算（ParticleEffectPlayer.SealAccent），不是手調表，
+        // 所以每一種判定色都自動有自己的第二色系。
+        _AccentCore ("Accent: Core", Range(0,1)) = 0.12
+        // 本色那兩段（判定色本體、金本體）平常是 0：它們就是「本色」，吃了點綴
+        // 就不是本色了。只有「完全完美」那一組會開 —— 那一下要的正是整圈都有
+        // 第二個顏色在裡面流動的虹彩感。
+        _AccentBody ("Accent: Theme Body", Range(0,1)) = 0.0
+        _AccentGold ("Accent: Gold Body", Range(0,1)) = 0.0
+        _AccentDeep ("Accent: Theme Shadow", Range(0,1)) = 0.60
+        _AccentGoldDeep ("Accent: Gold Shadow", Range(0,1)) = 0.85
+        _AccentCrown ("Accent: Crown", Range(0,1)) = 0.18
+        _AccentEdge ("Accent: Outer Edge", Range(0,1)) = 0.80
+        _AccentFollow ("Accent: Follows Light", Range(0,1)) = 0.90
+        [HDR] _InnerAccentDeep ("Theme Accent Deep", Color) = (0.16,0.20,0.62,1)
+        [HDR] _InnerAccentMid ("Theme Accent Mid", Color) = (0.34,0.58,1.35,1)
+        [HDR] _InnerAccentLight ("Theme Accent Light", Color) = (0.92,1.25,1.70,1)
+        [HDR] _OuterAccentDeep ("Gilding Accent Deep", Color) = (0.52,0.62,0.18,1)
+        [HDR] _OuterAccentMid ("Gilding Accent Mid", Color) = (0.78,1.25,0.34,1)
+        [HDR] _OuterAccentLight ("Gilding Accent Light", Color) = (1.05,1.62,0.92,1)
         // A sweeping specular band. Without one the seal has no directional
         // light at all: its colour is purely a function of radius, which is why
         // the gold reads as flat paint rather than metal.
@@ -90,6 +152,34 @@ Shader "Nostalgia/HoldMagicOverlay"
                 float _GradientEnd;
                 float _HighlightGildingBias;
                 float _MidSaturation;
+                float _StageStrength;
+                float _StageWidth;
+                float _StageCore;
+                float _StageDeep;
+                float _StageGoldDeep;
+                float _StageCrown;
+                float _StageEdge;
+                float _ToneBody;
+                float _ToneGold;
+                float _ToneCore;
+                float _ToneDeep;
+                float _ToneGoldDeep;
+                float _ToneCrown;
+                float _ToneEdge;
+                float _AccentCore;
+                float _AccentBody;
+                float _AccentGold;
+                float _AccentDeep;
+                float _AccentGoldDeep;
+                float _AccentCrown;
+                float _AccentEdge;
+                float _AccentFollow;
+                float4 _InnerAccentDeep;
+                float4 _InnerAccentMid;
+                float4 _InnerAccentLight;
+                float4 _OuterAccentDeep;
+                float4 _OuterAccentMid;
+                float4 _OuterAccentLight;
                 float _SheenStrength;
                 float _SheenSharpness;
                 float _SheenSpeed;
@@ -98,6 +188,41 @@ Shader "Nostalgia/HoldMagicOverlay"
                 float4 _CoreHighlightColor;
                 float4 _PlatinumColor;
             CBUFFER_END
+
+            // 把顏色往「白熱」或「往深處」推。
+            //
+            // 往上推只**少量**去飽和（0.35）：往自己最亮的通道推太多，金會變成
+            // 淡暖白、判定色會變成白 —— 兩個都是把顏色洗掉，而這個效果的重點
+            // 正是顏色。亮度交給增益。也**不能 lerp 到 (1,1,1)**：這裡的顏色
+            // 是 HDR（峰值 1.05~1.9），推向白等於調暗。
+            //
+            // 往下推要一邊變暗一邊加彩度。單純乘一個小於 1 的數會往灰色掉，而
+            // 這是 SrcAlpha 混色，近黑的墨會從軌道上扣掉光，看起來是髒不是暗。
+            half3 SealTone(half3 c, half tone)
+            {
+                half peak = max(c.r, max(c.g, c.b));
+                half luma = dot(c, half3(0.2126h, 0.7152h, 0.0722h));
+                half3 up = (c + (peak - c) * 0.35h) * 1.45h;
+                // 0.18，不是 0.55。量過：舊的凹段最暗只到線性 2.12，而整個印記最亮
+                // 4.62 —— **每一段都在白點以上**，於是 tonemap 的肩部把它們壓成
+                // 同一個白，顏色和層次都到不了畫面（使用者「自動演奏看不出差別」
+                // 就是這個）。0.18 讓凹段落在 1.0 附近，範圍才打得開。
+                half3 down = max((half3)0.0h, (luma + (c - luma) * 1.25h) * 0.18h);
+                return c + (up - c) * saturate(tone) + (down - c) * saturate(-tone);
+            }
+
+            // 第二色系裡的位置：0 = 深、0.5 = 中、1 = 淺。
+            half3 AccentFamily(half3 deep, half3 mid, half3 light, half t)
+            {
+                return t < 0.5h
+                    ? lerp(deep, mid, saturate(t * 2.0h))
+                    : lerp(mid, light, saturate((t - 0.5h) * 2.0h));
+            }
+
+            half StageStep(half current, half target, half radius, half edge, half width)
+            {
+                return lerp(current, target, smoothstep(edge - width, edge + width, radius));
+            }
 
             struct Attributes
             {
@@ -185,6 +310,48 @@ Shader "Nostalgia/HoldMagicOverlay"
                 // reads as polished gold.
                 half3 highlight = lerp(_CoreHighlightColor.rgb, _PlatinumColor.rgb,
                     pow(gilding, _HighlightGildingBias));
+
+                // 多段的明暗節奏。色相只在鍍金那一步換一次，亮暗則沿半徑走過
+                // 六段，每一段都在雕花的空檔上交棒。墨與高光共用同一條色階，
+                // 不然 _StrokeHighlight 的亮筆畫會把剛分出來的段又洗平。
+                half goldSeam = (_GradientStart + _GradientEnd) * 0.5h;
+                half tone = _ToneCore;
+                tone = StageStep(tone, _ToneBody,       radius, _StageCore,     _StageWidth);
+                tone = StageStep(tone, _ToneDeep,       radius, _StageDeep,     _StageWidth);
+                tone = StageStep(tone, _ToneGold,       radius, goldSeam,       _StageWidth);
+                tone = StageStep(tone, _ToneGoldDeep,   radius, _StageGoldDeep, _StageWidth);
+                tone = StageStep(tone, _ToneCrown,      radius, _StageCrown,    _StageWidth);
+                tone = StageStep(tone, _ToneEdge,       radius, _StageEdge,     _StageWidth);
+                tone *= _StageStrength;
+
+                // 藏色的**量**跟明暗相反：凹下去、壓深的那幾段才吃第二色系，
+                // 凸起的段（本色、金本色）留本色。兩條曲線同相的話，整圈只會
+                // 一起變深又一起變綠，讀起來還是一件事。
+                half accent = _AccentCore;
+                accent = StageStep(accent, _AccentBody,      radius, _StageCore,     _StageWidth);
+                accent = StageStep(accent, _AccentDeep,      radius, _StageDeep,     _StageWidth);
+                accent = StageStep(accent, _AccentGold,      radius, goldSeam,       _StageWidth);
+                accent = StageStep(accent, _AccentGoldDeep,  radius, _StageGoldDeep, _StageWidth);
+                accent = StageStep(accent, _AccentCrown,     radius, _StageCrown,    _StageWidth);
+                accent = StageStep(accent, _AccentEdge,      radius, _StageEdge,     _StageWidth);
+                accent *= _StageStrength;
+
+                // 藏色的**選支**則跟著明暗走：亮的段配淺支、凹的段配深支。
+                // 整個第二色系因此是被同一道光照著的，不是三個顏色輪流貼上去。
+                half member = saturate(tone * _AccentFollow + 0.5h);
+                half3 accentInk = lerp(
+                    AccentFamily(_InnerAccentDeep.rgb, _InnerAccentMid.rgb,
+                                 _InnerAccentLight.rgb, member),
+                    AccentFamily(_OuterAccentDeep.rgb, _OuterAccentMid.rgb,
+                                 _OuterAccentLight.rgb, member),
+                    gilding);
+                ink = lerp(ink, accentInk, accent);
+                // 高光只吃一半的點綴：亮筆畫整個換色的話，雕花的立體感會被顏色
+                // 蓋過去，讀起來像換了一張貼圖，而不是同一張的不同段。
+                highlight = lerp(highlight, accentInk, accent * 0.7h);
+
+                ink = SealTone(ink, tone);
+                highlight = SealTone(highlight, tone * 0.6h);
 
                 // The artwork's own RGB is a flat ivory (luma ~0.89 everywhere),
                 // so the old pow(luma,9) engraving term was effectively constant.

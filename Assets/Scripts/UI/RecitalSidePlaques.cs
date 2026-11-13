@@ -239,7 +239,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
             new Vector2(1f, 1f), new Vector2(-Pad, -18f), new Vector2(180f, 26f));
         performerHeading.fontStyle = FontStyles.Bold | FontStyles.SmallCaps;
         performerHeading.color = Gilt;
-        SetText(performerHeading, "演奏會評分");
+        SetText(performerHeading, Localize.S("演奏會評分"));
 
         // 大數字往左 4：64 級的數字左邊有側邊空隙，照框對齊的話它的字幹會比上面那
         // 行字往右縮一格，看起來像沒對齊。
@@ -292,7 +292,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
             new Vector2(280f, 26f));
         heading.fontStyle = FontStyles.Bold | FontStyles.SmallCaps;
         heading.color = Gilt;
-        SetText(heading, "評分明細");
+        SetText(heading, Localize.S("評分明細"));
 
         // 滿分寫出來：四條尺沒有刻度標的話，「4,280」是高是低要靠猜。
         detailCeiling = MakeLabel(detailRect, "Ceiling", TextCaption, TextAlignmentOptions.MidlineRight,
@@ -352,7 +352,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
             new Vector2(CaptionColumn, 24f));
         attemptCaption.fontStyle = FontStyles.Bold | FontStyles.SmallCaps;
         attemptCaption.color = Gilt;
-        SetText(attemptCaption, "上次挑戰");
+        SetText(attemptCaption, Localize.S("上次挑戰"));
 
         // 曲名自己一個標籤：它是使用者曲庫裡的字，可能是日文，要走 ApplyContentFont
         // （不照介面語言換字型）。旁邊那幾個固定的中文詞走 ApplyLocalizedFont。混在
@@ -640,7 +640,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
         SetText(ratingValue, rating > 0.5f ? $"{rating:N0}" : "—");
         ratingValue.color = rating > 0.5f ? Cream : CreamDim;
 
-        string title = "尚無紀錄";
+        string title = Localize.S("尚無紀錄");
         try { title = PlayerRating.Title(rating, Band); } catch { }
         SetText(ratingTitle, title);
         // 精熟以上才上金。金色在這套介面裡只有兩個意思：結構的邊，和值得注意的那一
@@ -659,13 +659,14 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
     /// </remarks>
     private static string NextStep(float rating, float ceiling)
     {
-        if (rating <= 0.5f) return "尚未演出";
+        if (rating <= 0.5f) return Localize.S("尚未演出");
         float ordinary = PlayerRating.Ordinary + Shift;
         float proficient = PlayerRating.Proficient + Shift;
-        if (rating < ordinary) return $"距普通 {ordinary - rating:N0}";
-        if (rating < proficient) return $"距精熟 {proficient - rating:N0}";
-        if (rating < ceiling) return $"距名家 {ceiling - rating:N0}";
-        return $"滿分 {ceiling:N0}";
+        // 用字要和 PlayerRating.Title 對齊（精熟→熟練），不然同一塊牌上兩種說法。
+        if (rating < ordinary) return Localize.SF("距普通 {0:N0}", ordinary - rating);
+        if (rating < proficient) return Localize.SF("距精熟 {0:N0}", proficient - rating);
+        if (rating < ceiling) return Localize.SF("距名家 {0:N0}", ceiling - rating);
+        return Localize.SF("滿分 {0:N0}", ceiling);
     }
 
     /// <summary>
@@ -733,7 +734,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
             }
         }
 
-        return total > 0 ? $"已演出 {played} / {total} 首" : string.Empty;
+        return total > 0 ? Localize.SF("已演出 {0} / {1} 首", played, total) : string.Empty;
     }
 
     private void RefreshDetail()
@@ -749,7 +750,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
         }
         catch { }
 
-        SetText(detailCeiling, $"滿分 {ceiling:N0}");
+        SetText(detailCeiling, Localize.SF("滿分 {0:N0}", ceiling));
 
         // 達標和沒達標自己說出來，和結算畫面同一條規則：金色是過了普通那條線，暖紅
         // 是還沒。四項裡只有一項落後的時候，這是唯一看得出來的地方。
@@ -769,8 +770,8 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
         {
             // 新玩家不該看到兩個空框。
             SetText(attemptGrade, string.Empty);
-            SetText(attemptLine, "尚無挑戰紀錄");
-            SetText(attemptResult, "打一局就會記下來");
+            SetText(attemptLine, Localize.S("尚無挑戰紀錄"));
+            SetText(attemptResult, Localize.S("打一局就會記下來"));
             return;
         }
 
@@ -791,7 +792,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
     private static string AttemptTitle(PlayerRating.Attempt attempt)
     {
         string song = OneLine(attempt.song);
-        if (string.IsNullOrWhiteSpace(song)) song = "（不知名的曲子）";
+        if (string.IsNullOrWhiteSpace(song)) song = Localize.S("（不知名的曲子）");
 
         string tier = string.IsNullOrWhiteSpace(attempt.tier) ? string.Empty : attempt.tier.ToUpperInvariant();
         if (attempt.level > 0) tier = tier.Length > 0 ? $"{tier} Lv.{attempt.level}" : $"Lv.{attempt.level}";
@@ -803,7 +804,7 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
 
         // 練習模式那一局要標出來：它的分數和差距是**練習那一段刻度**的，不標的話會
         // 被讀成演奏會的數字，而兩段刻度差一千。
-        if (!attempt.recital) song = $"{song}　· 練習";
+        if (!attempt.recital) song = Localize.SF("{0}　· 練習", song);
         return song;
     }
 
@@ -816,18 +817,19 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
     /// </remarks>
     private static string AttemptResult(PlayerRating.Attempt attempt)
     {
-        string head = $"{attempt.score:N0} 分 · {Ago(attempt.atUtcTicks)}";
+        string head = Localize.SF("{0:N0} 分 · {1}", attempt.score, Ago(attempt.atUtcTicks));
         if (attempt.gap > 0.5f)
         {
             // 差距用暖紅，和四條尺上「還沒達標」同一個顏色；縮到 84% 是為了在最窄
             // 的牌面（520）上這一整行還能留在 22 級，不用縮到 16。
             string hex = ColorUtility.ToHtmlStringRGB(Shortfall);
-            return $"{head} · <size=84%><color=#{hex}>差 {attempt.gap:N0} 分，未計入</color></size>";
+            return head + Localize.SF(" · <size=84%><color=#{0}>差 {1:N0} 分，未計入</color></size>",
+                hex, attempt.gap);
         }
         // gap = 0 有兩種：真的推高了，或者剛好打平（同一首同樣的四項分數，四個最佳值
         // 一個都沒被超過）。`Attempt` 沒有記是哪一種，而對玩家來說兩種的結論一樣：這
         // 一局沒有任何東西被丟掉。所以兩種都說「已計入」。
-        return $"{head} · <size=84%>已計入評分</size>";
+        return head + Localize.S(" · <size=84%>已計入評分</size>");
     }
 
     private static string OneLine(string value)
@@ -839,15 +841,16 @@ internal sealed class RecitalSidePlaques : MonoBehaviour
 
     private static string Ago(long utcTicks)
     {
-        if (utcTicks <= 0) return "剛剛";
+        if (utcTicks <= 0) return Localize.S("剛剛");
         try
         {
             TimeSpan gap = DateTime.UtcNow - new DateTime(utcTicks, DateTimeKind.Utc);
-            if (gap.TotalMinutes < 90) return "剛剛";
-            if (gap.TotalHours < 24) return $"{(int)gap.TotalHours} 小時前";
-            if (gap.TotalDays < 30) return $"{(int)gap.TotalDays} 天前";
-            if (gap.TotalDays < 365) return $"{(int)(gap.TotalDays / 30)} 個月前";
-            return $"{(int)(gap.TotalDays / 365)} 年前";
+            if (gap.TotalMinutes < 90) return Localize.S("剛剛");
+            if (gap.TotalHours < 24) return Localize.SF("{0} 小時前", (int)gap.TotalHours);
+            if (gap.TotalDays < 30) return Localize.SF("{0} 天前", (int)gap.TotalDays);
+            if (gap.TotalDays < 365)
+                return Localize.SF("{0} 個月前", (int)(gap.TotalDays / 30));
+            return Localize.SF("{0} 年前", (int)(gap.TotalDays / 365));
         }
         catch { return string.Empty; }
     }

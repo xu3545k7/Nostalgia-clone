@@ -260,6 +260,24 @@ public class SongSelectionManager : MonoBehaviour
     [SerializeField] private AudioSource previewAudioSource;
     [SerializeField] private AudioSource previewPianoAudioSource;
 
+    /// <summary>預覽該在哪個 DSP 時刻繞回開頭。0 = 現在沒有在放。</summary>
+    /// <remarks>
+    /// **為什麼不讓 AudioSource 自己 loop。** 預覽有兩個音源：伴奏和鋼琴。兩邊都開
+    /// <c>loop</c> 的話，Unity 是各自在**自己那支檔案的結尾**繞回去 —— 而這兩支檔案
+    /// 的長度不一樣。實測這個曲庫 20 首有鋼琴軌的曲目，**沒有一首兩軌等長**：常見差
+    /// 1.5～6 秒，Testify 差 33.5 秒。繞第一圈之後鋼琴就和伴奏錯開，而且每繞一圈再
+    /// 錯一次，永遠回不來。
+    ///
+    /// 迴圈點改成由**伴奏**那一軌的長度決定，時間到了兩個音源一起歸零重放。不取兩者
+    /// 的最大或最小：伴奏就是這首歌本身，鋼琴軌是疊在上面的聲部，長出來的是渲染留下
+    /// 的尾巴、短少的那一段本來就是靜音。
+    ///
+    /// 用 DSP 時鐘而不是 <c>AudioSource.time</c>：關掉 loop 之後，檔案播完
+    /// <c>time</c> 會歸零、<c>isPlaying</c> 會變 false —— 分不出「剛放完」和「剛開始」。
+    /// DSP 時鐘是單調的，而且不受畫面更新率影響。
+    /// </remarks>
+    private double previewLoopDsp;
+
     private readonly List<SongOption> songOptions = new List<SongOption>();
     private readonly List<SongOption> allSongOptions = new List<SongOption>();
     private readonly List<string> songCategories = new List<string>();
@@ -309,6 +327,47 @@ public class SongSelectionManager : MonoBehaviour
     public bool CanRefreshLibraryNow =>
         selectionPanel != null && selectionPanel.activeInHierarchy &&
         !difficultyLaunchInProgress && !carouselTransitioning && !settingsGameplayPreviewRunning;
+    /// <summary>
+    /// 現在能不能用鍵盤（MIDI）操作這個畫面。
+    /// </summary>
+    /// <remarks>
+    /// 擋掉的條件和滑鼠那條路一致：面板關著、正在啟動一首歌、轉盤正在轉場、
+    /// 設定預覽正在跑，以及任何蓋在上面的全畫面覆蓋層 —— 譜面檢視器和樂譜書
+    /// 開著的時候滾輪會被擋（見 Update 開頭那一排），鍵盤沒有理由例外。
+    /// </remarks>
+    public bool AcceptsKeyboardNavigation =>
+        carouselInitialized && selectionPanel != null && selectionPanel.activeInHierarchy &&
+        !difficultyLaunchInProgress && !carouselTransitioning && !settingsGameplayPreviewRunning &&
+        !(ChartOverviewViewer.Instance != null && ChartOverviewViewer.Instance.IsOpen) &&
+        !SongScoreBookOverlay.IsOpen && !SyllabusBookOverlay.IsOpen;
+
+    /// <summary>分類選單（抽屜）現在拉下來了嗎。</summary>
+    public bool CategoryMenuOpen => groupingBar.IsBuilt && groupingBar.IsPopupOpen;
+
+    /// <summary>鍵盤：拉下／收起分類選單。</summary>
+    public void SetCategoryMenuOpen(bool open)
+    {
+        if (!groupingBar.IsBuilt) return;
+        groupingBar.SetPopupOpen(open);
+    }
+
+    /// <summary>鍵盤：上一個／下一個分類。和分類列上的箭頭走同一條路。</summary>
+    public void StepCategoryFromKeyboard(int direction)
+    {
+        if (!groupingBar.IsBuilt || direction == 0) return;
+        groupingBar.Step(direction);
+    }
+
+    /// <summary>鍵盤捲動。和滾輪走同一條路，所以慣性與吸附完全一致。</summary>
+    public void NudgeFromKeyboard(int steps) => NudgeCarousel(steps);
+
+    /// <summary>鍵盤確認：選中現在停在中央的那一首。</summary>
+    public void ConfirmFromKeyboard()
+    {
+        if (songOptions == null || songOptions.Count == 0) return;
+        SelectSong(Mathf.Clamp(currentIndex, 0, songOptions.Count - 1));
+    }
+
     private bool carouselInitialized = false;
     private bool carouselTransitioning;
     private bool difficultyLaunchInProgress;
@@ -486,6 +545,8 @@ public class SongSelectionManager : MonoBehaviour
         UpdateCarouselVisuals();
         ShowSelection();
         RuntimeSongLibraryPanel.Attach(this, selectionPanel);
+        // MIDI 鍵盤操作 ＋ 畫面下緣的區域條。
+        SelectionKeyControl.Attach(this, selectionPanel);
 
         // 考程在曲庫載完之後就編定，不是等玩家翻開考程書才編。
         //
@@ -738,7 +799,7 @@ public class SongSelectionManager : MonoBehaviour
         if (categoryCarouselRoot == null)
         {
             GameObject rootObject = new GameObject("CategoryCarousel", typeof(RectTransform),
-                typeof(CanvasRenderer), typeof(Image), typeof(Outline), typeof(EventTrigger));
+                typeof(CanvasRenderer), typeof(Image), typeof(Shadow), typeof(EventTrigger));
             rootObject.layer = selectionPanel.layer;
             categoryCarouselRoot = rootObject.GetComponent<RectTransform>();
             categoryCarouselRoot.SetParent(selectionPanel.transform, false);
@@ -763,20 +824,28 @@ public class SongSelectionManager : MonoBehaviour
             // 又省下 180。槽越寬，它就越像一條橫在畫面中央的帶子。
             categoryCarouselRoot.sizeDelta = new Vector2(640f, 76f);
 
+            // 這一塊的質感留著 —— 使用者要拿掉的是**捲簾的布**（RecitalCategoryBlind
+            // 的 Cloth／RailLeft／RailRight／Batten），不是這塊槽。兩個都是深色方板、
+            // 一個套著另一個，所以從截圖上分不出來；分辨的方法是量外框：布 960 寬、
+            // 兩側有 7 寬的金立框，槽只有 640 寬而且沒有金框。
             Image background = rootObject.GetComponent<Image>();
             ClassicalBookUITheme.ApplyDarkSurface(background,
                 new Color(0.13f, 0.055f, 0.028f, 0.97f), ClassicalBookUITheme.Surface.Paper, 3.5f);
             // 金框拿掉 —— 一圈金線是「這塊會動」的訊號，而這一塊是顯示器。改成凹
             // 槽：上緣一條暗線是內陰影，下緣一條亮線是槽底受光，所以它讀起來是挖
             // 進去的，不是浮上來的。
-            Outline outline = rootObject.GetComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
-            outline.effectDistance = new Vector2(0f, -3f);
+            //
+            // 外影用 Shadow 一份，不是 Outline 四份。Outline 畫的是上下左右各一份
+            // 偏移的副本 —— 底是平鋪的紙紋，所以上緣那兩份疊出來的是糊掉的紙紋，
+            // 而上緣本來就有 SlotEdge 的暗線在做內陰影了，兩個互相打。
+            Shadow drop = rootObject.GetComponent<Shadow>();
+            drop.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            drop.effectDistance = new Vector2(0f, -3f);
             SlotEdge(categoryCarouselRoot, 1f, new Color(0.02f, 0.01f, 0.005f, 0.85f));
             SlotEdge(categoryCarouselRoot, 0f, new Color(0.42f, 0.33f, 0.18f, 0.9f));
 
-            previousCategoryButton = CreateCategoryButton(categoryCarouselRoot, "PreviousCategory", "<", true);
-            nextCategoryButton = CreateCategoryButton(categoryCarouselRoot, "NextCategory", ">", false);
+            previousCategoryButton = CreateCategoryButton(categoryCarouselRoot, "PreviousCategory", true);
+            nextCategoryButton = CreateCategoryButton(categoryCarouselRoot, "NextCategory", false);
 
             GameObject labelObject = new GameObject("CategoryLabel", typeof(RectTransform),
                 typeof(CanvasRenderer), typeof(TextMeshProUGUI));
@@ -1004,7 +1073,7 @@ public class SongSelectionManager : MonoBehaviour
         PracticeRoomScreen.Open();
     }
 
-    private Button CreateCategoryButton(RectTransform parent, string objectName, string caption, bool left)
+    private Button CreateCategoryButton(RectTransform parent, string objectName, bool left)
     {
         GameObject buttonObject = new GameObject(objectName, typeof(RectTransform),
             typeof(CanvasRenderer), typeof(Image), typeof(Button));
@@ -1017,27 +1086,45 @@ public class SongSelectionManager : MonoBehaviour
         // 箭頭放在槽**外面**。
         //
         // 放在裡面的時候它們和分類名共用同一塊底，所以整條讀起來是一顆很寬的按鈕；
-        // 移出來之後「要讀的」（槽）和「要按的」（兩顆鈕）就分開了。0.062 的跨距在
-        // 1180 寬的槽上是 73 單位，扣掉內縮剩 65。
-        rect.anchorMin = new Vector2(left ? -0.0705f : 1.0085f, 0f);
-        rect.anchorMax = new Vector2(left ? -0.0085f : 1.0705f, 1f);
-        rect.offsetMin = new Vector2(4f, 4f);
-        rect.offsetMax = new Vector2(-4f, -4f);
+        // 移出來之後「要讀的」（槽）和「要按的」（兩顆鈕）就分開了。
+        //
+        // **尺寸寫死、釘在槽緣，不是槽寬的分數。** 原本是 ±0.062 的跨距，那是照
+        // 1180 寬的槽算出來的 73 單位。槽後來收到 640，同一組分數只剩 31.7 寬 ——
+        // 比牌面九宮切片的下限 40 還窄，於是 uGUI 把左右兩條鎏金線腳等比壓小、中間
+        // 的凹面歸零（見 <see cref="ClassicalBookUITheme.StylePlate"/>）：實機上那
+        // 兩顆是糊掉的銅片，不是牌子。改成釘在槽緣加固定尺寸之後，槽寬再改幾次都
+        // 不會再把它們壓扁。
+        rect.anchorMin = rect.anchorMax = new Vector2(left ? 0f : 1f, 0.5f);
+        rect.pivot = new Vector2(left ? 1f : 0f, 0.5f);
+        rect.anchoredPosition = new Vector2(
+            left ? -SongGroupingBar.SideButtonGap : SongGroupingBar.SideButtonGap, 0f);
+        rect.sizeDelta = new Vector2(SongGroupingBar.SideButtonWidth,
+            SongGroupingBar.SideButtonHeight);
 
-        GameObject textObject = new GameObject("Label", typeof(RectTransform),
-            typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-        textObject.layer = buttonObject.layer;
-        RectTransform textRect = textObject.GetComponent<RectTransform>();
-        textRect.SetParent(rect, false);
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = Vector2.zero;
-        textRect.offsetMax = Vector2.zero;
-        TextMeshProUGUI label = textObject.GetComponent<TextMeshProUGUI>();
-        label.text = caption;
-        label.alignment = TextAlignmentOptions.Center;
-        label.fontSize = 24f;
-        label.raycastTarget = false;
+        // **箭頭是畫出來的，不是打出來的。**
+        //
+        // 原本是一個 24 級的 "&lt;" 和 "&gt;"。那是數學符號：筆畫比周圍的鎏金線腳
+        // 細得多，又吊在數學軸上而不是字框中央，所以它在一塊有厚度的銅牌上永遠讀
+        // 成「貼了一個字」。這個畫面上每一個圖示（漏斗、勾、月桂、難度寶石）都是
+        // 畫的，而曲目卡上下那兩顆用的就是同一支箭頭 —— 那兩顆和這兩顆做的是同一
+        // 件事（往前一個、往後一個），本來就該是同一個形狀。
+        GameObject faceObject = new GameObject("Arrow", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(ClassicalArrowGraphic));
+        faceObject.layer = buttonObject.layer;
+        RectTransform faceRect = faceObject.GetComponent<RectTransform>();
+        faceRect.SetParent(rect, false);
+        faceRect.anchorMin = faceRect.anchorMax = new Vector2(0.5f, 0.5f);
+        faceRect.pivot = new Vector2(0.5f, 0.5f);
+        faceRect.anchoredPosition = Vector2.zero;
+        // 正方形：箭頭是在自己那塊區域裡按比例排點的，區域扁了箭頭就跟著扁。
+        // 26 正好落在牌面的凹面（72 − 線腳 40 ＝ 32 寬）裡，四周各留 3。
+        faceRect.sizeDelta = new Vector2(26f, 26f);
+        ClassicalArrowGraphic arrow = faceObject.GetComponent<ClassicalArrowGraphic>();
+        arrow.Direction = left
+            ? ClassicalArrowGraphic.Facing.Left
+            : ClassicalArrowGraphic.Facing.Right;
+        arrow.color = new Color(0.94f, 0.76f, 0.34f, 1f);
+        arrow.raycastTarget = false;
 
         Button button = buttonObject.GetComponent<Button>();
         ClassicalBookUITheme.StyleButton(button);
@@ -2322,6 +2409,12 @@ public class SongSelectionManager : MonoBehaviour
 
     void Update()
     {
+        // **排在所有 return 前面。** 底下的早退有一整排（轉盤還沒建好、選曲面板
+        // 收起來、譜面檢視器開著、樂譜書開著……），而預覽在那些情況下照樣在放 ——
+        // 尤其是開著檢視器翻譜的時候，那正是最容易放到繞回去的時機。擋在哪一條
+        // 後面，就等於在那個情況下兩軌又各自飄走。
+        AdvancePreviewLoop();
+
         if (!carouselInitialized) return;
         // The song cards themselves are UI, so rejecting pointer-over-UI made wheel
         // navigation fail precisely when the cursor was over a card. Only gate on
@@ -2686,7 +2779,8 @@ public class SongSelectionManager : MonoBehaviour
         }
 
         previewAudioSource.playOnAwake = false;
-        previewAudioSource.loop = true;
+        // 迴圈由 AdvancePreviewLoop 統一管，見 previewLoopDsp。
+        previewAudioSource.loop = false;
 
         if (previewPianoAudioSource == null)
         {
@@ -2695,9 +2789,51 @@ public class SongSelectionManager : MonoBehaviour
         }
 
         previewPianoAudioSource.playOnAwake = false;
-        previewPianoAudioSource.loop = true;
+        previewPianoAudioSource.loop = false;
         previewPianoAudioSource.spatialBlend = previewAudioSource.spatialBlend;
         previewPianoAudioSource.outputAudioMixerGroup = previewAudioSource.outputAudioMixerGroup;
+    }
+
+    /// <summary>
+    /// 時間到了，把兩個音源一起拉回開頭。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼是「停掉重放」而不是對齊時間。** 把鋼琴的 <c>time</c> 設回 0 而讓伴奏
+    /// 繼續 loop，省掉的是迴圈點上那一瞬間的空隙，但換來的是鋼琴單獨跳一下 —— 聽得
+    /// 出來是某一個聲部出了事。兩軌一起重來，接點在整首歌的頭尾之間，而那兩端通常
+    /// 都是靜音。
+    ///
+    /// **代價**：偵測在畫面更新上，所以接點會有半幀到一個音訊緩衝的空隙（約 10～30
+    /// 毫秒）。要完全無縫得用 <c>PlayScheduled</c> 預約，而一個選曲畫面的背景預覽
+    /// 不值得那個複雜度 —— 它現在的問題是差好幾**秒**，不是差幾毫秒。
+    /// </remarks>
+    private void AdvancePreviewLoop()
+    {
+        if (previewLoopDsp <= 0d) return;
+
+        AudioSource main = previewAudioSource;
+        if (main == null || main.clip == null)
+        {
+            previewLoopDsp = 0d;
+            return;
+        }
+        if (AudioSettings.dspTime < previewLoopDsp) return;
+
+        previewLoopDsp = AudioSettings.dspTime + main.clip.length;
+
+        // 音量原封不動。重放是為了對齊，不是重新進場 —— 從 0 淡進來的話，每繞一圈
+        // 就會聽到一次音量塌下去再爬回來。
+        main.Stop();
+        main.time = 0f;
+        main.Play();
+
+        AudioSource piano = previewPianoAudioSource;
+        if (piano != null && piano.clip != null)
+        {
+            piano.Stop();
+            piano.time = 0f;
+            piano.Play();
+        }
     }
 
     private AudioSource EnsurePianoPreviewSource()
@@ -2786,12 +2922,15 @@ public class SongSelectionManager : MonoBehaviour
         pianoVolume = Mathf.Clamp01(pianoVolume * previewPianoGain);
 
         bool needRestartMain = restart || previewAudioSource.clip != mainClip || !previewAudioSource.isPlaying;
-        previewAudioSource.loop = true;
+        previewAudioSource.loop = false;
         if (needRestartMain)
         {
             previewAudioSource.Stop();
             previewAudioSource.clip = mainClip;
             previewAudioSource.time = 0f;
+            // 迴圈點只在真的重頭放的時候重算。同一首繼續放的話重算等於把這一圈
+            // 延長 —— 每一幀都呼叫一次的話就永遠繞不回去。
+            previewLoopDsp = AudioSettings.dspTime + mainClip.length;
             // 從零淡進來。音訊的硬切就是「啪」的一聲：波形在非零的地方被接上，那
             // 個不連續點本身是一個寬頻脈衝。
             previewAudioSource.volume = 0f;
@@ -2848,18 +2987,45 @@ public class SongSelectionManager : MonoBehaviour
             return;
         }
 
-        bool needRestartPiano = needRestartMain || pianoSource.clip != option.pianoAudioClip || !pianoSource.isPlaying;
-        pianoSource.loop = true;
+        // **鋼琴軌不能單獨從 0 起跑。** 它和伴奏是同一次錄音的兩個聲部，只在 0 這一
+        // 點對齊。伴奏已經放到一半時把鋼琴從頭放，整軌就錯開了多少秒 —— 這在兩個
+        // 地方會發生：鋼琴的檔案比伴奏短（實測 Testify 短 33.5 秒），它自己先播完，
+        // 之後 !isPlaying 就讓這裡重啟它；以及鋼琴是延後載入的，載好的那一刻伴奏
+        // 早就在跑了。
+        //
+        // 所以切進去的位置跟著伴奏走，不是跟著 0 走。
+        bool pianoClipChanged = pianoSource.clip != option.pianoAudioClip;
+        bool needRestartPiano = needRestartMain || pianoClipChanged || !pianoSource.isPlaying;
+        pianoSource.loop = false;
         if (needRestartPiano)
         {
+            float pianoStart = needRestartMain ? 0f : Mathf.Max(0f, previewAudioSource.time);
+            float pianoLength = pianoSource.clip != null ? pianoSource.clip.length
+                              : (option.pianoAudioClip != null ? option.pianoAudioClip.length : 0f);
+            // 伴奏已經走過鋼琴軌的結尾了：這一圈的鋼琴本來就放完了，什麼都不放
+            // 才是對的。下一次繞回開頭時 AdvancePreviewLoop 會把兩邊一起帶回去。
+            bool pianoExhausted = !needRestartMain && option.pianoAudioClip != null &&
+                                  pianoStart >= option.pianoAudioClip.length - 0.05f;
             pianoSource.Stop();
             pianoSource.clip = option.pianoAudioClip;
-            pianoSource.time = 0f;
-            // 主軌是從 0 淡進來的，鋼琴軌也要 —— 用全音量起跑的話，淡入的協程在
-            // 下一幀才會抓到它，中間那一幀會先爆一聲全音量的鋼琴。
-            pianoSource.volume = 0f;
-            pianoSource.Play();
-                BuildLogger.Log($"SongSelectionManager: Started piano preview for '{option.displayName}' clip={pianoSource.clip?.name}");
+            if (pianoExhausted)
+            {
+                pianoSource.time = 0f;
+            }
+            else
+            {
+                pianoSource.time = Mathf.Clamp(pianoStart, 0f, Mathf.Max(0f, pianoLength - 0.01f));
+                // 主軌是從 0 淡進來的，鋼琴軌也要 —— 用全音量起跑的話，淡入的協程在
+                // 下一幀才會抓到它，中間那一幀會先爆一聲全音量的鋼琴。
+                pianoSource.volume = 0f;
+                pianoSource.Play();
+                // 淡入的旗標在這裡也要立起來。它本來只有**主軌**重啟時才會是 true，
+                // 而拉音量的只有底下那一條淡入 —— 鋼琴軌中途才加入的時候，它就這樣
+                // 用 0 的音量一路放到底。原本這條路徑只會通往一個對不準的鋼琴軌，
+                // 聽不見反而遮住了問題；現在它對得準了，就得讓人聽見。
+                fadeInPending = true;
+                BuildLogger.Log($"SongSelectionManager: Started piano preview for '{option.displayName}' clip={pianoSource.clip?.name} at {pianoSource.time:0.000}s");
+            }
         }
         else if (!fadeInPending)
         {
@@ -2938,6 +3104,7 @@ public class SongSelectionManager : MonoBehaviour
     private void StopPreviewAudio(AudioClip preserveMain = null, AudioClip preservePiano = null)
     {
         currentPreviewOption = null;
+        previewLoopDsp = 0d;
         AudioClip mainClip = previewAudioSource != null ? previewAudioSource.clip : null;
         AudioClip pianoClip = previewPianoAudioSource != null ? previewPianoAudioSource.clip : null;
         if (previewAudioSource != null)

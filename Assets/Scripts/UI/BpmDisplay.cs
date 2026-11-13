@@ -85,7 +85,35 @@ public class BpmDisplay : MonoBehaviour
     private int detectedBeatTimingCount = -1;
     private const float UiRefreshInterval = 0.05f;
     private float nextUiRefreshTime;
-    // remove median-based BPM; compute instantaneous BPM per detection
+
+    /// <summary>「現在的速度」最多往回看幾個拍點間距。</summary>
+    private const int InstantWindowMaxIntervals = 16;
+
+    /// <summary>往回看到累積這麼久就停（毫秒）。慢的曲子不必湊滿上面那個筆數。</summary>
+    private const float InstantWindowTargetMs = 1200f;
+
+    /// <summary>窗內的間距，排序取中位數用。每次更新都會跑，不要每次配置新的。</summary>
+    private readonly List<int> instantIntervals = new List<int>(InstantWindowMaxIntervals);
+
+    /// <summary>
+    /// 別人已經親手排過這一塊了，<see cref="ConfigureClassicalPresentation"/> 不要再動。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼需要這個開關。** <c>Start</c> 裡那一套會把框撐成至少 400×82、對齊設成
+    /// MidlineLeft、再掛一個自己的 Canvas。GameBackgroundManager 另外把這一塊貼到分數
+    /// 底下，兩邊寫的是同一個 RectTransform —— 誰贏完全看 <c>Start</c> 跟那段程式哪個
+    /// 先跑，而那是沒有保證的。速度和分數疊在一起、或者整塊跑到左邊，都是這個競態。
+    ///
+    /// 用旗標而不是調整執行順序：順序要靠 Script Execution Order 設定，那是場景資料
+    /// 不是程式，改了在別的場景不會跟著走；而且下一個來排版的人也不會知道有這條規則。
+    /// </remarks>
+    private bool placementLocked;
+
+    /// <summary>宣告這一塊的位置由呼叫端負責，擋掉內建的那一套。</summary>
+    public void LockPlacement()
+    {
+        placementLocked = true;
+    }
 
     void Start()
     {
@@ -95,7 +123,7 @@ public class BpmDisplay : MonoBehaviour
 
     private void ConfigureClassicalPresentation()
     {
-        if (bpmText == null) return;
+        if (bpmText == null || placementLocked) return;
         bool insideUnifiedPanel = bpmText.transform.parent != null &&
                                   bpmText.transform.parent.name == "ClassicalSongInfoPanel";
         Canvas frontCanvas = bpmText.GetComponent<Canvas>();
@@ -153,22 +181,30 @@ public class BpmDisplay : MonoBehaviour
         bpmText.fontSizeMax = 64f;
     }
 
-    private static string FormatBpmText(string timeSignature, int bpm, int speedDirection = 0,
-        bool showArrow = false)
+    /// <summary>
+    /// HUD 上那兩行字。**數字不隨快慢變色**。
+    /// </summary>
+    /// <remarks>
+    /// 以前加速會把數字染成藍色、減速染成紅色（2026-11-10 使用者要求取消）。
+    /// 取消的只有「上色」這一層，速度變化的偵測（<see cref="ResolveSpeedVisual"/>、
+    /// <c>detectedTempoChanges</c>）原樣留著：它還在決定要不要重畫，而且以後要換
+    /// 別的提示方式（箭頭、框線）時不必重做。
+    ///
+    /// 顏色寫在數字自己的 <c>&lt;color&gt;</c> 標籤裡，不用 <c>overrideColorTags</c>：
+    /// 後者會把整塊（含 TIME SIGNATURE／BPM 兩個標籤）一起上色。
+    /// </remarks>
+    private static string FormatBpmText(string timeSignature, int bpm)
     {
         string ts = string.IsNullOrWhiteSpace(timeSignature) ? "-" : timeSignature;
         string bpmValue = bpm > 0 ? bpm.ToString() : "-";
-        string valueColor = speedDirection > 0 ? "#55B9FF" :
-            speedDirection < 0 ? "#FF5B5B" : "#F5E8C9";
-        string arrow = !showArrow ? string.Empty :
-            speedDirection > 0 ? "  <size=52>↑</size>" :
-            speedDirection < 0 ? "  <size=52>↓</size>" : string.Empty;
-        // Direction arrows are drawn as UI geometry on both sides of the BPM
-        // block, so the text no longer depends on font glyph availability.
-        arrow = string.Empty;
-        return $"<size=20><color=#D9BC76>TIME SIGNATURE</color>  {ts}</size>\n" +
-               $"<size=25><color=#D9BC76>BPM</color></size>  " +
-               $"<size=58><color={valueColor}>{bpmValue}{arrow}</color></size>";
+        // 字級是絕對點數，不隨 fontSize 縮放 —— 要改大小就得改這裡。
+        //
+        // 兩個標籤（TIME SIGNATURE／BPM）是說明不是讀數，壓到最小還讀得出就好。
+        // 數字從 58 降到 44：這一塊現在貼在分數下面，而分數是 48 —— 比分數大的
+        // 速度值會把視線先拉到這裡，但這一局真正要看的是分數。
+        return $"<size=15><color=#D9BC76>TIME SIGNATURE</color>  {ts}</size>\n" +
+               $"<size=18><color=#D9BC76>BPM</color></size>  " +
+               $"<size=44><color=#F5E8C9>{bpmValue}</color></size>";
     }
 
     // compute median delta (ms) of first few beat timings; returns 0 if unavailable
@@ -376,16 +412,19 @@ public class BpmDisplay : MonoBehaviour
             string newText = "Time Signature：" + tsText + "\n" + secondLine;
                 try
                 {
-                    // Only the BPM number carries the speed colour, via its own
-                    // <color> tag. overrideColorTags would paint the whole block
-                    // — the TIME SIGNATURE and BPM labels included — in one
-                    // colour, which is what made a tempo change repaint the
-                    // entire panel instead of just the number.
+                    // 顏色寫在數字自己的 <color> 標籤裡，所以這裡不開
+                    // overrideColorTags（那會把整塊一起上色）。
                     bpmText.overrideColorTags = false;
                     bpmText.color = new Color(0.96f, 0.91f, 0.79f, 1f);
-                    newText = FormatBpmText(tsText, displayBpm, speedDirection, speedWarning);
-                    bpmText.SetText(newText);
-                    bpmText.ForceMeshUpdate();
+                    newText = FormatBpmText(tsText, displayBpm);
+                    // 速度方向還在驅動「要不要重畫」，但數字已經不隨快慢變色了，
+                    // 所以變速時算出來的字串會一模一樣 —— 那就不要再丟給 TMP 一次，
+                    // SetText + ForceMeshUpdate 是這一塊最貴的動作。
+                    if (newText != lastDisplayedText)
+                    {
+                        bpmText.SetText(newText);
+                        bpmText.ForceMeshUpdate();
+                    }
                     if (enableDebug) try { BuildLogger.Log($"[BpmDisplay] UI set to: {newText}"); } catch { }
                     lastDisplayedText = newText;
                     lastDisplayedBpm = displayBpm;
@@ -960,19 +999,59 @@ public class BpmDisplay : MonoBehaviour
         return lo;
     }
 
-    // Compute a local BPM centered around songPos using a window of neighbouring beats.
-    // windowRadius = number of beats before/after to include (e.g. 3 -> up to 7 intervals)
-    // Compute instantaneous BPM using the nearest adjacent beat interval (no median)
+    /// <summary>
+    /// 這個時間點的速度。往回看一小段拍點，取**間距的中位數**當一拍。
+    /// </summary>
+    /// <remarks>
+    /// **為什麼不能只看相鄰那一個間距**（舊版的做法）。拍點只存整數毫秒，每個
+    /// 間距都帶 ±1ms 的進位誤差，而那個誤差換算成 BPM 要除以間距本身 —— 速度
+    /// 越快，同樣的 1ms 就越兇：
+    ///
+    /// | 速度 | 一拍 | ±1ms 換算成 BPM |
+    /// |---|---|---|
+    /// | 120 | 500ms | ±0.24 |
+    /// | 180 | 333ms | ±0.54 |
+    /// | 666 | 90ms  | **±7.4** |
+    ///
+    /// 使用者報的 `666` 那首實測（宣告 666 BPM、一拍 90ms、整首定速）：1308 個
+    /// 間距是 90×838、91×235、89×235，顯示出來就是 **666 / 659 / 673 三個數字
+    /// 輪流跳，1308 拍裡換了 823 次** —— 一秒鐘跳七次，而譜面一點變速都沒有。
+    ///
+    /// **為什麼是中位數不是平均。** 間距只會是相鄰的兩三個整數，中位數直接選到
+    /// 主值（同一首改成 16 筆窗的中位數之後，1308 拍裡 1307 拍顯示 666，整首只
+    /// 換 2 次）。平均會算出 90.07 這種值，換算回去又要四捨五入，等於把問題搬個
+    /// 位置；而且譜尾那一筆**收尾標記**（每份譜的最後一筆拍點本來就不在格線上）
+    /// 會把平均拉走，中位數對它免疫。
+    ///
+    /// **窗長兩個條件誰先到算誰。** 固定筆數在慢曲上會把窗拉成好幾秒（60 BPM
+    /// 的 16 拍 = 16 秒），真的變速就跟不上；固定時間在快曲上又只蓋到兩三筆，
+    /// 雜訊壓不下來。代價是真的變速時數字會晚半個窗才換（666 BPM 約 0.6 秒），
+    /// 那是刻意的取捨：這個欄位是給人讀的，不是判定用的。
+    /// </remarks>
     private float ComputeInstantBpmAtSongPos(float songPosMs)
     {
         if (chart == null || chart.beat_timings == null || chart.beat_timings.Count < 2) return 0f;
         var beats = chart.beat_timings;
-        int idx = FindBeatIndexForSongPos(songPosMs);
-        // If idx is 0, use interval between 0 and 1; otherwise use interval between idx-1 and idx (closest past interval)
-        int i0 = Mathf.Clamp(idx - 1, 0, beats.Count - 2);
-        int i1 = i0 + 1;
-        int span = beats[i1] - beats[i0];
+        // FindBeatIndexForSongPos 給的是「下一個拍點」，所以 idx-1..idx 就是現在
+        // 正在走的那一個間距；窗從它開始往回鋪。
+        int idx = Mathf.Clamp(FindBeatIndexForSongPos(songPosMs), 1, beats.Count - 1);
+
+        instantIntervals.Clear();
+        float gathered = 0f;
+        for (int i = idx; i > 0; i--)
+        {
+            int delta = beats[i] - beats[i - 1];
+            if (delta <= 0) continue;                   // 同一刻的重複拍點
+            instantIntervals.Add(delta);
+            gathered += delta;
+            if (instantIntervals.Count >= InstantWindowMaxIntervals) break;
+            if (gathered >= InstantWindowTargetMs && instantIntervals.Count >= 3) break;
+        }
+        if (instantIntervals.Count == 0) return 0f;
+        instantIntervals.Sort();
+        int span = instantIntervals[instantIntervals.Count / 2];
         if (span <= 0) return 0f;
+
         int sub = Mathf.Max(1, effectiveBeatSubdivision);
         float denominatorScale = timeSigDenominator > 0 && currentTimeSigDenominator > 0
             ? (float)timeSigDenominator / currentTimeSigDenominator
@@ -982,7 +1061,12 @@ public class BpmDisplay : MonoBehaviour
             : 60000f / (span * sub);
         if (enableDebug)
         {
-            try { BuildLogger.Log($"[BpmDisplay] instant: idx={idx} use={i0}-{i1} spanMs={span} sub={sub} -> bpm={bpm:F2}"); } catch { }
+            try
+            {
+                BuildLogger.Log($"[BpmDisplay] instant: idx={idx} window={instantIntervals.Count}" +
+                                $" medianMs={span} sub={sub} -> bpm={bpm:F2}");
+            }
+            catch { }
         }
         return bpm;
     }

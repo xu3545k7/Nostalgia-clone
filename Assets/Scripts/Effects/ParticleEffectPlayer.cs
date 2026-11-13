@@ -111,8 +111,60 @@ public class ParticleEffectPlayer : MonoBehaviour
     /// </remarks>
     public static bool NextSealIsPrecise;
 
+    /// <summary>
+    /// 這一下是「完全完美」：時間是 JUST **而且**力度對。
+    /// </summary>
+    /// <remarks>
+    /// 時間和力度是兩件獨立的事（力度對而時間錯是常態），所以判定色和
+    /// <see cref="NextSealIsPrecise"/> 一直是兩個分開的輸入，六種組合都會出現。
+    /// 兩件事**同時**做到則是第七種，而且是最難的那一種 —— 它值得一套自己的顏色，
+    /// 不是前六種的其中一格。見 <c>FlawlessPalette</c>。
+    /// </remarks>
+    public static bool NextSealIsFlawless;
+
+    /// <summary>
+    /// 下一個封印的內圈要用的判定色。null＝沿用手色。
+    /// </summary>
+    /// <remarks>
+    /// 和 <see cref="NextSealIsPrecise"/> 同一套交接方式：呼叫端在建立特效之前設好，
+    /// 然後在 finally 清掉。這條路徑穿過 HitEffectRouter，中間那幾層完全不需要知道
+    /// 判定的事 —— 為了一個顏色去改三層的簽名，代價比一個短命的靜態欄位大。
+    ///
+    /// **為什麼改用判定色。** 原本內圈是手色（紅／藍），但手的資訊音符本身已經講了，
+    /// 而且是從頭講到尾；魔法環出現的那一刻帶來的新消息是「這一下接得準不準」。
+    /// 顏色花在已知的事情上，等於沒出到力 —— 和斷奏箭頭當初的問題是同一個。
+    /// </remarks>
+    public static Color? NextSealTint;
+
     private static readonly int HoldInnerColorId = Shader.PropertyToID("_InnerColor");
     private static readonly int HoldOuterColorId = Shader.PropertyToID("_OuterColor");
+    private static readonly int HoldInnerAccentDeepId = Shader.PropertyToID("_InnerAccentDeep");
+    private static readonly int HoldInnerAccentMidId = Shader.PropertyToID("_InnerAccentMid");
+    private static readonly int HoldInnerAccentLightId = Shader.PropertyToID("_InnerAccentLight");
+    private static readonly int HoldOuterAccentDeepId = Shader.PropertyToID("_OuterAccentDeep");
+    private static readonly int HoldOuterAccentMidId = Shader.PropertyToID("_OuterAccentMid");
+    private static readonly int HoldOuterAccentLightId = Shader.PropertyToID("_OuterAccentLight");
+    private static readonly int HoldAccentCoreId = Shader.PropertyToID("_AccentCore");
+    private static readonly int HoldAccentBodyId = Shader.PropertyToID("_AccentBody");
+    private static readonly int HoldAccentDeepId = Shader.PropertyToID("_AccentDeep");
+    private static readonly int HoldAccentGoldId = Shader.PropertyToID("_AccentGold");
+    private static readonly int HoldAccentGoldDeepId = Shader.PropertyToID("_AccentGoldDeep");
+    private static readonly int HoldAccentCrownId = Shader.PropertyToID("_AccentCrown");
+    private static readonly int HoldAccentEdgeId = Shader.PropertyToID("_AccentEdge");
+    private static readonly int HoldToneCoreId = Shader.PropertyToID("_ToneCore");
+    private static readonly int HoldToneBodyId = Shader.PropertyToID("_ToneBody");
+    private static readonly int HoldToneDeepId = Shader.PropertyToID("_ToneDeep");
+    private static readonly int HoldToneGoldId = Shader.PropertyToID("_ToneGold");
+    private static readonly int HoldToneGoldDeepId = Shader.PropertyToID("_ToneGoldDeep");
+    private static readonly int HoldToneCrownId = Shader.PropertyToID("_ToneCrown");
+    private static readonly int HoldToneEdgeId = Shader.PropertyToID("_ToneEdge");
+    private static readonly int HoldStageCoreId = Shader.PropertyToID("_StageCore");
+    private static readonly int HoldStageDeepId = Shader.PropertyToID("_StageDeep");
+    private static readonly int HoldStageGoldDeepId = Shader.PropertyToID("_StageGoldDeep");
+    private static readonly int HoldStageCrownId = Shader.PropertyToID("_StageCrown");
+    private static readonly int HoldStageEdgeId = Shader.PropertyToID("_StageEdge");
+    private static readonly int HoldGradientStartId = Shader.PropertyToID("_GradientStart");
+    private static readonly int HoldGradientEndId = Shader.PropertyToID("_GradientEnd");
     private static readonly int HoldPlatinumColorId = Shader.PropertyToID("_PlatinumColor");
     private static readonly int HoldCoreHighlightColorId = Shader.PropertyToID("_CoreHighlightColor");
     private static readonly int HoldRadialScaleId = Shader.PropertyToID("_RadialScale");
@@ -929,7 +981,7 @@ public class ParticleEffectPlayer : MonoBehaviour
         // keeps the glow low enough that the seal's engraving still reads through
         // the swell rather than being blown out by it.
         ApplyHoldMagicPalette(renderer, rightHand, coreOpacity, 1f, 0.15f,
-            magicShatterShards, 1f);
+            magicShatterShards, 1f, softGradient: true);
         renderer.sortingLayerID = sortingLayerId;
         renderer.sortingOrder = sortingOrder;
 
@@ -957,6 +1009,262 @@ public class ParticleEffectPlayer : MonoBehaviour
         activeHoldContactCores[note] = effect;
     }
 
+
+    /// <summary>一個第二色系的深／中／淺三支。</summary>
+    private readonly struct AccentFamily
+    {
+        public readonly Color Deep;
+        public readonly Color Mid;
+        public readonly Color Light;
+
+        public AccentFamily(Color deep, Color mid, Color light)
+        {
+            Deep = deep;
+            Mid = mid;
+            Light = light;
+        }
+    }
+
+    /// <summary>
+    /// 每一個本色「藏」的第二色系。**這是一張手定的表，不是算出來的。**
+    /// </summary>
+    /// <remarks>
+    /// 先試過一條規則（把本色沿色環往青轉 25/45/68 度當三支），結果有兩個病：
+    /// 轉角被「到青為止」夾住，於是 GREAT 的綠和 GOOD 的藍**淺支都落在同一個
+    /// 純青上** —— 兩種判定在亮的那幾段會長得一樣；而金被推到零藍的酸綠。
+    /// 規則算得出來不等於設計得出來，所以改成一張表。
+    ///
+    /// **設計的三條約束：**
+    /// 1. 內圈的色系不能撞到外圈的色系 —— 它們是相鄰的兩段，撞在一起就白分了。
+    /// 2. 判定色本身的辨識度不能被第二色系稀釋：紅綠藍要一眼分得出來，
+    ///    那是這個效果存在的理由（顏色要花在「接得準不準」上）。
+    /// 3. 兩段之間不能從灰穿過去。所以每一組都走色環上**繞過去**的那條路，
+    ///    不走穿過中心的那條（藍直接 lerp 到金就是穿過中心，會發灰）。
+    ///
+    /// **各組的理由：**
+    /// - 金 → 綠（使用者指定）：銅鏽。凹處是氧化掉的，亮處是新磨過的。
+    /// - 紫 → 藍（使用者指定）：氧化銀。紫藍相鄰，怎麼接都順。
+    /// - JUST 奶油 → 淡青：象牙的冷陰影。暖亮部配冷暗部是最老的一條配色。
+    /// - GREAT 綠 → 琥珀金：**和金環的綠互換**。綠的凹處藏金、金的凹處藏綠，
+    ///   跨過那道縫的時候兩邊交換了彼此的第二色 —— 這比各配各的更有設計感，
+    ///   而且剛好避開「綠配綠」撞色。
+    /// - GOOD 藍 → 青：深水。往青走會**離紫更遠**，所以 GOOD 配上 precise 的
+    ///   紫環時反而更分得開（藍和紫本來就只差 50 度，是既有的隱患）。
+    /// - 紅手色 → 紫紅：紅的陰影在顏料裡本來就偏紫，而且避開金的綠。
+    ///
+    /// 三支的排法有固定方向：**深的留在本色這邊、淺的往第二色推到底**。
+    /// 真實的藍顏料就是這樣排的（靛偏紫、鈷在中間、天青偏青），綠也一樣
+    /// （深的是橄欖銅鏽、淺的是青瓷）。反過來排會讀成兩個不相干的顏色。
+    /// </remarks>
+    private static AccentFamily ResolveAccentFamily(Color source, bool gilding)
+    {
+        float hue = HueOf(source);
+        if (gilding)
+        {
+            // 金（約 45°）配綠系；precise 的紫（約 271°）配藍系。
+            return hue < 150f || hue > 330f
+                ? new AccentFamily(
+                    new Color(0.52f, 0.62f, 0.18f, 1f),   // 橄欖銅鏽
+                    new Color(0.78f, 1.25f, 0.34f, 1f),   // 苔綠
+                    new Color(1.05f, 1.62f, 0.92f, 1f))   // 青瓷
+                : new AccentFamily(
+                    new Color(0.22f, 0.20f, 0.95f, 1f),   // 靛
+                    new Color(0.32f, 0.70f, 1.70f, 1f),   // 鈷藍
+                    new Color(0.88f, 1.45f, 2.05f, 1f));  // 天青
+        }
+
+        if (hue >= 95f && hue < 160f)
+        {
+            // GREAT 的綠 → 琥珀金系（和金環互換）
+            return new AccentFamily(
+                new Color(0.62f, 0.38f, 0.08f, 1f),
+                new Color(1.15f, 0.78f, 0.18f, 1f),
+                new Color(1.55f, 1.25f, 0.55f, 1f));
+        }
+        if (hue >= 160f && hue < 265f)
+        {
+            // GOOD 的藍、以及左手的藍 → 青系
+            return new AccentFamily(
+                new Color(0.05f, 0.38f, 0.46f, 1f),
+                new Color(0.12f, 0.88f, 1.00f, 1f),
+                new Color(0.72f, 1.40f, 1.45f, 1f));
+        }
+        if (hue >= 265f || hue < 20f)
+        {
+            // 右手的紅 → 紫紅系
+            return new AccentFamily(
+                new Color(0.42f, 0.08f, 0.34f, 1f),
+                new Color(0.92f, 0.22f, 0.72f, 1f),
+                new Color(1.35f, 0.78f, 1.25f, 1f));
+        }
+        // JUST 的奶油（約 60°）→ 靛藍系。
+        // 先試過淡青（0.42,0.56,0.52 一組），在畫面上完全看不到：奶油本身彩度
+        // 就只有 0.2，再配一個同樣灰的家族等於沒配。奶油和金都是暖色，要對比
+        // 就得用冷的，而靛藍是離它們最遠又不撞到別組的那一支（綠被金佔了、
+        // 青被 GOOD 佔了、紫是 precise 的）。象牙配藍灰陰影也是最老的一組配色。
+        return new AccentFamily(
+            new Color(0.16f, 0.20f, 0.62f, 1f),
+            new Color(0.34f, 0.58f, 1.35f, 1f),
+            new Color(0.92f, 1.25f, 1.70f, 1f));
+    }
+
+    /// <summary>HDR 顏色的色相（度）。峰值大於 1 的顏色要先正規化，否則會被夾掉。</summary>
+    private static float HueOf(Color source)
+    {
+        float peak = Mathf.Max(source.r, Mathf.Max(source.g, source.b));
+        if (peak <= 0.0001f) return 0f;
+        Color.RGBToHSV(new Color(source.r / peak, source.g / peak, source.b / peak, 1f),
+            out float h, out _, out _);
+        return h * 360f;
+    }
+
+
+    /// <summary>
+    /// 七段點綴的量，由內到外。和 shader 的 Properties 預設是同一組數字 ——
+    /// 因為一般的那一組也要**明確寫進 property block**：這些 renderer 來自物件池，
+    /// 上一顆留下來的 block 會跟著被沿用，不寫就會把「完全完美」的量帶到下一顆
+    /// 普通音符身上。
+    /// </summary>
+    private static readonly float[] NormalAccents =
+        { 0.12f, 0.00f, 0.60f, 0.00f, 0.85f, 0.18f, 0.80f };
+
+    /// <summary>
+    /// 「完全完美」的點綴量：本色那兩段也開，整圈都有第二個顏色在流動。
+    /// </summary>
+    private static readonly float[] FlawlessAccents =
+        { 0.20f, 0.10f, 1.00f, 0.00f, 1.00f, 0.00f, 0.35f };
+
+    /// <summary>
+    /// 七段的明暗，由內到外。和 shader 的 Properties 預設是同一組數字。
+    /// </summary>
+    private static readonly float[] NormalTones =
+        { 0.75f, 0.00f, -0.85f, 0.00f, -0.72f, 0.45f, -0.82f };
+
+    /// <summary>
+    /// 「完全完美」的明暗。
+    /// </summary>
+    /// <remarks>
+    /// **藏色的那幾段不能調亮。** 試過把翡翠和靛藍推到正的（+0.30／+0.25），
+    /// 結果整圈洗白 —— 這個效果的實心筆畫要乘 (1+CoreBoost)×Glow ＝ 3.08 倍，
+    /// 推上去就撞到 tonemap 的肩部，顏色又回不來了（和一般封印那一組是同一個
+    /// 教訓，量法見 hold-magic-shading 的筆記）。顏色活在中間調。
+    ///
+    /// 所以翠和藍留在 −0.45：夠暗到有色相，又不是一條黑縫。亮的只有金心和紫冠，
+    /// 它們是這一圈的兩個端點。
+    /// </remarks>
+    private static readonly float[] FlawlessTones =
+        { 0.75f, 0.00f, -0.30f, 0.00f, -0.40f, 0.20f, -0.70f };
+    // 翠環只壓 −0.30（不是 −0.45）：它現在是**一條細線**，壓太暗就變成一道縫
+    // 而不是一個顏色。紫冠只提 0.20 —— +0.45 會把它去飽和成淡紫白，最外面那個
+    // 顏色就沒了，整圈退回「金心加白邊」。
+
+    /// <summary>
+    /// 七段邊界的半徑，由內到外：核心止／第一段止／金段止／冠止／邊止，
+    /// 外加鍍金交接的兩端。一般的那一組取自雕花自己的筆畫空檔。
+    /// </summary>
+    private static readonly float[] NormalStages =
+        { 0.190f, 0.412f, 0.688f, 0.802f, 0.912f, 0.478f, 0.522f };
+
+    /// <summary>接觸核心用的分段：交接還原成舊的長漸層，其餘不重要（分段被關著）。</summary>
+    private static readonly float[] SoftStages =
+        { 0.190f, 0.412f, 0.688f, 0.802f, 0.912f, 0.400f, 0.780f };
+
+    /// <summary>
+    /// 「完全完美」的分段：**金佔一半，翠和藍各一條細環，紫守外圈。**
+    /// </summary>
+    /// <remarks>
+    /// 走過兩版才到這裡：
+    ///
+    /// 1. 第一版照一般封印的做法，把翠和藍放在**凹下去的窄段**（各佔半徑 8.8% /
+    ///    11%）。放大看得到，實機上是兩條細線，泛光一吃就只剩「中間金、外面紫」。
+    /// 2. 第二版切成**四等分**，四個顏色各一塊。看得到了，但金被壓到只剩四分之一
+    ///    —— 使用者的話是「降低綠色、提高金色比例，綠色應該要非常細，只是點綴」。
+    ///
+    /// 定案：金 0.14–0.505（連核心共約一半）、**翠 0.505–0.555（5%，一條線）**、
+    /// 紫 0.575–0.66、**藍 0.66–0.875（21.5%）**、紫冠 0.875–0.945、外緣收邊。
+    ///
+    /// **翠和藍不對稱，是故意的。** 翠是點綴（一條線），藍不是：藍只佔 6.5% 的
+    /// 那一版被評為「不順滑、切色太明顯」—— 一條窄帶夾在紫裡面讀起來是貼上去的
+    /// 一條，不是一段過渡。每個邊界的漸變各佔 `_StageWidth` 的兩倍（4.4%），
+    /// 窄帶根本來不及走完就要收回去。藍拉到 21.5% 之後外半圈才是一段連續的
+    /// 紫→藍→紫，而翠那條線反而因為窄，讀起來就是一條線。
+    /// **要一條線就給它窄，要一段過渡就得給它寬到裝得下兩個漸變。**
+    ///
+    /// 細線的明暗要**比旁邊暗一點就好**（−0.30 / −0.40）。壓太暗會讀成一道縫；
+    /// 調亮則會撞上 tonemap 的肩部（見 FlawlessTones），顏色反而不見。
+    /// </remarks>
+    private static readonly float[] FlawlessStages =
+        { 0.140f, 0.505f, 0.660f, 0.875f, 0.945f, 0.555f, 0.575f };
+
+    /// <summary>
+    /// 「完全完美」專屬的一套顏色：半徑上**走一遍光譜**，金綠藍紫一起用。
+    /// </summary>
+    /// <remarks>
+    /// 前六種組合都是「一個判定色 ＋ 一個鍍金色」，兩個顏色。這一種刻意不是：
+    /// 由內到外是 **熾金 → 翡翠 → 靛藍 → 紫**，四個顏色各佔一段，
+    /// 凹的段吃滿第二色系、凸的段也帶四成，所以整圈都在流動而不是分層塗。
+    /// 玩家不需要讀任何字就知道這一下和剛才那些不一樣。
+    ///
+    /// **紫留在最外圈**是刻意的：紫已經是「力度對了」的意思，把它換掉的話
+    /// 這套新顏色就不再是「精準再加上準時」，而是一個無關的第七種顏色。
+    /// 金在最中心也是同一個道理 —— 金是這個效果本來的貴金屬，核心用它，
+    /// 外面那一圈紫才讀得出是「在金上面再鍍了一層」。
+    ///
+    /// 排法還試過另外三種（翠心→紫邊／翠心→金邊／金心→翠邊），都做得出來，
+    /// 換的話只要改這個方法裡的六個顏色；工具在 tools/preview_hold_magic.py。
+    /// </remarks>
+    private static void FlawlessPalette(out Color inner, out Color coreHighlight,
+        out Color gilding, out Color gildingHighlight,
+        out AccentFamily innerFamily, out AccentFamily outerFamily)
+    {
+        inner = new Color(1.70f, 1.15f, 0.38f, 1f);            // 熾金
+        coreHighlight = new Color(2.00f, 1.80f, 1.25f, 1f);
+        gilding = new Color(1.30f, 0.62f, 1.92f, 1f);          // 紫（和 precise 同一個）
+        gildingHighlight = new Color(1.70f, 1.10f, 2.15f, 1f);
+        innerFamily = new AccentFamily(                        // 翡翠 → 青綠 → 天青綠
+            new Color(0.10f, 0.62f, 0.38f, 1f),
+            new Color(0.20f, 1.35f, 0.85f, 1f),
+            new Color(0.75f, 1.70f, 1.45f, 1f));
+        outerFamily = new AccentFamily(                        // 靛 → 鈷 → 天青
+            new Color(0.14f, 0.22f, 0.95f, 1f),
+            new Color(0.30f, 0.72f, 1.85f, 1f),
+            new Color(0.90f, 1.50f, 2.10f, 1f));
+    }
+
+    private static void SetAccentAmounts(MaterialPropertyBlock block, float[] a)
+    {
+        block.SetFloat(HoldAccentCoreId, a[0]);
+        block.SetFloat(HoldAccentBodyId, a[1]);
+        block.SetFloat(HoldAccentDeepId, a[2]);
+        block.SetFloat(HoldAccentGoldId, a[3]);
+        block.SetFloat(HoldAccentGoldDeepId, a[4]);
+        block.SetFloat(HoldAccentCrownId, a[5]);
+        block.SetFloat(HoldAccentEdgeId, a[6]);
+    }
+
+    private static void SetStages(MaterialPropertyBlock block, float[] e)
+    {
+        block.SetFloat(HoldStageCoreId, e[0]);
+        block.SetFloat(HoldStageDeepId, e[1]);
+        block.SetFloat(HoldStageGoldDeepId, e[2]);
+        block.SetFloat(HoldStageCrownId, e[3]);
+        block.SetFloat(HoldStageEdgeId, e[4]);
+        block.SetFloat(HoldGradientStartId, e[5]);
+        block.SetFloat(HoldGradientEndId, e[6]);
+    }
+
+    private static void SetTones(MaterialPropertyBlock block, float[] t)
+    {
+        block.SetFloat(HoldToneCoreId, t[0]);
+        block.SetFloat(HoldToneBodyId, t[1]);
+        block.SetFloat(HoldToneDeepId, t[2]);
+        block.SetFloat(HoldToneGoldId, t[3]);
+        block.SetFloat(HoldToneGoldDeepId, t[4]);
+        block.SetFloat(HoldToneCrownId, t[5]);
+        block.SetFloat(HoldToneEdgeId, t[6]);
+    }
+
+    /// <summary>深／中／淺三支一次送進材質。</summary>
     /// <summary>
     /// Supplies one layer's slice of the seal's shared colour ramp.
     /// <paramref name="radialScale"/> is this sprite's size relative to the
@@ -965,8 +1273,14 @@ public class ParticleEffectPlayer : MonoBehaviour
     /// its own quad. <paramref name="radialBias"/> pushes a layer towards the
     /// luminous end regardless of where it sits.
     /// </summary>
+    /// <param name="softGradient">
+    /// 接觸核心用。它的材質 `_StageStrength` 是 0，分段本來就不會生效，但
+    /// **鍍金交接的窗口是從 property block 餵的，block 會蓋掉材質上的值** ——
+    /// 不給它寬的那一組，那團柔光斑中間就會被切出一道硬邊。
+    /// </param>
     private static void ApplyHoldMagicPalette(SpriteRenderer renderer, bool redSide, float opacity,
-        float radialScale, float radialBias, int shardCount, float uvZoom)
+        float radialScale, float radialBias, int shardCount, float uvZoom,
+        bool softGradient = false)
     {
         if (renderer == null) return;
         // Both hands share one gilded rim; only the body of the seal carries the
@@ -985,13 +1299,47 @@ public class ParticleEffectPlayer : MonoBehaviour
         // Shared by both hands: the theme colour hands over to this at the rim.
         Color gilding = new Color(1.58f, 0.98f, 0.26f, 1f);
         Color gildingHighlight = new Color(1.80f, 1.28f, 0.48f, 1f);
+
+        if (NextSealTint.HasValue)
+        {
+            // 判定色正規化到和手色同一個強度（峰值 1.05）再用。直接套原值的話，
+            // JUST 的峰值是 0.96、GREAT 是 1.00 —— 三種判定會連帶變成三種曝光，
+            // 而那是亮度不是顏色。
+            Color j = NextSealTint.Value;
+            float peak = Mathf.Max(j.r, Mathf.Max(j.g, j.b));
+            if (peak > 0.001f)
+            {
+                float k = 1.05f / peak;
+                inner = new Color(j.r * k, j.g * k, j.b * k, 1f);
+                // 高光往白推四成再提亮。純色的高光會讓最亮的筆畫全部 clip 成同一個
+                // 色相，整片雕花就糊成一塊 —— 紅色那版的高光就是這樣壞掉的。
+                coreHighlight = new Color(
+                    Mathf.Lerp(inner.r, 1.05f, 0.42f) * 1.45f,
+                    Mathf.Lerp(inner.g, 1.05f, 0.42f) * 1.45f,
+                    Mathf.Lerp(inner.b, 1.05f, 0.42f) * 1.45f, 1f);
+            }
+        }
         if (NextSealIsPrecise)
         {
-            // 紫的邊，但**亮度和金的一樣**。這兩組是照亮度（0.2126/0.7152/0.0722）
-            // 算過再縮回去的：金 1.056、亮金 1.333，紫的也一樣。不這樣做的話，
-            // 換個色相就等於換了曝光，泛光的門檻也跟著跑掉。
-            gilding = new Color(1.35f, 0.91f, 1.58f, 1f);
-            gildingHighlight = new Color(1.70f, 1.16f, 1.99f, 1f);
+            // **刻意不和金等亮度了。**
+            //
+            // 上一版是照亮度（0.2126/0.7152/0.0722）把紫縮到和金一樣的 1.056，理由是
+            // 「換色相不該等於換曝光」。那個理由本身沒錯，但結果是這圈紫讀起來就是
+            // 「換了色相的金」—— 白、亮、平，完全沒有深度。要讓內→外有進行感，外圈
+            // 就得比內圈**重**，而重的意思包含亮度低一階。
+            //
+            // 亮度約 0.86，介於原本等亮度的 1.056 和「太深」的 0.56 之間。
+            //
+            // 0.56 那一版使用者說太深。往回拉但不拉滿：等亮度的話又會變回「換了色相
+            // 的金」—— 白、亮、平，內→外就沒有進行感了。保留彩度（藍遠高於綠），
+            // 只把整體提亮。
+            //
+            // **不能再往下。** SrcAlpha 混色下近黑的墨會從軌道上扣掉光而不是發光，
+            // 中央會糊成髒污 —— 這個效果第一版就是這樣，評語是「太深完全不自然」。
+            //
+            // 泛光吃得到：門檻看最高的那個通道，藍 1.92 比金的最高通道（紅 1.58）高。
+            gilding = new Color(1.30f, 0.62f, 1.92f, 1f);
+            gildingHighlight = new Color(1.68f, 1.05f, 2.15f, 1f);
         }
 
         // RGB is supplied explicitly through the material block. Only alpha is
@@ -1000,8 +1348,26 @@ public class ParticleEffectPlayer : MonoBehaviour
         renderer.color = new Color(1f, 1f, 1f, Mathf.Clamp01(opacity));
         var block = new MaterialPropertyBlock();
         renderer.GetPropertyBlock(block);
+        AccentFamily innerFamily = ResolveAccentFamily(inner, false);
+        AccentFamily outerFamily = ResolveAccentFamily(gilding, true);
+        if (NextSealIsFlawless)
+        {
+            FlawlessPalette(out inner, out coreHighlight, out gilding,
+                out gildingHighlight, out innerFamily, out outerFamily);
+        }
+
         block.SetColor(HoldInnerColorId, inner);
         block.SetColor(HoldOuterColorId, gilding);
+        block.SetColor(HoldInnerAccentDeepId, innerFamily.Deep);
+        block.SetColor(HoldInnerAccentMidId, innerFamily.Mid);
+        block.SetColor(HoldInnerAccentLightId, innerFamily.Light);
+        block.SetColor(HoldOuterAccentDeepId, outerFamily.Deep);
+        block.SetColor(HoldOuterAccentMidId, outerFamily.Mid);
+        block.SetColor(HoldOuterAccentLightId, outerFamily.Light);
+        SetAccentAmounts(block, NextSealIsFlawless ? FlawlessAccents : NormalAccents);
+        SetTones(block, NextSealIsFlawless ? FlawlessTones : NormalTones);
+        SetStages(block, softGradient ? SoftStages
+            : NextSealIsFlawless ? FlawlessStages : NormalStages);
         block.SetColor(HoldCoreHighlightColorId, coreHighlight);
         block.SetColor(HoldPlatinumColorId, gildingHighlight);
         block.SetFloat(HoldRadialScaleId, Mathf.Max(0.05f, radialScale));
@@ -1117,6 +1483,17 @@ public class ParticleEffectPlayer : MonoBehaviour
         // darker.
         if (holdMagicContactCoreMaterial.HasProperty("_SheenStrength"))
             holdMagicContactCoreMaterial.SetFloat("_SheenStrength", 0f);
+        // 不分段。接觸核心是一團柔光斑，沒有同心的環狀結構 —— 共用半徑那條色階是照三張
+        // 雕花貼圖的空檔切的，套在它身上只會切出莫名其妙的環。把鍍金的交接
+        // 還原成舊的長漸層，外觀和加多段之前一模一樣。
+        if (holdMagicContactCoreMaterial.HasProperty("_StageStrength"))
+            holdMagicContactCoreMaterial.SetFloat("_StageStrength", 0f);
+        if (holdMagicContactCoreMaterial.HasProperty("_GradientStart"))
+            holdMagicContactCoreMaterial.SetFloat("_GradientStart", 0.40f);
+        if (holdMagicContactCoreMaterial.HasProperty("_GradientEnd"))
+            holdMagicContactCoreMaterial.SetFloat("_GradientEnd", 0.78f);
+        if (holdMagicContactCoreMaterial.HasProperty("_MidSaturation"))
+            holdMagicContactCoreMaterial.SetFloat("_MidSaturation", 0.55f);
         return holdMagicContactCoreMaterial;
     }
 
@@ -1136,6 +1513,17 @@ public class ParticleEffectPlayer : MonoBehaviour
             holdMagicGeometryMaterial.SetTexture("_MainTex", Texture2D.whiteTexture);
         if (holdMagicGeometryMaterial.HasProperty("_Glow"))
             holdMagicGeometryMaterial.SetFloat("_Glow", 1.45f);
+        // 不分段。線條幾何是 LineRenderer，uv 是沿著線走的，沒有同心的環狀結構 —— 共用半徑那條色階是照三張
+        // 雕花貼圖的空檔切的，套在它身上只會切出莫名其妙的環。把鍍金的交接
+        // 還原成舊的長漸層，外觀和加多段之前一模一樣。
+        if (holdMagicGeometryMaterial.HasProperty("_StageStrength"))
+            holdMagicGeometryMaterial.SetFloat("_StageStrength", 0f);
+        if (holdMagicGeometryMaterial.HasProperty("_GradientStart"))
+            holdMagicGeometryMaterial.SetFloat("_GradientStart", 0.40f);
+        if (holdMagicGeometryMaterial.HasProperty("_GradientEnd"))
+            holdMagicGeometryMaterial.SetFloat("_GradientEnd", 0.78f);
+        if (holdMagicGeometryMaterial.HasProperty("_MidSaturation"))
+            holdMagicGeometryMaterial.SetFloat("_MidSaturation", 0.55f);
         return holdMagicGeometryMaterial;
     }
 
@@ -1593,6 +1981,8 @@ public class ParticleEffectPlayer : MonoBehaviour
         // length here used to stretch and move this burst up the Hold body.
         ClassicalHitAccent.Play(position, rotation, width, theme, noteHeight, 0f);
         try { JudgmentLineGlow.GetOrCreate()?.TriggerGlow(); } catch { }
+        // 同上：帶位置的那一份。兩條路徑都叫得到，JudgmentLineWave 自己擋重複。
+        Effects.JudgmentLineWave.Strike(position.x, laneId, note.NoteData, result);
     }
 
     private bool ResolveIsLeft(NoteController note, int laneId)

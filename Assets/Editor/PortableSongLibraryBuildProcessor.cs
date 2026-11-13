@@ -46,6 +46,9 @@ public sealed class PortableSongLibraryBuildProcessor : IPostprocessBuildWithRep
 
     public void OnPostprocessBuild(BuildReport report)
     {
+        // 手機／平板的曲庫在 App 的 Documents，不在輸出資料夾旁邊；
+        // iOS 的輸出是 Xcode 專案，塞 7 GB 的歌進去只會讓專案變巨大。
+        if (report.summary.platformGroup != BuildTargetGroup.Standalone) return;
         if (!BundleSongs)
         {
             Debug.Log("[PortableSongLibrary] Songs are not bundled into the build " +

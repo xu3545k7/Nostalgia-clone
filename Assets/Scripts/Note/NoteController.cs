@@ -440,16 +440,15 @@ public class NoteController : MonoBehaviour
     /// （Shaders/NoteArcCurve.hlsl），所以它們的頭也要用這個位移，兩者才對得上。
     /// </summary>
     /// <param name="speedWorld">
-    /// 世界單位／秒。用來把「音符前緣離中心多遠」換算成時間：貼圖是平躺的一片，
-    /// **前緣**才是要碰到判定線的那一邊（見 NoteNearEdgeLocalOffsetZ）。照中心的
-    /// 時間抬高的話，弧線末端那一段很陡，半個音符長度就會變成看得出來的高度差
-    /// ——音符浮在線上方，特效卻在線上。0 = 不修正。
+    /// 世界單位／秒。弧線末端那一段很陡，取樣點差半個音符長度就是看得出來的高度
+    /// 差 —— 音符浮在線上方、特效卻在線上。取樣點見 ArcSampleZ，它和
+    /// NoteTimeAnchorShare 綁在一起。0 = 不修正。
     /// </param>
     /// <summary>
     /// 這一顆現在該被抬多高。**由畫面高度反解**（見 NoteArcScreen）：本家那條
     /// 曲線是螢幕座標，直接加在世界 Y 上會和透視重複算一次。
     /// </summary>
-    /// <param name="worldZ">音符**前緣**的世界 Z——前緣才是碰到判定線的那一邊。</param>
+    /// <param name="worldZ">會碰到判定線的那個點的世界 Z，見 ArcSampleZ。</param>
     private float CurrentArcOffset(float worldZ)
     {
         PrepareArcScreen();
@@ -470,7 +469,7 @@ public class NoteController : MonoBehaviour
     private void ApplyArcToHead(ref Vector3 pos)
     {
         if (!hasBaseY) return;
-        float edge = LeadingEdgeZ(pos.z);
+        float edge = ArcSampleZ(pos.z);
         pos.y = baseY + CurrentArcOffset(edge);
         appliedArcLateral = CurrentArcLateral(edge);
         pos.x = baseX * appliedArcLateral;
@@ -583,9 +582,21 @@ public class NoteController : MonoBehaviour
     }
 
     /// <summary>音符前緣的世界 Z（貼圖是平躺的一片，往後推了半個音符高）。</summary>
-    private float LeadingEdgeZ(float centreZ)
+    /// <summary>
+    /// 弧線要在哪個 Z 取樣：**那個會碰到判定線的點**。
+    /// </summary>
+    /// <remarks>
+    /// 和 <see cref="NoteTimeAnchorShare"/> 綁在一起，不能各寫各的 0.5。
+    /// 弧線末端很陡，取樣點差半個音符長度就是看得出來的高度差 —— 症狀是音符浮在
+    /// 判定線上方、打擊特效卻在線上。
+    ///
+    /// 錨點是前緣（0.5）時要往回推半個身高；錨點是中央（0）時碰到線的就是中心，
+    /// 直接用它。
+    /// </remarks>
+    private float ArcSampleZ(float centreZ)
     {
-        return centreZ - ResolveNoteWorldHeight() * 0.5f;
+        if (NoteTimeAnchorShare == 0f) return centreZ;
+        return centreZ - ResolveNoteWorldHeight() * NoteTimeAnchorShare;
     }
 
     /// <summary>每幀準備一次那張「世界 Z → 該抬多高」的表。</summary>
@@ -617,20 +628,39 @@ public class NoteController : MonoBehaviour
     }
 
     /// <summary>
-    /// Local-Z distance from a flat note sprite's centre to its near (player-facing)
-    /// edge. Every flat sprite that marks a chart timestamp is pushed this far AWAY
-    /// from the judgment line, so at its timed moment the visible leading edge — not
-    /// the sprite centre — meets the line. Centring instead makes the note read as
-    /// arriving early by (noteHeight / 2) / scrollSpeed. Note that this is SMALL at
-    /// real play speeds: 2u at the shipped default of 190u/s is about 5ms, not the
-    /// 33ms that the 30u/s code fallback would suggest. Correct, but never expect it
-    /// to account for a large judgment bias on its own.
-    /// Staccato heads lie flat like every other head now, so they use it too.
+    /// 音符的哪一個位置對齊它的時間點。0 ＝ 正中央，0.5 ＝ 前緣（靠判定線那一邊）。
     /// </summary>
+    /// <remarks>
+    /// **2026-11-08 改成 0（中央），使用者定案。** 原本是 0.5：整張平貼圖被往遠處
+    /// 推半個身高，所以在它的時間點上碰到判定線的是**前緣**而不是中心。
+    ///
+    /// 兩邊各有道理，差別在於「一條有厚度的棒子代表一個瞬間」時，眼睛讀的是哪裡：
+    /// 前緣的說法是「車頭到停止線就算到了」；中央的說法是，對稱的棒子其視覺位置
+    /// 就是它的中心 —— 前緣對齊時，在時間點那一刻整根棒子還完全在線的遠側，要再
+    /// 等半個身高才會跨過線。
+    ///
+    /// **差多少（實算）**：偏移 ＝（音符高度 ÷ 2）÷ 流速。音符高度預設 2u：
+    /// 流速 80u/s（設定預設）是 **12.5ms**、190u/s 是 5.3ms、400u/s 是 2.5ms。
+    /// 判定本身走歌曲時鐘、完全不受這裡影響，所以這純粹是**看起來**早或晚 ——
+    /// 但那是一個全譜面一致的偏差，玩家校正過的 offset 會因此差這麼多。
+    ///
+    /// 要改回前緣就把這個常數設回 0.5f，所有呼叫點都吃這一個值。
+    /// </remarks>
+    private const float NoteTimeAnchorShare = 0f;
+
+    /// <summary>
+    /// 平貼圖從中心要往遠處推多少，才讓 <see cref="NoteTimeAnchorShare"/> 指定的那
+    /// 個位置落在時間點上。名字沿用舊的，呼叫點有十處。
+    /// </summary>
+    /// <remarks>
+    /// 根物件的 Z 仍然是時間換算出來的，動的只有子物件的區域偏移 —— 所以
+    /// <c>NoteArcScreen</c> 的查表（用根的 Z）不受影響。
+    /// </remarks>
     private float NoteNearEdgeLocalOffsetZ()
     {
+        if (NoteTimeAnchorShare == 0f) return 0f;
         float scaleZ = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
-        return ResolveNoteWorldHeight() * 0.5f / scaleZ;
+        return ResolveNoteWorldHeight() * NoteTimeAnchorShare / scaleZ;
     }
     [SerializeField]
     private float releaseZThreshold = 0.00f; // world units: how close to judgmentZ before actually releasing
@@ -801,8 +831,30 @@ public class NoteController : MonoBehaviour
     /// proportion whatever the note's size: a band measured in lane widths is a
     /// thin rim on a three-lane note and a slab around a one-lane one.
     /// </remarks>
-    /// <summary>斷音紋章相對基準寬度再加寬多少。高度不跟著加，所以它會稍微變扁。</summary>
-    private const float StaccatoMarkWiden = 1.5f;
+    /// <summary>斷音紋章的寬度佔音符寬度的幾成。1 ＝ 正好等寬。</summary>
+    /// <remarks>
+    /// **紋章的寬度只由這一個數字決定，刻意不經過 <c>staccatoIndicatorScale</c>。**
+    /// 那個序列化欄位在程式裡的預設是 1，但 <c>Note.prefab</c> 存的是 **0.9** ——
+    /// 看程式會以為沒有縮，實際上有（見 [[serializefield-default-sticks]] 那一類的坑）。
+    /// 上一版再乘一個 1.5 的加寬，於是紋章比音符寬了 35%，而且那 35% 是兩個看不見
+    /// 的數字相乘來的，從程式上讀不出來。
+    ///
+    /// 貼圖是**實心到邊**的（量過：不透明範圍佔滿 512×495 的整張），所以 sprite
+    /// bounds 就是看得到的範圍 —— 1.0 真的就是等寬，不用再補償透明邊。
+    /// </remarks>
+    private const float StaccatoMarkWidthShare = 0.65f;
+
+    /// <summary>斷音紋章的高度，相對於「維持貼圖長寬比」的高度再乘多少。1 ＝ 不變形。</summary>
+    /// <remarks>
+    /// **高度跟著寬度走，不跟鍵道走。** 上一版寬度改成跟著音符，高度卻還是以單一
+    /// 鍵道為準 —— 於是三鍵寬的音符得到一個三倍寬、一倍高的箭頭，整個被壓扁。
+    /// 一個 ^ 被橫向拉開三倍之後就不再是同一個記號了。
+    ///
+    /// 代價是寬音符的紋章整體變大（這正是當初「一律以一個鍵道為準」想避免的事），
+    /// 但那個版本換來的是變形，而變形比大小不一更傷辨識。想讓寬音符的紋章別太誇張，
+    /// 調這個係數，不要回去把高度綁回鍵道 —— 那會再次壓扁它。
+    /// </remarks>
+    private const float StaccatoMarkHeightScale = 1.0f;
 
     private const float StrongBandShare = 0.55f;
     private const float WeakBandShare = 0.30f;
@@ -3587,7 +3639,7 @@ public class NoteController : MonoBehaviour
             // 本家的拋物線：Z（＝時間）完全不動，只有高度跟著弧線走，
             // 所以拍子線、判定窗、可讀性都和原本一樣。
             ApplyArcToHead(ref pos);
-            if (hasBaseY) UpdateSpriteTilt(LeadingEdgeZ(pos.z));
+            if (hasBaseY) UpdateSpriteTilt(ArcSampleZ(pos.z));
             transform.position = pos;
         }
     else if (noteData.type == "hold")
@@ -3817,12 +3869,79 @@ public class NoteController : MonoBehaviour
 
     private void LateUpdate()
     {
+        // 紋章的寬度跟著音符浮動。
+        //
+        // **一定要在這裡重算。** RefreshStaccatoIndicator 只在 Initialize 跑一次，
+        // 而音符的世界寬度在落下的途中會變（透視、流速、縮放都會動到
+        // cachedWorldWidth）。只算一次的話，紋章會停在它出生那一刻的寬度，音符愈
+        // 變愈寬而牌子不動 —— 那比完全不跟還怪。
+        //
+        // 排在 gem 的 early return 前面：那一條管的是另一個東西，兩者沒有關係。
+        if (staccatoIndicatorInstance != null && staccatoIndicatorInstance.activeSelf &&
+            staccatoIndicatorRenderer != null && staccatoIndicatorRenderer.enabled)
+        {
+            ApplyStaccatoIndicatorScale();
+        }
+
         // The frame is hidden from many places (judged, hold start, head clipping);
         // the gem just follows whatever the frame ended up as this frame.
         if (staccatoGemRenderer == null) return;
         bool show = isInitialized && isStaccatoCached && runtimeSpriteRenderer != null &&
             runtimeSpriteRenderer.enabled && staccatoGemRenderer.sprite != null;
         if (staccatoGemRenderer.enabled != show) staccatoGemRenderer.enabled = show;
+    }
+
+    /// <summary>
+    /// 紋章的大小。**每一幀**重算，見 <see cref="LateUpdate"/>。
+    /// </summary>
+    /// <remarks>
+    /// **寬度跟著音符走，高度不跟。**
+    ///
+    /// 這翻掉了先前「尺寸一律以一個鍵道為準」的決定。那個決定的理由是「紋章講的是
+    /// 『這是斷音』，和音符佔幾個鍵道無關」—— 道理沒錯，但代價是三鍵寬的音符上頂著
+    /// 一塊只有一鍵寬的小牌子，看起來不像是那顆音符身上的東西。現在寬度照音符的實
+    /// 際世界寬度算，紋章會跟著音符一起變寬。
+    ///
+    /// 高度仍然以**單一鍵道**為準。寬音符因此只是把同一個紋章橫向拉開，不是整個放
+    /// 大 —— 一整排斷音的紋章還是排在同一條線上，這是原本那個決定裡值得留下來的部分。
+    ///
+    /// 回傳高度，呼叫端拿去給 <c>Configure</c> 算浮動的距離。
+    /// </remarks>
+    private float ApplyStaccatoIndicatorScale()
+    {
+        if (staccatoIndicatorInstance == null || staccatoIndicatorRenderer == null) return 0f;
+
+        Transform indicatorRoot = GetStaccatoIndicatorRoot();
+        Vector3 parentScale = indicatorRoot != null ? indicatorRoot.lossyScale : Vector3.one;
+        float noteWorldWidth = Mathf.Max(0.0001f, cachedWorldWidth);
+
+        // 寬度：和音符等寬。見 StaccatoMarkWidthShare 的說明。
+        float targetWorldWidth = Mathf.Max(0.0001f, noteWorldWidth * StaccatoMarkWidthShare);
+
+        float spriteWidthUnits = 1f;
+        float spriteHeightUnits = 1f;
+        if (staccatoIndicatorRenderer.sprite != null)
+        {
+            var spriteBounds = staccatoIndicatorRenderer.sprite.bounds;
+            spriteWidthUnits = Mathf.Max(0.0001f, spriteBounds.size.x);
+            spriteHeightUnits = Mathf.Max(0.0001f, spriteBounds.size.y);
+        }
+
+        // 高度：由**寬度**換算，所以貼圖的長寬比原封不動。鍵道數不再參與 ——
+        // 它參與的那一版，寬音符的箭頭會被橫向拉成三倍而高度不變。
+        float targetWorldHeight = Mathf.Max(0.01f,
+            targetWorldWidth * (spriteHeightUnits / spriteWidthUnits) * StaccatoMarkHeightScale);
+
+        float parentScaleX = Mathf.Max(0.0001f, Mathf.Abs(parentScale.x));
+        float parentScaleY = Mathf.Max(0.0001f, Mathf.Abs(parentScale.y));
+        float parentScaleZ = Mathf.Max(0.0001f, Mathf.Abs(parentScale.z));
+
+        float localX = targetWorldWidth / (spriteWidthUnits * parentScaleX);
+        float localY = targetWorldHeight / (spriteHeightUnits * parentScaleY);
+        float localZ = targetWorldWidth / (spriteWidthUnits * parentScaleZ);
+        staccatoIndicatorInstance.transform.localScale = new Vector3(localX, localY, localZ);
+        staccatoIndicatorInstance.transform.localRotation = Quaternion.identity;
+        return targetWorldHeight;
     }
 
     private void RefreshStaccatoIndicator()
@@ -3919,51 +4038,7 @@ public class NoteController : MonoBehaviour
         staccatoIndicatorRenderer.sortingLayerID = sortingLayerId;
         staccatoIndicatorRenderer.sortingOrder = sortingOrder + 5;
 
-        Vector3 parentScale = indicatorRoot != null ? indicatorRoot.lossyScale : Vector3.one;
-        float noteWorldWidth = Mathf.Max(0.0001f, cachedWorldWidth);
-        float widthScaleFactor = Mathf.Max(0.01f, staccatoIndicatorScale);
-
-        // 尺寸以**一個鍵道**為準，不是以音符自己的寬度。
-        //
-        // 照音符寬度算的話，三鍵寬的音符會得到三倍大的紋章 —— 而紋章講的是「這是
-        // 斷音」，那件事和音符佔幾個鍵道完全無關。同一件事在畫面上有三種大小，讀
-        // 到的會是「大的那個比較重要」。
-        //
-        // 88 鍵模式下一顆音符本來就只佔一個鍵，不必再除。
-        int laneSpan = 1;
-        if (noteData != null && !PianoVisualLayout.HasPianoPitch(noteData))
-            laneSpan = Mathf.Max(1, Mathf.Abs(noteData.endLane - noteData.startLane) + 1);
-        float singleLaneWidth = noteWorldWidth / laneSpan;
-        float baseWidth = Mathf.Max(0.0001f, singleLaneWidth * widthScaleFactor);
-
-        // 寬度也是統一的：**每一顆斷音的紋章都一模一樣大**，不管音符佔幾個鍵道。
-        // 加寬 50% 是套在所有人身上的一個固定比例，不是給寬音符的特例 —— 紋章因
-        // 此比基準寬一點、扁一點，一排排下來的輪廓才整齊。
-        float targetWorldWidth = baseWidth * StaccatoMarkWiden;
-
-        float spriteWidthUnits = 1f;
-        float spriteHeightUnits = 1f;
-        if (staccatoIndicatorRenderer.sprite != null)
-        {
-            var spriteBounds = staccatoIndicatorRenderer.sprite.bounds;
-            spriteWidthUnits = Mathf.Max(0.0001f, spriteBounds.size.x);
-            spriteHeightUnits = Mathf.Max(0.0001f, spriteBounds.size.y);
-        }
-
-        // 高度用**沒有加寬**的基準寬度算，所以每一顆斷音的紋章都一樣高 —— 加寬
-        // 只往兩側長。高度統一，一整排斷音的紋章才會排在同一條線上。
-        float targetWorldHeight = Mathf.Max(0.01f,
-            baseWidth * (spriteHeightUnits / spriteWidthUnits));
-
-        float parentScaleX = Mathf.Max(0.0001f, Mathf.Abs(parentScale.x));
-        float parentScaleY = Mathf.Max(0.0001f, Mathf.Abs(parentScale.y));
-        float parentScaleZ = Mathf.Max(0.0001f, Mathf.Abs(parentScale.z));
-
-        float localX = targetWorldWidth / (spriteWidthUnits * parentScaleX);
-        float localY = targetWorldHeight / (spriteHeightUnits * parentScaleY);
-        float localZ = targetWorldWidth / (spriteWidthUnits * parentScaleZ);
-        staccatoIndicatorInstance.transform.localScale = new Vector3(localX, localY, localZ);
-        staccatoIndicatorInstance.transform.localRotation = Quaternion.identity;
+        float targetWorldHeight = ApplyStaccatoIndicatorScale();
 
         if (staccatoIndicatorController != null)
         {
@@ -4669,8 +4744,24 @@ public class StaccatoIndicatorBillboard : MonoBehaviour
     /// <summary>跑完一整圈要幾秒。</summary>
     private const float RisePeriod = 0.55f;
 
-    /// <summary>窗口下緣和音符之間的空隙，佔紋章自己高度的比例。</summary>
-    private const float GapShare = 0.30f;
+    /// <summary>紋章下緣和音符之間的空隙，佔紋章自己高度的比例。</summary>
+    /// <remarks>
+    /// **抬高紋章要調這裡，不要去調 <c>staccatoIndicatorOffset.y</c>。** 那是序列化
+    /// 欄位，<c>Note.prefab</c> 存的是 0.04（程式裡的預設寫 0.6，但序列化值會贏），
+    /// 所以改程式裡的預設沒有用。而且它是**世界單位**的絕對值，紋章大小一變就得
+    /// 重新對；這個比例跟著紋章自己的高度走，任何尺寸下抬起來的視覺距離都一樣。
+    ///
+    /// 貼圖的軸心在正中央（spritePivot 0.5/0.5），所以 **0.5 ＝ 底緣剛好碰到音符**，
+    /// 比 0.5 小就是壓在音符上、比 0.5 大就是浮在上方。0.30 是壓著 20% 的高度。
+    ///
+    /// 一度改成 0.85（浮高）是誤讀了使用者的「高度太低」—— 他講的是**形狀被壓扁**，
+    /// 不是浮得不夠高，見 StaccatoMarkHeightScale。
+    ///
+    /// 現在是 **0**：完全不抬，紋章的中心就落在音符的位置上。實機量過（截圖上
+    /// 箭頭底緣 y≈499、音符 y≈535），0.30 的時候中間還空著約 50px —— 紋章變高之後
+    /// 這一項跟著等比放大，同樣的比例抬起來的距離就變遠了。
+    /// </remarks>
+    private const float GapShare = 0f;
 
     private SpriteRenderer sourceRenderer;
     private MeshRenderer riseRenderer;

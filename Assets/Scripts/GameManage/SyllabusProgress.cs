@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -20,6 +20,16 @@ public sealed class SyllabusCourse
     public bool passed;
     /// <summary>上一次應試的診斷，例如「第二曲・2′14″・容錯用盡」。</summary>
     public string lastAttempt = string.Empty;
+
+    /// <summary>
+    /// 三格各自最好的那一局。索引和 <see cref="charts"/> 對齊，null = 還沒打過。
+    /// </summary>
+    /// <remarks>
+    /// **和檢定的送審不同：這裡是自動收、而且只往上。** 送審永遠覆蓋（玩家按下去就
+    /// 是要那一局），所以它必須是一顆按鈕；考場取最好的一次，自動收不可能弄壞已有
+    /// 的成績，多一顆按鈕只是多一步。
+    /// </remarks>
+    public List<SyllabusSubmission> attempts = new List<SyllabusSubmission>();
 }
 
 /// <summary>檢定一級的考卷：技巧曲一首、歌唱曲一首，加上已經送審的成績。</summary>
@@ -109,14 +119,18 @@ public static class SyllabusProgress
         EnsureLoaded();
         if (recital)
         {
-            if (data.grade <= 0) return "未受檢";
+            if (data.grade <= 0) return Localize.S("未受檢");
+            // 印是存檔裡的字，要印出來才翻（見 SyllabusLadder.SealText）。
             return string.IsNullOrEmpty(data.seal)
-                ? $"{Numeral(data.grade)}級"
-                : $"{Numeral(data.grade)}級　{data.seal}";
+                ? Localize.SF("{0}級", Numeral(data.grade))
+                : Localize.SF("{0}級　{1}", Numeral(data.grade),
+                    SyllabusLadder.SealText(data.seal));
         }
-        if (data.stage <= 0) return "未敘階";
+        if (data.stage <= 0) return Localize.S("未敘階");
         SyllabusLadder.Stage stage = SyllabusLadder.StageAt(data.stage);
-        return stage != null ? $"{Numeral(data.stage)}階　{stage.Name}" : $"{Numeral(data.stage)}階";
+        return stage != null
+            ? Localize.SF("{0}階　{1}", Numeral(data.stage), stage.Name)
+            : Localize.SF("{0}階", Numeral(data.stage));
     }
 
     /// <summary>
@@ -131,7 +145,9 @@ public static class SyllabusProgress
     {
         EnsureLoaded();
         if (recital) return Headline(true);
-        return data.stage <= 0 ? "未敘階" : $"{Numeral(data.stage)}階";
+        return data.stage <= 0
+            ? Localize.S("未敘階")
+            : Localize.SF("{0}階", Numeral(data.stage));
     }
 
     /// <summary>下一步那一行。永遠說得出一件具體的事，或說清楚為什麼說不出。</summary>
@@ -142,32 +158,129 @@ public static class SyllabusProgress
     public static string NextStep(bool recital)
     {
         EnsureLoaded();
-        if (string.IsNullOrEmpty(data.libraryStamp)) return "考程編定中…";
+        if (string.IsNullOrEmpty(data.libraryStamp)) return Localize.S("考程編定中…");
         if (recital)
         {
             int next = data.grade + 1;
             SyllabusLadder.Grade grade = SyllabusLadder.GradeAt(next);
-            if (grade == null) return "已達最高級";
+            if (grade == null) return Localize.S("已達最高級");
             SyllabusPaper paper = PaperFor(next);
             if (paper == null || paper.charts == null || paper.charts.Count < SyllabusLadder.PaperSize)
-                return $"曲庫不足：{Numeral(next)}級需 {SyllabusLadder.BandText(SyllabusOverrides.LowOf(grade), SyllabusOverrides.HighOf(grade))} 兩首不同曲目";
+                return Localize.SF("曲庫不足：{0}級需 {1} 兩首不同曲目", Numeral(next),
+                    SyllabusLadder.BandText(SyllabusOverrides.LowOf(grade),
+                        SyllabusOverrides.HighOf(grade)));
             if (data.stage < grade.RequiredStage)
-                return $"{Numeral(next)}級需技階{Numeral(grade.RequiredStage)}階";
+                return Localize.SF("{0}級需技階{1}階", Numeral(next),
+                    Numeral(grade.RequiredStage));
             int filled = FilledSlots(paper);
             return filled > 0
-                ? $"{Numeral(next)}級　已送審 {filled} / {SyllabusLadder.PaperSize} 首"
-                : $"下次應考：{Numeral(next)}級・{SyllabusLadder.PaperSize}曲";
+                ? Localize.SF("{0}級　已送審 {1} / {2} 首　達成 {3:0}%", Numeral(next), filled,
+                    SyllabusLadder.PaperSize, AchievementOf(paper))
+                : Localize.SF("下次應考：{0}級・{1}曲", Numeral(next), SyllabusLadder.PaperSize);
         }
 
         int nextStage = data.stage + 1;
         SyllabusLadder.Stage stageDef = SyllabusLadder.StageAt(nextStage);
-        if (stageDef == null) return "已達最高階";
+        if (stageDef == null) return Localize.S("已達最高階");
         SyllabusCourse course = CourseFor(nextStage);
         if (course == null || course.charts == null || course.charts.Count < SyllabusLadder.CourseSize)
-            return $"曲庫不足：{Numeral(nextStage)}階需 {SyllabusLadder.BandText(SyllabusOverrides.LowOf(stageDef), SyllabusOverrides.HighOf(stageDef))} 的三首不同曲目";
+            return Localize.SF("曲庫不足：{0}階需 {1} 的三首不同曲目", Numeral(nextStage),
+                SyllabusLadder.BandText(SyllabusOverrides.LowOf(stageDef),
+                    SyllabusOverrides.HighOf(stageDef)));
         // 課已經編好了，但還沒地方考。說出來，不要印一個按不下去的「下次應試」。
-        if (!SyllabusLadder.ExamHallOpen) return "考場籌備中　課目已編定";
-        return $"下次應試：{Numeral(nextStage)}階・{stageDef.Name}";
+        if (!SyllabusLadder.ExamHallOpen) return Localize.S("考場籌備中　課目已編定");
+        float done = AchievementOf(course);
+        return done > 0f
+            ? Localize.SF("{0}階・{1}　達成 {2:0}%", Numeral(nextStage), stageDef.Name, done)
+            : Localize.SF("下次應試：{0}階・{1}", Numeral(nextStage), stageDef.Name);
+    }
+
+    /// <summary>
+    /// 把一局演奏收進某一階的某一格。比舊的好才換。
+    /// </summary>
+    /// <returns>真的寫進去了就是 true（這一局是新的最佳）。</returns>
+    public static bool RecordAttempt(int stage, string chart, float[] marks, int score,
+        bool expressionMeasured)
+    {
+        EnsureLoaded();
+        SyllabusCourse course = CourseFor(stage);
+        if (course?.charts == null || string.IsNullOrEmpty(chart)) return false;
+        int slot = course.charts.IndexOf(chart);
+        if (slot < 0) return false;
+        // 過了的課永久凍結 —— 它就是你過的那門課的紀錄。
+        if (course.passed) return false;
+
+        while (course.attempts.Count < course.charts.Count) course.attempts.Add(null);
+        var entry = new SyllabusSubmission
+        {
+            chart = chart,
+            marks = marks != null && marks.Length == 4 ? (float[])marks.Clone() : new float[4],
+            score = score,
+            expressionMeasured = expressionMeasured,
+            atUtcTicks = DateTime.UtcNow.Ticks,
+        };
+        SyllabusSubmission held = course.attempts[slot];
+        if (held != null && held.Average >= entry.Average) return false;
+
+        course.attempts[slot] = entry;
+        EvaluateCourse(course);
+        Save();
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// 這門課的達成率（0–100）：三首最佳成績的平均。還沒打過的那一首算 0。
+    /// </summary>
+    /// <remarks>
+    /// 成績是**演奏會四項評分的平均**，分數不直接參與 —— 失誤和完整度已經把分數
+    /// 的資訊反映在裡面了，再加一次是把同一件事算兩遍。分數有存，印在考場給人看。
+    /// </remarks>
+    public static float AchievementOf(SyllabusCourse course)
+    {
+        if (course?.charts == null || course.charts.Count == 0) return 0f;
+        float sum = 0f;
+        for (int i = 0; i < course.charts.Count; i++)
+        {
+            SyllabusSubmission entry = course.attempts != null && i < course.attempts.Count
+                ? course.attempts[i] : null;
+            if (entry != null) sum += entry.Average;
+        }
+        return sum / course.charts.Count;
+    }
+
+    /// <summary>某一格最好的那一局，沒打過就是 null。</summary>
+    public static SyllabusSubmission AttemptOf(SyllabusCourse course, int slot)
+    {
+        if (course?.attempts == null || slot < 0 || slot >= course.attempts.Count) return null;
+        return course.attempts[slot];
+    }
+
+    /// <summary>
+    /// 三首**各自**都到及第線就授階。
+    /// </summary>
+    /// <remarks>
+    /// 看每一首而不是看平均：一首打得極好不該能括兩首沒彈好的。和檢定的
+    /// <see cref="SyllabusLadder.Demand"/> 是同一個規則（每一首都要達到）。
+    ///
+    /// 只能授「持有階 +1」，所以回頭把低階的課打得更好不會跳階。
+    /// </remarks>
+    private static void EvaluateCourse(SyllabusCourse course)
+    {
+        if (course == null || course.passed) return;
+        if (course.charts == null || course.charts.Count == 0) return;
+        if (course.stage != data.stage + 1) return;
+
+        for (int i = 0; i < course.charts.Count; i++)
+        {
+            SyllabusSubmission entry = course.attempts != null && i < course.attempts.Count
+                ? course.attempts[i] : null;
+            if (entry == null) return;
+            if (entry.Average < Judgment.RecitalAssessment.PassMark) return;
+        }
+
+        course.passed = true;
+        data.stage = course.stage;
     }
 
     public static SyllabusCourse CourseFor(int stage)
@@ -184,6 +297,24 @@ public static class SyllabusProgress
         for (int i = 0; i < data.papers.Count; i++)
             if (data.papers[i] != null && data.papers[i].grade == grade) return data.papers[i];
         return null;
+    }
+
+    /// <summary>
+    /// 這一級的達成率（0–100）：兩首最佳成績的平均。還沒送審的那一首算 0。
+    /// </summary>
+    /// <remarks>和技階的 <see cref="AchievementOf(SyllabusCourse)"/> 同一個定義，好讓
+    /// 兩條階梯上的同一個數字是同一件事。</remarks>
+    public static float AchievementOf(SyllabusPaper paper)
+    {
+        if (paper?.charts == null || paper.charts.Count == 0) return 0f;
+        float sum = 0f;
+        for (int i = 0; i < paper.charts.Count; i++)
+        {
+            SyllabusSubmission entry = paper.submissions != null && i < paper.submissions.Count
+                ? paper.submissions[i] : null;
+            if (entry != null) sum += entry.Average;
+        }
+        return sum / paper.charts.Count;
     }
 
     public static int FilledSlots(SyllabusPaper paper)
@@ -218,6 +349,9 @@ public static class SyllabusProgress
                     // 重編的機會是玩家的，不會因為曲庫變動就還他
                     fresh.redrawn = held.redrawn;
                     fresh.lastAttempt = held.lastAttempt;
+                    // 已經打過的那幾局只在曲目沒變時留著 —— 和檢定的送審同一個理由：
+                    // 換了曲目，舊成績就是別的譜的成績。
+                    if (SameCharts(held.charts, fresh.charts)) fresh.attempts = held.attempts;
                     data.courses.Remove(held);
                 }
                 data.courses.Add(fresh);
@@ -285,9 +419,14 @@ public static class SyllabusProgress
     /// 把一局演奏送審到某一級的某一格。
     /// </summary>
     /// <remarks>
-    /// 送審永遠覆蓋那一格 —— 玩家按下「送審」就是要這一局，而不是要系統幫他比大小。
-    /// 想留住比較好的那一局的人，看得到分數再決定按不按。
+    /// **只會往上換。** 原本是永遠覆蓋（「玩家按下送審就是要這一局」），可是那讓重考
+    /// 變成有風險的事：打壞一次就把先前的好成績洗掉，玩家得先記住自己上次幾分、再自己
+    /// 判斷該不該按。考試是可以重測、而且重測只該往上加的 —— 技階的
+    /// <see cref="RecordAttempt"/> 一開始就是這樣，檢定沒有理由相反。
+    ///
+    /// 比的是四項平均（<see cref="SyllabusSubmission.Average"/>），和授級看的是同一個量。
     /// </remarks>
+    /// <returns>這一局是不是新的最佳。</returns>
     public static bool Submit(int grade, string chart, float[] marks, int score, bool expressionMeasured)
     {
         EnsureLoaded();
@@ -305,6 +444,9 @@ public static class SyllabusProgress
             expressionMeasured = expressionMeasured,
             atUtcTicks = DateTime.UtcNow.Ticks,
         };
+        SyllabusSubmission held = paper.submissions[slot];
+        if (held != null && held.Average >= entry.Average) return false;
+
         paper.submissions[slot] = entry;
         Evaluate(paper);
         Save();
@@ -421,7 +563,13 @@ public static class SyllabusProgress
     }
 
     /// <summary>一到十的中文數字。牌面上「3階」看起來像版本號。</summary>
-    public static string Numeral(int value)
+    /// <remarks>
+    /// 日文照樣用漢數字（三級就是三級），所以 ja.json 不必寫這十條 —— 查不到會退回
+    /// 這裡的繁體，剛好就是對的。韓文慣用阿拉伯數字，由 ko.json 把一～十換成 1～10。
+    /// </remarks>
+    public static string Numeral(int value) => Localize.S(NumeralSource(value));
+
+    private static string NumeralSource(int value)
     {
         switch (value)
         {
@@ -461,7 +609,11 @@ public static class SyllabusProgress
         data.courses.RemoveAll(c => c == null);
         data.papers.RemoveAll(p => p == null);
         for (int i = 0; i < data.courses.Count; i++)
+        {
             if (data.courses[i].charts == null) data.courses[i].charts = new List<string>();
+            if (data.courses[i].attempts == null)
+                data.courses[i].attempts = new List<SyllabusSubmission>();
+        }
         for (int i = 0; i < data.papers.Count; i++)
         {
             if (data.papers[i].charts == null) data.papers[i].charts = new List<string>();

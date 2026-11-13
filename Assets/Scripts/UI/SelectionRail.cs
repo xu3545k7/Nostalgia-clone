@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -47,6 +47,29 @@ public sealed class SelectionRail : MonoBehaviour
     /// <summary>下角那兩條的高度。一行字。</summary>
     public const float FootHeight = 64f;
     public const float FootMargin = 24f;
+
+    /// <summary>左右兩塊入口條（左：檢定，右：評分明細）在桿上的規格。</summary>
+    /// <remarks>
+    /// 原本這兩塊貼在畫面左下和右下。畫面最下面那條 <see cref="KeyZoneBar"/> 是全域
+    /// 覆蓋層、不屬於任何畫面，不會把東西推開 —— 兩塊牌會被壓在底下。
+    ///
+    /// **放進桿上那一排，不是掛在它底下。** 先做過「往下 ControlHeight + 28」那一版，
+    /// 結果是兩塊牌懸在導覽列和簾幕之間，既不屬於上面那排也不屬於下面的挑歌區。
+    ///
+    /// **寬度要收窄。** 它們原本是 536，而桿上左右各只剩 510 的空檔
+    /// （前往練習模式佔到 x=330，中央評分卡 880 寬置中從 840 開始）—— 照原寬放進去
+    /// 會和中央那張卡疊到。480 兩邊各留約 14 的縫。
+    ///
+    /// 高度維持它們自己的 <see cref="FootHeight"/>，用垂直置中對齊那一排，
+    /// 這樣不必動它們內部的版面。
+    /// </remarks>
+    public const float NavPlaqueWidth = 480f;
+
+    /// <summary>兩塊牌離畫面左右邊緣多遠。接在左右兩個控制項外側。</summary>
+    public const float NavPlaqueInset = SideMargin + ControlWidth + 16f;
+
+    /// <summary>兩塊牌從畫面頂端往下多少（在那一排裡垂直置中）。</summary>
+    public const float NavPlaqueDrop = ControlTop + (ControlHeight - FootHeight) * 0.5f;
     private const float FootWidth = 536f;
 
     private static readonly Color Ink = new Color(0.941f, 0.894f, 0.800f, 1f);
@@ -61,6 +84,10 @@ public sealed class SelectionRail : MonoBehaviour
     private TextMeshProUGUI ratingTitle;
     private TextMeshProUGUI ratingGap;
     private TextMeshProUGUI footValue;
+
+    /// <summary>換語言之後要跟著換字的兩個抬頭。建好就不再動的話會卡在舊語言。</summary>
+    private TextMeshProUGUI practiceLabel;
+    private TextMeshProUGUI footCaption;
 
     public static SelectionRail Attach(RectTransform panel, SongSelectionManager owner)
     {
@@ -120,8 +147,9 @@ public sealed class SelectionRail : MonoBehaviour
         Button button = Plate(bar, "ToPractice", new Vector2(0f, 1f),
             new Vector2(SideMargin, -ControlTop), new Vector2(ControlWidth, ControlHeight));
         TextMeshProUGUI label = Label(button.GetComponent<RectTransform>(), "Label",
-            "‹　前往練習模式", TextLabel, ClassicalBookUITheme.ParchmentLight,
+            PracticeCaption(), TextLabel, ClassicalBookUITheme.ParchmentLight,
             TextAlignmentOptions.Center, FontStyles.Bold);
+        practiceLabel = label;
         Stretch(label.rectTransform, 10f);
         button.onClick.AddListener(() =>
         {
@@ -185,12 +213,13 @@ public sealed class SelectionRail : MonoBehaviour
     /// <summary>右下：同一個數字的細節入口。四項長條收掉，留給點進去之後的分析頁。</summary>
     private void BuildFootStrip(RectTransform root)
     {
-        Button strip = Plate(root, "RatingDetail", new Vector2(1f, 0f),
-            new Vector2(-FootMargin, FootMargin), new Vector2(FootWidth, FootHeight));
+        Button strip = Plate(root, "RatingDetail", new Vector2(1f, 1f),
+            new Vector2(-NavPlaqueInset, -NavPlaqueDrop), new Vector2(NavPlaqueWidth, FootHeight));
         RectTransform rect = strip.GetComponent<RectTransform>();
 
-        TextMeshProUGUI caption = Label(rect, "Caption", "評分明細", TextBody, InkDim,
+        TextMeshProUGUI caption = Label(rect, "Caption", DetailCaption(), TextBody, InkDim,
             TextAlignmentOptions.MidlineLeft, FontStyles.Bold, ClassicalType.Tracking);
+        footCaption = caption;
         Place(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(22f, 0f),
             new Vector2(220f, 32f));
 
@@ -221,9 +250,13 @@ public sealed class SelectionRail : MonoBehaviour
         if (ratingValue == null) return;
         float rating = PlayerRating.Current(true);
         string who = PlayerProfile.Name;
+        // 抬頭也在這裡設，不是只在建的時候：換完語言回到選曲畫面（OnEnable →
+        // Refresh）才會跟著換，否則這兩行會卡在上一個語言。
+        if (practiceLabel != null) practiceLabel.text = PracticeCaption();
+        if (footCaption != null) footCaption.text = DetailCaption();
         ratingCaption.text = string.IsNullOrWhiteSpace(who)
-            ? "實力評分・演奏會"
-            : who + "　演奏會評分";
+            ? Localize.T("實力評分・演奏會", "实力评分・演奏会", "RATING · RECITAL")
+            : who + Localize.T("　演奏會評分", "　演奏会评分", "  RECITAL RATING");
         ratingValue.text = rating > 0f ? Mathf.RoundToInt(rating).ToString("N0") : "—";
         ratingTitle.text = PlayerRating.Title(rating, true);
         ratingGap.text = NextStep(rating);
@@ -238,11 +271,24 @@ public sealed class SelectionRail : MonoBehaviour
         float ordinary = PlayerRating.Ordinary + shift;
         float proficient = PlayerRating.Proficient + shift;
         float master = PlayerRating.Ceiling(true);
-        if (rating < ordinary) return $"距普通 {Mathf.CeilToInt(ordinary - rating):N0}";
-        if (rating < proficient) return $"距精熟 {Mathf.CeilToInt(proficient - rating):N0}";
-        if (rating < master) return $"距名家 {Mathf.CeilToInt(master - rating):N0}";
-        return "已達上限";
+        // 洞留在格式字串裡（不是內插），繁體那一串才當得了查表的鍵。
+        if (rating < ordinary)
+            return Localize.F("距普通 {0:N0}", "距普通 {0:N0}", "{0:N0} TO ORDINARY",
+                Mathf.CeilToInt(ordinary - rating));
+        if (rating < proficient)
+            return Localize.F("距精熟 {0:N0}", "距精熟 {0:N0}", "{0:N0} TO PROFICIENT",
+                Mathf.CeilToInt(proficient - rating));
+        if (rating < master)
+            return Localize.F("距名家 {0:N0}", "距名家 {0:N0}", "{0:N0} TO MASTER",
+                Mathf.CeilToInt(master - rating));
+        return Localize.T("已達上限", "已达上限", "AT MAX");
     }
+
+    private static string PracticeCaption() =>
+        Localize.T("‹　前往練習模式", "‹　前往练习模式", "‹  PRACTICE ROOM");
+
+    private static string DetailCaption() =>
+        Localize.T("評分明細", "评分明细", "RATING DETAIL");
 
     // ── 版面小工具 ────────────────────────────────────────────────────
 
