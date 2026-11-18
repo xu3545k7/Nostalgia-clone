@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
-#pragma warning disable CS0414
 using UnityEngine.Rendering;
 using Judgment;
 
@@ -51,7 +50,6 @@ public class NoteController : MonoBehaviour
     [SerializeField] private Sprite rightStaccatoIndicatorSprite;
     [SerializeField] private Sprite leftStaccatoIndicatorSprite;
     [SerializeField] private Vector3 staccatoIndicatorOffset = new Vector3(0f, 0.6f, 0f);
-    [SerializeField] private float staccatoIndicatorScale = 1f;
     [SerializeField] private bool staccatoIndicatorUpright = true;
     [SerializeField] private bool staccatoIndicatorOffsetRelativeToWidth = true;
 
@@ -646,7 +644,9 @@ public class NoteController : MonoBehaviour
     ///
     /// 要改回前緣就把這個常數設回 0.5f，所有呼叫點都吃這一個值。
     /// </remarks>
-    private const float NoteTimeAnchorShare = 0f;
+    // 不是 const：這一格是開關，const 會讓編譯器把另一邊折成無法抵達的程式碼
+    // （CS0162）。換成 static readonly 之後兩邊都是活的，翻這一格仍然就是全部的改法。
+    private static readonly float NoteTimeAnchorShare = 0f;
 
     /// <summary>
     /// 平貼圖從中心要往遠處推多少，才讓 <see cref="NoteTimeAnchorShare"/> 指定的那
@@ -662,14 +662,10 @@ public class NoteController : MonoBehaviour
         float scaleZ = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.z));
         return ResolveNoteWorldHeight() * NoteTimeAnchorShare / scaleZ;
     }
-    [SerializeField]
-    private float releaseZThreshold = 0.00f; // world units: how close to judgmentZ before actually releasing
     [SerializeField, Range(0.05f, 1f), Tooltip("Visual speed after an unjudged note crosses the judgment line. Timing and miss calculation remain on the original song clock.")]
     private float postJudgmentVisualSpeed = 0.28f;
     [SerializeField]
     private float holdTailYOffset = 0.0f; // small Y offset to avoid Z-fighting with the track
-    [SerializeField]
-    private float holdTailShrinkSpeed = 1f; // units per second to smooth the tail shortening (world units/sec)
     [SerializeField]
     private float holdTailWidthFactor = 0.8f; // fraction of note width used for tail thickness (0.8 = 80% of note width)
     [SerializeField]
@@ -2537,7 +2533,7 @@ public class NoteController : MonoBehaviour
         {
             //try
             //{
-            //    Debug.LogWarning($"[NoteController] Initialize called while already initialized. Cleaning previous state. goId={gameObject.GetInstanceID()} startTime={(this.noteData!=null?this.noteData.startTime:-1)}\nCallStack:\n{System.Environment.StackTrace}");
+            //    Debug.LogWarning($"[NoteController] Initialize called while already initialized. Cleaning previous state. goId={gameObject.GetEntityId()} startTime={(this.noteData!=null?this.noteData.startTime:-1)}\nCallStack:\n{System.Environment.StackTrace}");
             //}
             //catch { }
             try { CleanupPooled(); } catch { }
@@ -2564,7 +2560,7 @@ public class NoteController : MonoBehaviour
         //    var nd = this.noteData;
         //    if (nd != null)
         //    {
-        //        Debug.Log($"[NoteController] Initialize: note startTime={nd.startTime} type={nd.type} lanes={nd.startLane}-{nd.endLane} goId={gameObject.GetInstanceID()}");
+        //        Debug.Log($"[NoteController] Initialize: note startTime={nd.startTime} type={nd.type} lanes={nd.startLane}-{nd.endLane} goId={gameObject.GetEntityId()}");
         //    }
         //} catch {}
 #endif
@@ -3179,7 +3175,7 @@ public class NoteController : MonoBehaviour
                 Vector3 camPos = cam != null ? cam.transform.position : Vector3.zero;
                 float camFar = cam != null ? cam.farClipPlane : -1f;
                 float effectiveSongPos = conductor != null ? conductor.effectiveSongPosition : -99999f;
-                BuildLogger.Log($"[NoteController] Initialized: goId={gameObject.GetInstanceID()} start={startTime} end={endTime} type={noteData?.type} note_type={(noteData!=null?noteData.note_type:-1)} hand={(noteData!=null?noteData.hand:-1)} sprite={spriteName} renderer={rendererType} pos={transform.position} judgmentZ={judgmentZ} spawnZ={spawnZ} travelSeconds={(timeToStartMs/1000f):F3} initialSpeed={((noteSpawner!=null)?noteSpawner.speed:30f):F1} effectiveSongPos={effectiveSongPos} mainCam={camName} camPos={camPos} camFar={camFar}");
+                BuildLogger.Log($"[NoteController] Initialized: goId={gameObject.GetEntityId()} start={startTime} end={endTime} type={noteData?.type} note_type={(noteData!=null?noteData.note_type:-1)} hand={(noteData!=null?noteData.hand:-1)} sprite={spriteName} renderer={rendererType} pos={transform.position} judgmentZ={judgmentZ} spawnZ={spawnZ} travelSeconds={(timeToStartMs/1000f):F3} initialSpeed={((noteSpawner!=null)?noteSpawner.speed:30f):F1} effectiveSongPos={effectiveSongPos} mainCam={camName} camPos={camPos} camFar={camFar}");
                 if (runtimeSpriteRenderer != null)
                 {
                     try { BuildLogger.Log($"[NoteController] SpriteRenderer: enabled={runtimeSpriteRenderer.enabled} sortingLayer={runtimeSpriteRenderer.sortingLayerID} order={runtimeSpriteRenderer.sortingOrder} bounds={runtimeSpriteRenderer.bounds}"); } catch { }
@@ -3292,7 +3288,7 @@ public class NoteController : MonoBehaviour
             catch { }
 
             string stack = System.Environment.StackTrace;
-            // Debug.Log($"[NoteController] ReleaseOrDestroy: goId={gameObject.GetInstanceID()} isJudged={isJudged} owningPool={(owningPool!=null?"yes":"no")} songPosNow={songPosNow} startTime={startTime} posZ={transform.position.z} judgmentZ={judgmentZ}\nCallStack:\n{stack}");
+            // Debug.Log($"[NoteController] ReleaseOrDestroy: goId={gameObject.GetEntityId()} isJudged={isJudged} owningPool={(owningPool!=null?"yes":"no")} songPosNow={songPosNow} startTime={startTime} posZ={transform.position.z} judgmentZ={judgmentZ}\nCallStack:\n{stack}");
         }
         catch { }
         #endif
@@ -3430,7 +3426,7 @@ public class NoteController : MonoBehaviour
     if (noteData == null)
     {
         #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        try { BuildLogger.LogWarning($"[NoteController] Update: noteData is null for goId={gameObject.GetInstanceID()} - releasing to avoid NRE"); } catch { }
+        try { BuildLogger.LogWarning($"[NoteController] Update: noteData is null for goId={gameObject.GetEntityId()} - releasing to avoid NRE"); } catch { }
         #endif
         // Mark judged so it won't be considered active, then release to pool/destroy.
         isJudged = true;
@@ -4100,7 +4096,7 @@ public class NoteController : MonoBehaviour
         if (isJudged)
         {
             // #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // try { Debug.Log($"[NoteController] TryReleaseOrDestroy(allow) reason={reason} goId={gameObject.GetInstanceID()} isJudged={isJudged} posZ={transform.position.z} judgmentZ={judgmentZ} songPos={songPos} startTime={startTime}"); } catch { }
+            // try { Debug.Log($"[NoteController] TryReleaseOrDestroy(allow) reason={reason} goId={gameObject.GetEntityId()} isJudged={isJudged} posZ={transform.position.z} judgmentZ={judgmentZ} songPos={songPos} startTime={startTime}"); } catch { }
             // #endif
             ReleaseOrDestroy();
             return;
@@ -4116,7 +4112,7 @@ public class NoteController : MonoBehaviour
         if (deltaToTarget <= zThreshold)
         {
             // #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // try { Debug.Log($"[NoteController] TryReleaseOrDestroy(permitted) reason={reason} goId={gameObject.GetInstanceID()} deltaToTarget={deltaToTarget} targetZ={targetZ} posZ={transform.position.z} songPos={songPos} startTime={startTime}"); } catch { }
+            // try { Debug.Log($"[NoteController] TryReleaseOrDestroy(permitted) reason={reason} goId={gameObject.GetEntityId()} deltaToTarget={deltaToTarget} targetZ={targetZ} posZ={transform.position.z} songPos={songPos} startTime={startTime}"); } catch { }
             // #endif
             ReleaseOrDestroy();
             deferredReleaseLogged = false;
@@ -4127,7 +4123,7 @@ public class NoteController : MonoBehaviour
         if (songPos > endTime + 500)
         {
             // #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // try { Debug.Log($"[NoteController] TryReleaseOrDestroy(failsafeRelease) reason={reason} goId={gameObject.GetInstanceID()} songPos={songPos} endTime={endTime}"); } catch { }
+            // try { Debug.Log($"[NoteController] TryReleaseOrDestroy(failsafeRelease) reason={reason} goId={gameObject.GetEntityId()} songPos={songPos} endTime={endTime}"); } catch { }
             // #endif
             ReleaseOrDestroy();
             deferredReleaseLogged = false;
@@ -4138,7 +4134,7 @@ public class NoteController : MonoBehaviour
         if (!deferredReleaseLogged)
         {
             // #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // try { Debug.LogWarning($"[NoteController] Deferred release for goId={gameObject.GetInstanceID()} reason={reason} posZ={transform.position.z} judgmentZ={judgmentZ} deltaToTarget={deltaToTarget} songPos={songPos} startTime={startTime}"); } catch { }
+            // try { Debug.LogWarning($"[NoteController] Deferred release for goId={gameObject.GetEntityId()} reason={reason} posZ={transform.position.z} judgmentZ={judgmentZ} deltaToTarget={deltaToTarget} songPos={songPos} startTime={startTime}"); } catch { }
             // #endif
             deferredReleaseLogged = true;
         }

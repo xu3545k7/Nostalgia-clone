@@ -236,6 +236,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
     private const int RenderScaleIndex = 61;
     private const int BloomQualityIndex = 62;
     private const int PianoVoicesIndex = 63;
+    private const int MistouchCueHeightIndex = 64;
 
     /// <summary>
     /// 只有在判定預設是「自訂」的時候才看得到的那幾項。
@@ -755,7 +756,12 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             // 同時響的鋼琴聲部上限。不夠時偷最小聲的那個，踏板長的曲子尾音會先少。
             new SettingData { title = "Piano Voices", value = 3f, min = 0f, max = 3f,
                 step = 1f, unit = "",
-                discreteLabels = new[] { "32", "64", "128", "All" } }
+                discreteLabels = new[] { "32", "64", "128", "All" } },
+            // 誤觸那條紅帶子有多長。**和按鍵提示分成兩列**：兩條回答的是不同的
+            // 問題（「收到了嗎」和「按錯了」），所以其中一條調到剛好，完全不代表
+            // 另一條也剛好。0 = 不顯示那條帶子；判定線上的紅光暈不受這一列影響。
+            new SettingData { title = "Mistouch Cue Height", value = 1f, min = 0f, max = 3f,
+                step = 0.1f, unit = "x" }
         };
 
         groupMembers.Clear();
@@ -801,7 +807,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
             ShowPedalCuesIndex, ShowCentreCueIndex);
         SetGroup(SettingsCategory.Visual, SettingsGroup.JudgmentLine,
             JudgmentLineHeightIndex, JudgmentMeshHeightIndex, JudgePopupHeightIndex,
-            TimingSensitiveVisualsIndex, StrikeCueHeightIndex);
+            TimingSensitiveVisualsIndex, StrikeCueHeightIndex, MistouchCueHeightIndex);
         SetGroup(SettingsCategory.Visual, SettingsGroup.Combo,
             ComboDisplayIndex, ComboFontSizeIndex, TrackComboHeightIndex);
         SetGroup(SettingsCategory.Visual, SettingsGroup.Background,
@@ -1118,6 +1124,7 @@ public partial class SimpleCarouselSettings : MonoBehaviour
         settings[JudgmentPresetIndex].value = (int)manager.CurrentJudgmentPreset;
         settings[TouchAlignmentIndex].value = manager.TouchAlignment;
         settings[StrikeCueHeightIndex].value = manager.StrikeCueHeight;
+        settings[MistouchCueHeightIndex].value = manager.MistouchCueHeight;
         settings[NoteArcHeightIndex].value = manager.NoteArcHeight;
         settings[NoteFallModeIndex].value = manager.NoteFallMode;
         settings[NoteArcLengthIndex].value = manager.ArcTravelWorldUnits();
@@ -1267,6 +1274,9 @@ public partial class SimpleCarouselSettings : MonoBehaviour
                 break;
             case StrikeCueHeightIndex:
                 manager.SetStrikeCueHeight(settings[StrikeCueHeightIndex].value);
+                break;
+            case MistouchCueHeightIndex:
+                manager.SetMistouchCueHeight(settings[MistouchCueHeightIndex].value);
                 break;
             case NoteArcHeightIndex:
                 manager.SetNoteArcHeight(settings[NoteArcHeightIndex].value);
@@ -1691,6 +1701,8 @@ public partial class SimpleCarouselSettings : MonoBehaviour
 
         settings[StrikeCueHeightIndex].title = simplified ? "按键提示长度"
             : zh ? "按鍵提示長度" : "Key Cue Length";
+        settings[MistouchCueHeightIndex].title = simplified ? "误触提示长度"
+            : zh ? "誤觸提示長度" : "Mistouch Cue Length";
 
         settings[NoteArcHeightIndex].title = simplified ? "抛物线顶点"
             : zh ? "拋物線頂點" : "Arc Height";

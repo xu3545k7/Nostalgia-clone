@@ -75,7 +75,7 @@ public class MusicPitchWatcher : MonoBehaviour
         // 3) Fallback: heuristic search for an AudioSource likely used for music
         try
         {
-            var sources = Object.FindObjectsByType<AudioSource>(FindObjectsSortMode.None);
+            var sources = Object.FindObjectsByType<AudioSource>();
             foreach (var src in sources)
             {
                 if (src == null) continue;

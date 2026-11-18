@@ -137,7 +137,7 @@ public class NoteSpawner : MonoBehaviour{
         if (audioSyncComponent == null)
         {
             // search all MonoBehaviours for a type named AudioSync (editor/runtime safe)
-            var all = Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+            var all = Object.FindObjectsByType<MonoBehaviour>();
             foreach (var m in all)
             {
                 if (m != null && m.GetType().Name == "AudioSync")
@@ -440,7 +440,7 @@ public class NoteSpawner : MonoBehaviour{
                     try {
                         // Include note_type and type in the spawn diagnostic so we can
                         // confirm JsonUtility deserialized numeric "note_type" correctly.
-                        BuildLogger.Log($"[NoteSpawner] Spawn: nextNoteIndex={nextNoteIndex} startTime={nextNote.startTime} lanes={nextNote.startLane}-{nextNote.endLane} type={nextNote.type} note_type={nextNote.note_type} spawnedGOId={noteObject.GetInstanceID()}");
+                        BuildLogger.Log($"[NoteSpawner] Spawn: nextNoteIndex={nextNoteIndex} startTime={nextNote.startTime} lanes={nextNote.startLane}-{nextNote.endLane} type={nextNote.type} note_type={nextNote.note_type} spawnedGOId={noteObject.GetEntityId()}");
                     } catch {}
                     #endif
                     noteController.Initialize(nextNote, this, timeToStart);

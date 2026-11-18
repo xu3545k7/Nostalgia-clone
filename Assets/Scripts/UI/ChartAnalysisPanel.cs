@@ -133,7 +133,7 @@ public sealed class ChartAnalysisPanel
         label.fontStyle = style;
         label.color = colour;
         label.alignment = alignment;
-        label.enableWordWrapping = false;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
         label.raycastTarget = false;
         return label;
     }

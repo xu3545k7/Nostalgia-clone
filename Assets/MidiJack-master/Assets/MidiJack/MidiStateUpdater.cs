@@ -35,7 +35,7 @@ namespace MidiJack
             // an Enter Play Mode/domain-reload transition. Its delegate is not
             // serialized, so invoking such an instance before rebinding it
             // causes a NullReferenceException every frame.
-            var existing = Object.FindFirstObjectByType<MidiStateUpdater>();
+            var existing = Object.FindAnyObjectByType<MidiStateUpdater>();
             if (existing != null)
             {
                 existing._callback = callback;

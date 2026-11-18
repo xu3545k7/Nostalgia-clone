@@ -15,8 +15,15 @@ namespace Effects
     /// * 按鍵：淡綠色、不發光，按下去就出現、不等判定。它只確認「機器收到了」，
     ///   不該和打擊特效搶注意力；不發光的東西在泛光底下不會擴散，所以它永遠只佔
     ///   自己那一格的寬度。
-    /// * 誤觸：紅色、加法混合、明顯更長。它要在餘光裡就被接到，因為玩家不會特地去
-    ///   找自己按錯了哪一鍵。
+    /// * 誤觸：紅色、加法混合、明顯更長，而且在判定線上**那一格**多一圈紅光暈。
+    ///   它要在餘光裡就被接到，因為玩家不會特地去找自己按錯了哪一鍵。
+    ///
+    /// **兩種提示的長度各有自己的一列設定**（<c>StrikeCueHeight</c> 和
+    /// <c>MistouchCueHeight</c>）。原本誤觸那一條完全不跟著調，理由是「它是警報，
+    /// 玩家不該能把它調到看不見」—— 理由對，解法錯：兩條回答的是不同的問題
+    /// （「機器收到了嗎」和「你按錯了」），把確認調到剛好的長度，完全不代表警報
+    /// 也剛好。警報的保證現在由判定線上那圈光暈接手（<see cref="FaultHalo"/>，
+    /// 不吃任何設定），所以帶子的長度可以放手交給玩家。
     ///
     /// 一份網格畫完所有還活著的提示，所以無論同時有幾個都是一次繪製。
     /// </remarks>
@@ -28,6 +35,45 @@ namespace Effects
 
         private const float HitSeconds = 0.30f;
         private const float WrongSeconds = 0.55f;
+
+        /// <summary>紅光暈的半寬，以**那一格自己的寬度**為單位。</summary>
+        /// <remarks>
+        /// 比一格寬是刻意的：光暈要溢出那一格，才讀得出是「光」而不是「隔壁那
+        /// 一格也亮了」。一格以內的話它和按鍵提示長得一樣寬，兩件事就混在一起了。
+        /// </remarks>
+        private const float HaloLanes = 1.6f;
+
+        /// <summary>紅光暈半寬的下限，佔軌道寬的比例。</summary>
+        /// <remarks>
+        /// 88 鍵模式下一格只有一般模式的三分之一寬，<see cref="HaloLanes"/> 乘完
+        /// 還是一條細線 —— 而警報的大小不該由玩家選了哪個顯示模式決定。
+        /// </remarks>
+        private const float HaloMinShare = 0.035f;
+
+        /// <summary>紅光暈從判定線往前後各散多遠，**以音符高為單位**。</summary>
+        /// <remarks>
+        /// 軌道是躺著的：同一個世界長度橫向大約是縱向的 2.5 倍像素。所以橫向的
+        /// 半寬用鍵道寬算（<see cref="HaloLanes"/>），縱向這一軸用音符高算 ——
+        /// 拿軌道寬的比例來量縱向距離，就是踏板光暈那個「一片厚霧」的來源。
+        ///
+        /// 1.1 個音符高（預設 2.2 個世界單位）往前後各散，配上約三格鍵道的寬度，
+        /// 畫面上是一道**壓扁的**紅光。那正是要的：它要讀成「判定線在這裡紅了」，
+        /// 而不是「軌道上多了一顆紅球」。前後對稱，所以它不帶方向性，不會被誤讀
+        /// 成「往哪一邊」。
+        ///
+        /// 跟著音符高走還有一個好處：玩家把音符調厚，光暈也跟著厚 —— 它量的是
+        /// 「比旁邊那些東西厚多少」，而不是一個絕對的距離。
+        /// </remarks>
+        private const float HaloDepthNotes = 1.1f;
+
+        /// <summary>光暈這一層比判定線高多少（host 自己已經 +0.02）。</summary>
+        /// <remarks>
+        /// 小節線是**不透明、會寫深度**的平面，就躺在音符那一層（判定線 +0.1）。
+        /// 擺在它底下的話，每一條小節線掃過判定線都會把光暈切掉一塊 —— 看起來
+        /// 像閃爍的 bug。+0.12 在它上面（和踏板那一層同一個理由，見
+        /// PedalNoteRenderer.NoteLayerYOffset）。
+        /// </remarks>
+        private const float HaloLift = 0.10f;
 
         private struct Cue
         {
@@ -43,8 +89,10 @@ namespace Effects
         private readonly List<Cue> cues = new List<Cue>(Capacity);
         private MeshRenderer hitRenderer;
         private MeshRenderer wrongRenderer;
+        private MeshRenderer haloRenderer;
         private Mesh hitMesh;
         private Mesh wrongMesh;
+        private Mesh haloMesh;
 
         private readonly List<Vector3> vertices = new List<Vector3>(512);
         private readonly List<Color> colours = new List<Color>(512);
@@ -73,7 +121,7 @@ namespace Effects
         /// </remarks>
         public static void Press(int lane) => Show(lane, false);
 
-        /// <summary>按錯了。高、久、紅色發光。</summary>
+        /// <summary>按錯了。長、久、紅色發光，判定線上還多一圈紅光暈。</summary>
         public static void Wrong(int lane) => Show(lane, true);
 
         private static void Show(int lane, bool wrong)
@@ -120,12 +168,13 @@ namespace Effects
                 if (cues[i].Until <= now) cues.RemoveAt(i);
 
             if (hitRenderer == null) Build();
-            if (hitRenderer == null || wrongRenderer == null) return;
+            if (hitRenderer == null || wrongRenderer == null || haloRenderer == null) return;
 
             if (cues.Count == 0)
             {
                 hitRenderer.enabled = false;
                 wrongRenderer.enabled = false;
+                if (haloRenderer != null) haloRenderer.enabled = false;
                 return;
             }
 
@@ -136,6 +185,8 @@ namespace Effects
             Upload(hitMesh, hitRenderer);
             Fill(true, trackWidth, now);
             Upload(wrongMesh, wrongRenderer);
+            FaultHalo(trackWidth, now);
+            Upload(haloMesh, haloRenderer);
         }
 
         /// <summary>
@@ -164,18 +215,21 @@ namespace Effects
             triangles.Clear();
 
             // 長度可調（設定名是「高度」，因為玩家調的是「這個提示有多大」，
-            // 而它躺下來之後那個量就是長度）。誤觸那一條**不跟著調** —— 它是警
-            // 報，不是裝飾，玩家不該能把它調到看不見。
+            // 而它躺下來之後那個量就是長度）。**兩條各吃自己那一列** —— 為什麼
+            // 分開，見本類別的說明。
             float scale = 1f;
             try
             {
                 var settings = SettingsManager.Instance;
-                if (settings != null) scale = settings.StrikeCueHeight;
+                if (settings != null)
+                    scale = wrong ? settings.MistouchCueHeight : settings.StrikeCueHeight;
             }
             catch { }
-            if (!wrong && scale <= 0.001f) return;
+            if (scale <= 0.001f) return;
 
-            float reach = trackWidth * (wrong ? 0.34f : 0.26f * scale);
+            // 誤觸原本的長度（0.34）是在「不跟著調」的前提下訂的，所以它就是
+            // scale = 1 的樣子：預設值不動，調過的人才會看到差別。
+            float reach = trackWidth * (wrong ? 0.34f : 0.26f) * scale;
 
             // **從判定線本身長出來，不留空隙。**
             //
@@ -213,6 +267,62 @@ namespace Effects
                 // 一半以上，看起來不像同一格的東西。
                 float half = cue.Width * 0.5f * (wrong ? 1f : 0.92f);
                 Strip(cue.Lane, half, gap, reach * grow * (0.4f + 0.6f * fade), colour);
+            }
+        }
+
+        /// <summary>
+        /// 誤觸的那一格，判定線上一圈紅光暈。
+        /// </summary>
+        /// <remarks>
+        /// **為什麼除了帶子還要這個。** 那條紅帶子躺在軌道上、從判定線往譜面
+        /// 深處鋪出去，所以它和「音符掉下來的那條跑道」在同一個區域裡，而玩家
+        /// 的注意力在那個區域是給音符的。按錯的時候他正在讀的是下一顆音符，紅
+        /// 帶子落在他的餘光裡，和一堆正在落下的東西混在一起。
+        ///
+        /// 判定線不一樣：那是畫面上唯一一條**不動**的線，而不動的東西變色，
+        /// 餘光一定接得到。所以警報分兩份 —— 帶子說「是哪一格」，光暈說
+        /// 「你按錯了」。
+        ///
+        /// **為什麼是光暈不是把整條線閃紅。** 整條線一起閃是
+        /// <see cref="JudgmentLineGlow"/> 已經證明會變成壁紙的做法（它連鍵道
+        /// 參數都沒有，每次都一樣）—— 一個每次都一樣的反應不帶任何資訊。這一圈
+        /// 只亮在按錯的那一格上，所以它同時回答了「有錯」和「錯在哪」。
+        ///
+        /// 兩片共用 <see cref="Strip"/>（第二片的 reach 是負的），所以光暈和帶子
+        /// 的形狀永遠不會分岔，而且前後對稱的淡出完全交給 shader 逐像素算。
+        /// </remarks>
+        private void FaultHalo(float trackWidth, float now)
+        {
+            vertices.Clear();
+            colours.Clear();
+            uv.Clear();
+            triangles.Clear();
+
+            float noteHeight = 2f;
+            try
+            {
+                var settings = SettingsManager.Instance;
+                if (settings != null) noteHeight = settings.NoteVisualHeight;
+            }
+            catch { }
+            float depth = noteHeight * HaloDepthNotes;
+            for (int i = 0; i < cues.Count; i++)
+            {
+                Cue cue = cues[i];
+                if (!cue.Wrong) continue;
+
+                float left = Mathf.Clamp01((cue.Until - now) / Mathf.Max(0.001f, cue.Life));
+                // 警報是一記重擊，不是一段延續：發生的那一瞬間就滿，然後退掉。
+                // 帶子走的是相反的曲線（sqrt，退得很慢），所以它留在那裡當「是
+                // 哪一格」的答案，光暈只負責那一下的衝擊。
+                float punch = left * left;
+                // 加法混合進 framebuffer 的是 rgb × alpha，而 bloom 的門檻是 0.8
+                // —— 紅色配到 3.0 才有超出的部分可以被挑出來發光。
+                Color colour = new Color(3.0f, 0.18f, 0.13f, 0.90f * punch);
+
+                float half = Mathf.Max(cue.Width * HaloLanes, trackWidth * HaloMinShare);
+                Strip(cue.Lane, half, 0f, depth, colour);
+                Strip(cue.Lane, half, 0f, -depth, colour);
             }
         }
 
@@ -278,19 +388,30 @@ namespace Effects
         {
             hitMesh = new Mesh { name = "LaneStrikeHit", hideFlags = HideFlags.DontSave };
             wrongMesh = new Mesh { name = "LaneStrikeWrong", hideFlags = HideFlags.DontSave };
+            haloMesh = new Mesh { name = "LaneStrikeHalo", hideFlags = HideFlags.DontSave };
             hitMesh.MarkDynamic();
             wrongMesh.MarkDynamic();
+            haloMesh.MarkDynamic();
 
             // 打中的那一份**不發光**：平的頂點色 shader，泛光碰不到它，所以它永遠只
             // 佔自己那一格的寬度。誤觸走加法，才接得到餘光。
-            hitRenderer = Attach("Hit", hitMesh, "Nostalgia/FlatUnlitVertexColour");
-            wrongRenderer = Attach("Wrong", wrongMesh, "Nostalgia/FlatUnlitAdditive");
+            //
+            // 兩條帶子都是 2990：音符是 Transparent（3000 起跳）的精靈，所以帶子
+            // 被音符蓋住是對的 —— 它是襯在底下的一層確認，不是蓋在譜面上的東西。
+            hitRenderer = Attach("Hit", hitMesh, "Nostalgia/FlatUnlitVertexColour", 2990, 0f);
+            wrongRenderer = Attach("Wrong", wrongMesh, "Nostalgia/FlatUnlitAdditive", 2990, 0f);
+            // 光暈反過來：它要被看見，而判定線那一條是**畫面上最擠的一道**
+            // （3000 音符／3020 長條／3030 判定線／4000 光柱 都在那裡畫）。壓在
+            // 底下的東西在那一道上等於不存在，所以 3042 —— 蓋過判定線本身，
+            // 讓在 4000 的判定光柱還是蓋在它上面。
+            haloRenderer = Attach("Halo", haloMesh, "Nostalgia/FlatUnlitAdditive", 3042, HaloLift);
         }
 
-        private MeshRenderer Attach(string name, Mesh mesh, string shaderName)
+        private MeshRenderer Attach(string name, Mesh mesh, string shaderName, int queue, float lift)
         {
             var host = new GameObject(name);
             host.transform.SetParent(transform, false);
+            if (lift != 0f) host.transform.localPosition = new Vector3(0f, lift, 0f);
             host.hideFlags = HideFlags.DontSave;
             host.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = host.AddComponent<MeshRenderer>();
@@ -301,16 +422,13 @@ namespace Effects
 
             Shader shader = Shader.Find(shaderName);
             if (shader == null) shader = Shader.Find("Sprites/Default");
-            // **畫在音符底下。**
-            //
-            // 音符是 Transparent（3000 起跳）的精靈，所以這裡壓到 2990：提示被
-            // 音符蓋住是對的 —— 它是襯在底下的一層確認，不是蓋在譜面上的東西。
-            // 3040 那個值會讓它壓過長條，變成畫面上最搶眼的東西。
+            // queue 由呼叫端決定 —— 帶子要被音符蓋住，光暈要蓋過判定線，兩件事
+            // 在這一道上差很多。理由寫在 Build 的呼叫處。
             renderer.sharedMaterial = new Material(shader)
             {
                 name = name + " (Runtime)",
                 hideFlags = HideFlags.DontSave,
-                renderQueue = 2990,
+                renderQueue = queue,
             };
             renderer.enabled = false;
             return renderer;

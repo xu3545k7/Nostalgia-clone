@@ -275,7 +275,7 @@ public sealed class ChartBpmGraphic : MaskableGraphic
         label.fontSize = 11f;
         label.alignment = TextAlignmentOptions.MidlineRight;
         label.color = new Color(lineColour.r, lineColour.g, lineColour.b, 0.95f);
-        label.enableWordWrapping = false;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
         label.raycastTarget = false;
         return label;
     }

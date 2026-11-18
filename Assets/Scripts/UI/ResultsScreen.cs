@@ -15,7 +15,7 @@ public class ResultsScreen : MonoBehaviour
     {
         get
         {
-            if (_instance == null) _instance = FindFirstObjectByType<ResultsScreen>();
+            if (_instance == null) _instance = FindAnyObjectByType<ResultsScreen>();
             return _instance;
         }
     }
@@ -1287,7 +1287,7 @@ public class ResultsScreen : MonoBehaviour
 
         Sprite sprite = song != null ? song.coverSprite : null;
         Texture texture = null;
-        GameBackgroundManager background = FindFirstObjectByType<GameBackgroundManager>();
+        GameBackgroundManager background = FindAnyObjectByType<GameBackgroundManager>();
         if (background != null && background.songImage != null) texture = background.songImage.texture;
 
         if (sprite != null)

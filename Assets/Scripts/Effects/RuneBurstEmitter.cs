@@ -109,8 +109,7 @@ public class RuneBurstEmitter : MonoBehaviour
         // sitting under a gameplay root that is still switched off is invisible
         // to the default search, and creating a stand-in would leave the
         // configured one to displace it the moment that root wakes.
-        var found = FindObjectsByType<RuneBurstEmitter>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        var found = FindObjectsByType<RuneBurstEmitter>(FindObjectsInactive.Include);
         if (found != null && found.Length > 0)
         {
             Instance = found[0];

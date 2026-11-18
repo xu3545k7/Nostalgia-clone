@@ -16,7 +16,7 @@ public class JudgmentManager : UnityEngine.MonoBehaviour
         {
             if (_instance != null) return _instance;
             // Prefer an existing adapter component in the scene
-            _instance = UnityEngine.Object.FindFirstObjectByType<JudgmentManager>();
+            _instance = UnityEngine.Object.FindAnyObjectByType<JudgmentManager>();
             if (_instance != null) return _instance;
             // If no adapter exists, create one (keeps compatibility with serialized scenes that expect a component)
             var go = new UnityEngine.GameObject("JudgmentManager_Adapter");

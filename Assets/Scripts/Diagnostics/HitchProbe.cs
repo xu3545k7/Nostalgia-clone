@@ -378,7 +378,7 @@ public static class HitchProbe
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        if (Object.FindFirstObjectByType<Ticker>() != null) return;
+        if (Object.FindAnyObjectByType<Ticker>() != null) return;
         var go = new GameObject("HitchProbe");
         Object.DontDestroyOnLoad(go);
         go.AddComponent<Ticker>();

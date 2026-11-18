@@ -1,4 +1,4 @@
-Shader "Nostalgia/HoldMagicOverlay"
+﻿Shader "Nostalgia/HoldMagicOverlay"
 {
     Properties
     {
@@ -308,8 +308,12 @@ Shader "Nostalgia/HoldMagicOverlay"
                 // The engraving highlight follows the same handover, so strokes
                 // in the body catch a pale theme tint and only the outer ring
                 // reads as polished gold.
+                // max()：gilding 是 smoothstep x Range(0,1) 的乘積，實際上永遠在
+                // 0~1，但編譯器證不出來，就會對 pow 的負底數出一條警告（d3d11 上
+                // 負底數會回 NaN，一個 NaN 像素在 bloom 裡會糊成一片）。夾一下是
+                // 零成本，而且不改任何現有的畫面。
                 half3 highlight = lerp(_CoreHighlightColor.rgb, _PlatinumColor.rgb,
-                    pow(gilding, _HighlightGildingBias));
+                    pow(max(gilding, 0.0h), _HighlightGildingBias));
 
                 // 多段的明暗節奏。色相只在鍍金那一步換一次，亮暗則沿半徑走過
                 // 六段，每一段都在雕花的空檔上交棒。墨與高光共用同一條色階，

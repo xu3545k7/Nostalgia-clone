@@ -146,6 +146,19 @@ public class Chart
     public List<NoteData> notes;
     public List<int> beat_timings;
     public List<TimeSigChange> time_signature_changes;
+    /// <summary>
+    /// 製譜器把小節切開的位置（毫秒）。沒切過的譜就沒有這個欄位。
+    /// </summary>
+    /// <remarks>
+    /// 分割本身**不會**在拍點表裡塞一筆 —— 製譜器那邊是刻意的，不然存成 PAN
+    /// 相容的 XML 時會留下一條落在非整拍位置的孤兒拍線。只有真的把那一段的速度
+    /// 改掉，邊界那一筆才會被釘上去。
+    ///
+    /// 所以這份清單的用處是：拍點表上那一筆**不是**一個完整的拍單位，它是被切開
+    /// 的一小段。少了這個資訊只能從間距去猜（<c>BpmDisplay.IsSplitPair</c>），
+    /// 有的話就直接照著算。
+    /// </remarks>
+    public List<int> measure_splits;
     // Sorted, non-overlapping sustain pedal spans. Empty/absent on charts that
     // predate the MIDI expression restore.
     public List<PedalSpan> pedal_data;
@@ -175,6 +188,12 @@ public class Chart
 
         music_finish_time_msec = Mathf.RoundToInt(music_finish_time_msec * factor);
         first_bpm /= factor;
+
+        if (measure_splits != null)
+        {
+            for (int i = 0; i < measure_splits.Count; i++)
+                measure_splits[i] = Mathf.RoundToInt(measure_splits[i] * factor);
+        }
 
         if (notes != null)
         {

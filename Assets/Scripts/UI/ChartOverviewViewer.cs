@@ -82,7 +82,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
     public static ChartOverviewViewer EnsureCreated()
     {
         if (Instance != null) return Instance;
-        var existing = FindFirstObjectByType<ChartOverviewViewer>(FindObjectsInactive.Include);
+        var existing = FindAnyObjectByType<ChartOverviewViewer>(FindObjectsInactive.Include);
         if (existing != null) return existing;
         var go = new GameObject("ChartOverviewViewer");
         return go.AddComponent<ChartOverviewViewer>();
@@ -456,7 +456,7 @@ public sealed class ChartOverviewViewer : MonoBehaviour
             return;
         }
 
-        var sources = FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        var sources = FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude);
         for (int i = 0; i < sources.Length; i++)
         {
             AudioSource source = sources[i];

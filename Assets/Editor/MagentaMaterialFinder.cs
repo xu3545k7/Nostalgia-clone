@@ -21,8 +21,7 @@ public static class MagentaMaterialFinder
         var report = new StringBuilder();
         var hits = new System.Collections.Generic.List<Object>();
 
-        Renderer[] renderers = Object.FindObjectsByType<Renderer>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Renderer[] renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include);
         foreach (Renderer renderer in renderers)
         {
             if (renderer == null) continue;
@@ -71,7 +70,7 @@ public static class MagentaMaterialFinder
             "ChartOverviewStage", "TrackPreview", "StageCamera", "ChartOverviewViewer", "Notes"
         };
         int removed = 0;
-        var all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        var all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include);
         foreach (Transform t in all)
         {
             if (t == null) continue;

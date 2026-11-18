@@ -82,8 +82,8 @@ public class GamePauseManager : MonoBehaviour
         if (conductor == null) return;
         try
         {
-            var ns = FindObjectOfType<NoteSpawner>();
-            var bs = FindObjectOfType<BeatLineSpawner>();
+            var ns = FindAnyObjectByType<NoteSpawner>();
+            var bs = FindAnyObjectByType<BeatLineSpawner>();
             _noteSpawnerRef = ns;
             _beatSpawnerRef = bs;
             if (ns != null) { _noteSpawnerEnabled = ns.enabled; ns.enabled = false; Debug.Log("GamePauseManager: Disabled NoteSpawner"); }
@@ -94,7 +94,7 @@ public class GamePauseManager : MonoBehaviour
         try
         {
             _pausedAudioSources.Clear();
-            var allAudio = FindObjectsOfType<AudioSource>();
+            var allAudio = FindObjectsByType<AudioSource>();
             foreach (var a in allAudio)
             {
                 try { if (a != null && a.isPlaying) { a.Pause(); _pausedAudioSources.Add(a); } }
@@ -196,7 +196,7 @@ public class GamePauseManager : MonoBehaviour
             }
             else
             {
-                var ns2 = FindObjectOfType<NoteSpawner>();
+                var ns2 = FindAnyObjectByType<NoteSpawner>();
                 if (ns2 != null) { ns2.enabled = true; Debug.Log("GamePauseManager: Restored NoteSpawner (found) to enabled"); }
                 else Debug.LogWarning("GamePauseManager: No NoteSpawner found to restore");
             }
@@ -208,7 +208,7 @@ public class GamePauseManager : MonoBehaviour
             }
             else
             {
-                var bs2 = FindObjectOfType<BeatLineSpawner>();
+                var bs2 = FindAnyObjectByType<BeatLineSpawner>();
                 if (bs2 != null) { bs2.enabled = true; Debug.Log("GamePauseManager: Restored BeatLineSpawner (found) to enabled"); }
                 else Debug.LogWarning("GamePauseManager: No BeatLineSpawner found to restore");
             }
@@ -223,13 +223,13 @@ public class GamePauseManager : MonoBehaviour
     public void ShowPauseOverlay()
     {
         GameplayEntryPresentation.RevealCursor();
-        var conductor = FindObjectOfType<Conductor>();
+        var conductor = FindAnyObjectByType<Conductor>();
         PauseGame(conductor);
 
         if (!showOverlayUI) return;
         if (_overlayRoot != null) return;
 
-        Canvas canvas = parentCanvas ?? FindObjectOfType<Canvas>();
+        Canvas canvas = parentCanvas ?? FindAnyObjectByType<Canvas>();
         if (canvas == null) { Debug.LogWarning("GamePauseManager: No Canvas found for overlay."); return; }
 
         _overlayRoot = new GameObject("PauseOverlay", typeof(RectTransform));
@@ -555,7 +555,7 @@ public class GamePauseManager : MonoBehaviour
         }
         if (resumeConductor)
         {
-            var conductor = FindObjectOfType<Conductor>();
+            var conductor = FindAnyObjectByType<Conductor>();
             ResumeGame(conductor);
         }
     }

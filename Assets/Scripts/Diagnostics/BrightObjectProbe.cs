@@ -120,7 +120,7 @@ public class BrightObjectProbe : MonoBehaviour
         var found = new List<(float score, string key, string text)>();
         currentAll.Clear();
 
-        foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+        foreach (var renderer in FindObjectsByType<Renderer>())
         {
             if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
             // No proximity filter any more: the first sweep found nothing there,
@@ -186,7 +186,7 @@ public class BrightObjectProbe : MonoBehaviour
         // blind to every Image and RawImage. A RawImage with no texture is a solid
         // white quad, and bloom rounds its corners into something that no longer
         // looks like a rectangle.
-        foreach (var graphic in FindObjectsByType<UnityEngine.UI.Graphic>(FindObjectsSortMode.None))
+        foreach (var graphic in FindObjectsByType<UnityEngine.UI.Graphic>())
         {
             if (graphic == null || !graphic.enabled || !graphic.gameObject.activeInHierarchy) continue;
             Color gc = graphic.color;
@@ -219,7 +219,7 @@ public class BrightObjectProbe : MonoBehaviour
         // how bright the thing on screen actually is. An additive system with an
         // HDR tint blooms hard, and a soft radial sprite blooms into a ball —
         // which is the shape being looked for.
-        foreach (var system in FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None))
+        foreach (var system in FindObjectsByType<ParticleSystem>())
         {
             if (system == null || !system.gameObject.activeInHierarchy) continue;
             int count = system.particleCount;
@@ -254,7 +254,7 @@ public class BrightObjectProbe : MonoBehaviour
                 $"shader={mode} brightestAt={peakPosition}"));
         }
 
-        foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+        foreach (var light in FindObjectsByType<Light>())
         {
             if (light == null || !light.enabled || !light.gameObject.activeInHierarchy) continue;
             if (light.intensity <= 0.001f) continue;
@@ -385,7 +385,7 @@ public class BrightObjectProbe : MonoBehaviour
         var report = new System.Text.StringBuilder();
         report.Append($"[BrightProbe] what sits at the line's ends (±{halfWidth:F1} from centre):");
         int listed = 0;
-        foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+        foreach (var renderer in FindObjectsByType<Renderer>())
         {
             if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
             Bounds bounds = renderer.bounds;

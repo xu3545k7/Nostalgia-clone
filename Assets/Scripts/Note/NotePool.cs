@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-#pragma warning disable CS0414
 
 public class NotePool
 {
@@ -16,7 +15,6 @@ public class NotePool
     private int poolHits = 0; // returned from pool
     private int poolMisses = 0; // had to instantiate
     private bool reportedRuntimeMiss;
-    private int logInterval = 500; // log every N spawns to avoid spamming console
 
     public NotePool(GameObject prefab, Transform container, int initialSize = 64)
     {
@@ -155,7 +153,7 @@ public class NotePool
                 try
                 {
                     #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    // Debug.Log($"[NotePool] Reusing pooled object id={go.GetInstanceID()} - cleaning previous state before spawn");
+                    // Debug.Log($"[NotePool] Reusing pooled object id={go.GetEntityId()} - cleaning previous state before spawn");
                     #endif
                     noteCtrl.CleanupPooled();
                 }
@@ -249,7 +247,7 @@ public class NotePool
             string stack = System.Environment.StackTrace;
             float posZ = float.NaN;
             try { posZ = go.transform.position.z; } catch {}
-            // Debug.Log($"[NotePool] Despawn: go='{go.name}' id={go.GetInstanceID()} posZ={posZ} poolSizeBefore={pool.Count} totalDespawns={totalDespawnCalls}\nCallStack:\n{stack}");
+            // Debug.Log($"[NotePool] Despawn: go='{go.name}' id={go.GetEntityId()} posZ={posZ} poolSizeBefore={pool.Count} totalDespawns={totalDespawnCalls}\nCallStack:\n{stack}");
         } catch { }
         #endif
         go.SetActive(false);

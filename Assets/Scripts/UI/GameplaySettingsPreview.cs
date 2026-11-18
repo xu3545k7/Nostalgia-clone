@@ -12,7 +12,9 @@ public sealed class GameplaySettingsPreview : MonoBehaviour
 {
     // The settings screen is full-screen, so displaying the already-rendered
     // gameplay camera is both exact and cheaper than rendering it a second time.
-    private const bool UseDirectGameplayView = true;
+    // 不是 const：這一格是開關，const 會讓編譯器把另一邊折成無法抵達的程式碼
+    // （CS0162）。換成 static readonly 之後兩邊都是活的，翻這一格仍然就是全部的改法。
+    private static readonly bool UseDirectGameplayView = true;
     private const int UiLayer = 5;
     private const int MinWidth = 640;
     private const int MaxWidth = 1920;

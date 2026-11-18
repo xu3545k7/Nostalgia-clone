@@ -1,5 +1,4 @@
 using UnityEngine;
-#pragma warning disable CS0414
 
 public class BeatLineController : MonoBehaviour
 {
@@ -13,12 +12,6 @@ public class BeatLineController : MonoBehaviour
     private Conductor conductor;
     private BeatLineSpawner beatLineSpawner;
     private float travelMs = 0f;
-    [SerializeField]
-    private float minPositionAlpha = 0.02f;
-    [SerializeField]
-    private float positionAlphaPower = 3f;
-        [SerializeField]
-        private float positionSmoothSpeed = 20f; // units/sec smoothing parameter (higher -> faster)
     // cached parent transform and scale to avoid per-frame lossyScale lookups
     private Transform _cachedParent;
     private float _cachedParentScaleZ = 1f;

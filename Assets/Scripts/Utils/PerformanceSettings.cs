@@ -100,7 +100,7 @@ public static class PerformanceSettings
     /// </remarks>
     public static void ApplyBloom(int option)
     {
-        var volumes = Object.FindObjectsByType<Volume>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        var volumes = Object.FindObjectsByType<Volume>(FindObjectsInactive.Include);
         foreach (var volume in volumes)
         {
             if (volume == null || volume.sharedProfile == null) continue;

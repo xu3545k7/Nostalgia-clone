@@ -150,7 +150,7 @@ public sealed class IvoryLaneKeyboard : MonoBehaviour
     private static void EnsureController()
     {
         if (instance != null) return;
-        var existing = FindFirstObjectByType<IvoryLaneKeyboard>();
+        var existing = FindAnyObjectByType<IvoryLaneKeyboard>();
         if (existing != null)
         {
             instance = existing;

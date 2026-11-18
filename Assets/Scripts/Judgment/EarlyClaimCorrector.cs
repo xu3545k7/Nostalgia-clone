@@ -66,7 +66,8 @@ namespace Judgment
         /// it to refresh the popup so the number on screen matches the number in
         /// the score.
         /// </summary>
-        public static System.Action<int, Vector3, JudgmentResult> JudgmentRevised;
+        /// <summary>改判了：鍵、位置、新的判定、新的偏差（正的晚、負的早）。</summary>
+        public static System.Action<int, Vector3, JudgmentResult, float> JudgmentRevised;
 
         private static readonly Entry[] Ring = new Entry[Capacity];
         private static int    _writeIndex;
@@ -180,7 +181,7 @@ namespace Judgment
 
             if (resultChanged)
             {
-                try { JudgmentRevised?.Invoke(buttonId, position, newResult); } catch { }
+                try { JudgmentRevised?.Invoke(buttonId, position, newResult, newOffset); } catch { }
             }
         }
 

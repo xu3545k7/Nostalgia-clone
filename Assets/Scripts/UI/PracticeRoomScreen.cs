@@ -3199,7 +3199,7 @@ public sealed class PracticeRoomScreen : MonoBehaviour
     /// </remarks>
     private void OpenSettings()
     {
-        var settings = FindFirstObjectByType<SimpleCarouselSettings>(FindObjectsInactive.Include);
+        var settings = FindAnyObjectByType<SimpleCarouselSettings>(FindObjectsInactive.Include);
         if (settings == null) return;
         settings.ShowSettings();
         watchedSettingsPanel = settings.settingsPanel;

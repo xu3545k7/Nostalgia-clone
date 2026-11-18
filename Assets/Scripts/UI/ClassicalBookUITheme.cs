@@ -383,7 +383,7 @@ public static class ClassicalBookUITheme
         // 同一排控制項裡只有它矮一截。
         label.fontSize = ClassicalType.On(button, ClassicalType.Label);
         label.fontStyle = FontStyles.Bold;
-        label.enableWordWrapping = false;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
         label.raycastTarget = false;
         RectTransform labelRect = label.rectTransform;
         labelRect.anchorMin = Vector2.zero;

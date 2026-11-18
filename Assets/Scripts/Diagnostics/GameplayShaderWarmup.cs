@@ -42,7 +42,7 @@ public class GameplayShaderWarmup : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        if (FindFirstObjectByType<GameplayShaderWarmup>() != null) return;
+        if (FindAnyObjectByType<GameplayShaderWarmup>() != null) return;
         var go = new GameObject("GameplayShaderWarmup");
         DontDestroyOnLoad(go);
         go.AddComponent<GameplayShaderWarmup>();

@@ -29,7 +29,7 @@ public class PianoAudioDiagnostics : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AutoCreate()
     {
-        if (FindFirstObjectByType<PianoAudioDiagnostics>() != null) return;
+        if (FindAnyObjectByType<PianoAudioDiagnostics>() != null) return;
         var go = new GameObject("PianoAudioDiagnostics");
         DontDestroyOnLoad(go);
         go.AddComponent<PianoAudioDiagnostics>();

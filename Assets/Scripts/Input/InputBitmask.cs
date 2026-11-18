@@ -33,7 +33,7 @@ public class InputBitmask : MonoBehaviour
             return Instance;
         }
 
-        var existing = FindFirstObjectByType<InputBitmask>();
+        var existing = FindAnyObjectByType<InputBitmask>();
         if (existing != null)
         {
             Instance = existing;

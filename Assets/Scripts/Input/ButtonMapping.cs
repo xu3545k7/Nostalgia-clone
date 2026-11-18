@@ -55,9 +55,11 @@ public class ButtonMapping
         }
         catch (Exception ex)
         {
-            #if UNITY_EDITOR
-            Debug.LogWarning($"ButtonMapping.LoadFromResources failed: {ex}");
-            #endif
+            // 這裡本來包在 #if UNITY_EDITOR 裡 —— 於是 Player 編譯時 ex 變成沒人用
+            // 的區域變數（CS0168），而且按鍵對應讀取失敗在出包後完全不會留下任何
+            // 痕跡。兩件事同一個修法：改用 BuildLogger.LogWarning，它刻意不剝除
+            // 警告與錯誤，理由見 BuildLogger.cs 裡的說明。
+            BuildLogger.LogWarning($"ButtonMapping.LoadFromResources failed: {ex}");
             return false;
         }
     }

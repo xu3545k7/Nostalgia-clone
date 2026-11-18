@@ -34,7 +34,7 @@ public class KeyHitEffectManager : MonoBehaviour
     {
         if (_instance != null) return _instance;
 
-        var found = FindFirstObjectByType<KeyHitEffectManager>();
+        var found = FindAnyObjectByType<KeyHitEffectManager>();
         if (found != null)
         {
             _instance = found;
@@ -656,7 +656,7 @@ public class KeyHitEffectManager : MonoBehaviour
         {
             if (cachedNoteController == null || !cachedNoteController.isActiveAndEnabled)
             {
-                cachedNoteController = FindFirstObjectByType<NoteController>();
+                cachedNoteController = FindAnyObjectByType<NoteController>();
             }
 
             if (cachedNoteController != null)
@@ -692,7 +692,7 @@ public class KeyHitEffectManager : MonoBehaviour
             return cachedNoteSpawner;
         }
 
-        cachedNoteSpawner = FindFirstObjectByType<NoteSpawner>();
+        cachedNoteSpawner = FindAnyObjectByType<NoteSpawner>();
         nextSpawnerRefreshTime = Time.unscaledTime + 0.5f;
         if (cachedNoteSpawner == null)
         {

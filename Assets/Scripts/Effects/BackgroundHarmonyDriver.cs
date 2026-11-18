@@ -716,7 +716,7 @@ namespace Effects
         {
             trackRenderers.Clear();
             appliedJudgmentZ = float.NaN;
-            foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            foreach (var r in FindObjectsByType<Renderer>())
             {
                 var mats = r.sharedMaterials;
                 if (mats == null) continue;

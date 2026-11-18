@@ -29,7 +29,7 @@ public sealed class EditorLibraryWatcher : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        if (FindFirstObjectByType<EditorLibraryWatcher>() != null) return;
+        if (FindAnyObjectByType<EditorLibraryWatcher>() != null) return;
         var go = new GameObject("EditorLibraryWatcher");
         DontDestroyOnLoad(go);
         go.AddComponent<EditorLibraryWatcher>();

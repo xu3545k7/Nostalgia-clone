@@ -55,7 +55,6 @@ public sealed class RuntimeSongLibraryPanel : MonoBehaviour
     private TextMeshProUGUI editCategoryLabel;
     private GameObject addGroup;
     private GameObject selectionGroup;
-    private GameObject songDetailsGroup;
     private GameObject difficultyManagementGroup;
     private GameObject categoryGroup;
     private List<ExternalSongLibrary.DifficultyInfo> difficultyInfos =

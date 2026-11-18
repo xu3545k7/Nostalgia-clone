@@ -145,7 +145,7 @@ public class JudgmentLineBar : MonoBehaviour
     private static Camera ResolveCamera()
     {
         if (Camera.main != null) return Camera.main;
-        return Object.FindFirstObjectByType<Camera>();
+        return Object.FindAnyObjectByType<Camera>();
     }
 
     public void ApplyCameraZResponsiveAnchor(Camera camera)

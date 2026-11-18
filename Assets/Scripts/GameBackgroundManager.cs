@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-#pragma warning disable CS0414
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.Video;
@@ -13,8 +12,6 @@ public class GameBackgroundManager : MonoBehaviour
     public RawImage songImage; // 指定用於放置曲子繪圖的 RawImage 區域 (由外部繪圖工具填入)
     public TMP_Text songTitleText; // 顯示曲名 (TextMeshPro)
     public TMP_Text songAuthorText; // 顯示作者 (TextMeshPro)
-    [Tooltip("Optional: displays current DSP time (ms) and chart music_finish_time_msec as current/finish.")]
-    [SerializeField] private TMP_Text dspProgressText;
     [Header("Video Backdrop")]
     [Tooltip("Optional backdrop RawImage shown behind the video while waiting to start (cover or black).")]
     public RawImage videoBackdrop;
@@ -33,9 +30,6 @@ public class GameBackgroundManager : MonoBehaviour
     private bool _backgroundImageBaseColorCached;
     private bool _backgroundDimApplied;
     private static Texture2D sBlackTexture;
-    [Header("Track Dimmer")]
-    [SerializeField]
-    private float sideMarginPixels = 200f; // 左右預留的黑邊寬度
     [Header("Masking")]
     [SerializeField] private bool maskVideoGraphics = true;
     [SerializeField] private bool maskSongImageGraphic = false;
@@ -176,8 +170,6 @@ public class GameBackgroundManager : MonoBehaviour
     private double scheduledVideoStartOffsetSec = 0.0;
     // Keep track of any active coroutine waiting for a DSP start time
     private Coroutine videoPlaybackRoutine;
-    // Flag when strict-delay playback should wait for SchedulePlaybackAtDsp before starting
-    private bool awaitingStrictSchedule = false;
     // Cached per-song requested video start offset (seconds) from SongSelectionManager metadata
     private double perSongVideoStartOffsetSec = 0.0;
 
@@ -197,7 +189,7 @@ public class GameBackgroundManager : MonoBehaviour
     private static readonly int ShaderBaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int ShaderTintColorId = Shader.PropertyToID("_TintColor");
 
-    // cache for DSP text to avoid redundant TMP updates
+    // 進度字串的快取：秒數沒變就不要重新組字。見 UpdateDspProgress。
     private string _lastDspProgressText = null;
     private long _lastDspProgressSecond = -1;
 
@@ -477,7 +469,7 @@ public class GameBackgroundManager : MonoBehaviour
 
         EnsureSongProgressBar();
 
-        BpmDisplay bpmDisplay = FindFirstObjectByType<BpmDisplay>();
+        BpmDisplay bpmDisplay = FindAnyObjectByType<BpmDisplay>();
         if (bpmDisplay != null && bpmDisplay.bpmText != null)
         {
             RectTransform bpmRect = bpmDisplay.bpmText.rectTransform;
@@ -486,7 +478,7 @@ public class GameBackgroundManager : MonoBehaviour
             // 不是曲目的身分。原本放在畫面左側中間漂著，既不屬於字卡也不屬於 HUD，
             // 而那一帶正好是音符落下來的路徑。
             RectTransform scoreAnchor = null;
-            var judge = FindFirstObjectByType<Judgment.JudgmentManager>();
+            var judge = FindAnyObjectByType<Judgment.JudgmentManager>();
             if (judge != null) scoreAnchor = judge.ScoreAnchor;
 
             if (scoreAnchor != null && scoreAnchor.parent != null)
@@ -571,6 +563,8 @@ public class GameBackgroundManager : MonoBehaviour
         timeRect.offsetMin = timeRect.offsetMax = Vector2.zero;
         _songProgressTime = timeObject.GetComponent<TextMeshProUGUI>();
         _songProgressTime.text = "00:00 / 00:00";
+        _lastDspProgressText = null;
+        _lastDspProgressSecond = -1;
         _songProgressTime.alignment = TextAlignmentOptions.Center;
         _songProgressTime.fontSize = 17f;
         _songProgressTime.fontStyle = FontStyles.Bold;
@@ -994,8 +988,19 @@ public class GameBackgroundManager : MonoBehaviour
             _songProgressKnob.anchoredPosition = Vector2.zero;
         }
 
-        string timeDisplay = $"{FormatSongTime(elapsedMs)} / {FormatSongTime(finishMs)}";
-        if (_songProgressTime != null) _songProgressTime.text = timeDisplay;
+        // 顯示的是整秒，所以一秒才會變一次 —— 但這個函式每一幀都跑。沒有這道
+        // 守衛的話，每一幀都會配一個新字串出來丟掉（TMP 的 text setter 自己會比
+        // 對、字一樣就不重建網格，所以看不出來，但那些垃圾是真的）。
+        //
+        // 鍵同時蓋住「現在第幾秒」和「總長第幾秒」：總長會在音訊載進來那一刻從 0
+        // 變成真值，只看現在第幾秒的話，那一下的更新會被吃掉最多一秒。
+        long progressKey = (long)(elapsedMs / 1000.0) * 100000L + (long)(finishMs / 1000.0);
+        if (progressKey != _lastDspProgressSecond || _lastDspProgressText == null)
+        {
+            _lastDspProgressSecond = progressKey;
+            _lastDspProgressText = $"{FormatSongTime(elapsedMs)} / {FormatSongTime(finishMs)}";
+            if (_songProgressTime != null) _songProgressTime.text = _lastDspProgressText;
+        }
     }
 
     private static string FormatSongTime(double milliseconds)
@@ -2009,7 +2014,6 @@ public class GameBackgroundManager : MonoBehaviour
 
             if (strictDelayMode && scheduledDspStart <= 0.0)
             {
-                awaitingStrictSchedule = true;
                 skipPlaybackScheduling = true;
                 try
                 {
@@ -2031,10 +2035,6 @@ public class GameBackgroundManager : MonoBehaviour
                     videoPlaybackRoutine = null;
                 }
                 BuildLogger.Log("GameBackgroundManager: StrictDelayMode pending dsp schedule; awaiting SchedulePlaybackAtDsp before starting video.");
-            }
-            else
-            {
-                awaitingStrictSchedule = false;
             }
 
             // Decide how to apply pre-roll: prefer starting the video earlier so it can show pre-roll frames
@@ -2488,7 +2488,6 @@ public class GameBackgroundManager : MonoBehaviour
         // reset scheduled dsp start
         scheduledDspStart = -1.0;
         scheduledVideoStartOffsetSec = 0.0;
-        awaitingStrictSchedule = false;
         // Clear the background image texture and restore to black so switching songs doesn't show white
         try
         {
@@ -2549,7 +2548,6 @@ public class GameBackgroundManager : MonoBehaviour
     {
         scheduledDspStart = dspStart;
         scheduledVideoStartOffsetSec = videoDelaySec;
-        awaitingStrictSchedule = false;
         BuildLogger.Log($"GameBackgroundManager: SchedulePlaybackAtDsp called, dspStart={dspStart:F3}, videoDelay={videoDelaySec:F3}");
         // if already prepared, start waiting for the desired video start time (dspStart + delay or dspStart - preRoll)
         if (videoPlayer != null && videoPlayer.isPrepared)
@@ -2763,7 +2761,7 @@ public class GameBackgroundManager : MonoBehaviour
 
             // Detailed diagnostics: path, instance id, active state, sibling index
             string path = GetHierarchyPath(img.transform);
-            BuildLogger.Log($"GameBackgroundManager: Target path={path}, instanceId={img.gameObject.GetInstanceID()}, activeInHierarchy={img.gameObject.activeInHierarchy}, siblingIndex={img.transform.GetSiblingIndex()}");
+            BuildLogger.Log($"GameBackgroundManager: Target path={path}, instanceId={img.gameObject.GetEntityId()}, activeInHierarchy={img.gameObject.activeInHierarchy}, siblingIndex={img.transform.GetSiblingIndex()}");
 
             var c = img.canvas;
             if (c != null)
@@ -2772,22 +2770,22 @@ public class GameBackgroundManager : MonoBehaviour
             }
 
             // Print all GameBackgroundManager instances to detect duplicates
-            var allBgManagers = FindObjectsByType<GameBackgroundManager>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var allBgManagers = FindObjectsByType<GameBackgroundManager>(FindObjectsInactive.Include);
             for (int i = 0; i < allBgManagers.Length; i++)
             {
                 var gm = allBgManagers[i];
-                BuildLogger.Log($"GameBackgroundManager: Scene instance[{i}] -> go={GetHierarchyPath(gm.transform)} instanceId={gm.gameObject.GetInstanceID()} songImageRef={(gm.songImage!=null?gm.songImage.gameObject.GetInstanceID():-1)} backgroundImageRef={(gm.backgroundImage!=null?gm.backgroundImage.gameObject.GetInstanceID():-1)}");
+                BuildLogger.Log($"GameBackgroundManager: Scene instance[{i}] -> go={GetHierarchyPath(gm.transform)} instanceId={gm.gameObject.GetEntityId()} songImageRef={(gm.songImage!=null?gm.songImage.gameObject.GetEntityId():-1)} backgroundImageRef={(gm.backgroundImage!=null?gm.backgroundImage.gameObject.GetEntityId():-1)}");
             }
 
             // Print other RawImage objects that currently have textures (helps find other background-like images)
-            var allRaw = FindObjectsByType<RawImage>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var allRaw = FindObjectsByType<RawImage>(FindObjectsInactive.Include);
             for (int i = 0; i < allRaw.Length; i++)
             {
                 var r = allRaw[i];
                 if (r == null) continue;
                 if (r.texture != null)
                 {
-                    BuildLogger.Log($"GameBackgroundManager: RawImage[{i}] path={GetHierarchyPath(r.transform)} instanceId={r.gameObject.GetInstanceID()} texName={(r.texture!=null?r.texture.name:"null")} texEqualsAssigned={(r.texture==texture)} activeInHierarchy={r.gameObject.activeInHierarchy} siblingIndex={r.transform.GetSiblingIndex()}");
+                    BuildLogger.Log($"GameBackgroundManager: RawImage[{i}] path={GetHierarchyPath(r.transform)} instanceId={r.gameObject.GetEntityId()} texName={(r.texture!=null?r.texture.name:"null")} texEqualsAssigned={(r.texture==texture)} activeInHierarchy={r.gameObject.activeInHierarchy} siblingIndex={r.transform.GetSiblingIndex()}");
                 }
             }
         }

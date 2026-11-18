@@ -63,7 +63,7 @@ public sealed class TrackMarbleThemeController : MonoBehaviour
         if (conductor == null)
         {
             conductor = GameManager.Instance != null ? GameManager.Instance.Conductor : null;
-            if (conductor == null) conductor = FindFirstObjectByType<Conductor>();
+            if (conductor == null) conductor = FindAnyObjectByType<Conductor>();
         }
 
         bool timingActive = conductor != null && conductor.isActive;

@@ -280,7 +280,7 @@ public sealed class SelectionKeyControl : MonoBehaviour
         if (live != null && live.isActiveAndEnabled) return;
 
         foreach (MIDIInputManager candidate in FindObjectsByType<MIDIInputManager>(
-                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+                     FindObjectsInactive.Include))
         {
             if (candidate != null && candidate.isActiveAndEnabled) return;
         }

@@ -14,8 +14,6 @@ public class UIManager : MonoBehaviour
     private float currentSpeed = 30f; // Default speed changed to match SettingsManager
     /// <summary>currentSpeed 已經是真正的設定值，不是欄位初始值 30f。</summary>
     private bool speedResolved;
-    // Track last applied/displayed values to avoid redundant updates that may trigger work
-    private float lastAppliedSpeed = float.NaN;
     private string lastDisplayedSpeedText = "";
 
     [Header("End Buttons")]

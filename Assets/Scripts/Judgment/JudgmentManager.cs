@@ -117,7 +117,6 @@ public class JudgmentManager : MonoBehaviour
         private int    _lastHudFast   = -1;
         private int    _lastHudSlow   = -1;
         private bool   _lastHudWasSettingsPreview;
-        private string _lastHudAchStr = null;
         /// <summary>
         /// Two nearly simultaneous notes within this time window (ms) on overlapping lanes share one input;
         /// both are judged and the key is NOT consumed (Inspector-editable).
@@ -230,12 +229,6 @@ public class JudgmentManager : MonoBehaviour
         private readonly System.Collections.Generic.List<NoteController> toFinalizeScratch = new System.Collections.Generic.List<NoteController>();
         private readonly System.Collections.Generic.List<NoteController> toAutoFinalizeScratch = new System.Collections.Generic.List<NoteController>();
         private readonly System.Collections.Generic.Dictionary<NoteController, float> autoHeldNotes = new System.Collections.Generic.Dictionary<NoteController, float>();
-        // Throttle for the untracked-hold scan.
-        // Interval is derived from BPM (one eighth-note = 30000/BPM ms) so the scan fires
-        // at most once per hold-extra combo opportunity, not every frame.
-        private float _lastUntrackedHoldCheckMs = float.MinValue;
-        // Cached interval (ms); refreshed each time a scan fires so it tracks live BPM.
-        private float _untrackedHoldCheckIntervalMs = 250f; // safe fallback (BPM 120 eighth = 250ms)
         // Object pool for JudgmentPayload to eliminate per-judgment heap allocations.
         // With ProtectionEnabled=false all payloads are consumed synchronously, so it is safe
         // to return them at the end of ApplyJudgmentPayload.
@@ -331,7 +324,6 @@ public class JudgmentManager : MonoBehaviour
             _lastHudFast   = -1;
             _lastHudSlow   = -1;
             _lastHudWasSettingsPreview = false;
-            _lastHudAchStr = null;
             _hudDirty      = true;
             _inputTimingPathLogged = false;
             _timedInputCount = 0;
@@ -3881,14 +3873,23 @@ public class JudgmentManager : MonoBehaviour
             return false;
         }
 
-        private void OnJudgmentRevised(int buttonId, UnityEngine.Vector3 notePosition, JudgmentResult res)
+        private void OnJudgmentRevised(int buttonId, UnityEngine.Vector3 notePosition, JudgmentResult res,
+            float signedOffsetMs)
         {
-            ShowJudgementPopups(buttonId, notePosition, res);
+            ShowJudgementPopups(buttonId, notePosition, res, false, signedOffsetMs);
             _hudDirty = true;
         }
 
+        /// <summary>
+        /// <paramref name="signedOffsetMs"/>：正的是晚、負的是早，0 ＝ 不要標。
+        /// </summary>
+        /// <remarks>
+        /// 只有**按下去**的那一刻算早晚。長音的尾巴是放開、節奏加分是系統給的，
+        /// 兩者都傳 0 —— 這和 StatsManager 收集 FAST／SLOW 樣本的規則一致，
+        /// 不然畫面上標了一行字，結算時那一筆卻不在計數裡。
+        /// </remarks>
         private void ShowJudgementPopups(int buttonId, UnityEngine.Vector3 notePosition, JudgmentResult res,
-            bool precise = false)
+            bool precise = false, float signedOffsetMs = 0f)
         {
             try
             {
@@ -3906,7 +3907,8 @@ public class JudgmentManager : MonoBehaviour
             try
             {
                 using (HitchProbe.Measure("judgePopup"))
-                    SimpleJudgePopupManager.Instance?.ShowAtPosition(notePosition, res, precise);
+                    SimpleJudgePopupManager.Instance?.ShowAtPosition(notePosition, res, precise,
+                        signedOffsetMs);
             }
             catch { }
         }
@@ -4009,7 +4011,7 @@ public class JudgmentManager : MonoBehaviour
             if (payload.result != JudgmentResult.Miss) AbsorbStraysAround(note.NoteData);
             if (!payload.isHoldTail && !payload.isHoldExtra && !payload.isSustainTick)
                 EatenInputProbe.Resolved(note, payload.result == JudgmentResult.Miss);
-            if (_cachedDebugMode) { try { BuildLogger.Log($"[JMgr] ApplyJudgmentPayload note={note.name ?? note.GetInstanceID().ToString()} res={payload.result} head={payload.isHoldHead} tail={payload.isHoldTail} popup={payload.triggerPopup} mesh={payload.triggerMesh} sound={payload.triggerHitSound}"); } catch { } }
+            if (_cachedDebugMode) { try { BuildLogger.Log($"[JMgr] ApplyJudgmentPayload note={note.name ?? note.GetEntityId().ToString()} res={payload.result} head={payload.isHoldHead} tail={payload.isHoldTail} popup={payload.triggerPopup} mesh={payload.triggerMesh} sound={payload.triggerHitSound}"); } catch { } }
 
             INoteHandler handler = null;
             try { handler = GetHandler(note); } catch { handler = null; }
@@ -4023,6 +4025,8 @@ public class JudgmentManager : MonoBehaviour
                     ShowNoteMeshEffect(note, payload.result, false, true, tailTimingOffset, true,
                         payload.buttonId, IsPrecise(payload));
                 bool preciseTail = IsPrecise(payload);
+                // 尾巴不標早晚：那是**放開**的時機，和「按得早或晚」是兩件事，
+                // 同一個字講兩種意思只會讓人照著它調錯方向。
                 if (payload.triggerPopup) { ShowJudgementPopups(payload.buttonId, note.transform.position, payload.result, preciseTail); }
                 TryIncrementStats(payload.result, false,
                     note.IsStaccato ? RecitalWeight(payload, true) : 1m);
@@ -4061,7 +4065,7 @@ public class JudgmentManager : MonoBehaviour
                     }
                 }
                 if (payload.triggerHitSound) { try { handler?.PlayHeadSound(note, payload.inputSongPosMs, payload.result); } catch { } }
-                if (payload.triggerPopup) { ShowJudgementPopups(payload.buttonId, note.transform.position, payload.result, preciseHead); }
+                if (payload.triggerPopup) { ShowJudgementPopups(payload.buttonId, note.transform.position, payload.result, preciseHead, headTimingOffset); }
                 TryIncrementStats(payload.result, false, RecitalWeight(payload, true));
                 RecordTimingOffsetIfNeeded(payload);
                 if (activeHoldStates.TryGetValue(note, out var state))
@@ -4081,14 +4085,19 @@ public class JudgmentManager : MonoBehaviour
             // Hold extras update score/popups, but the contact core is already
             // continuously lit; do not stack rhythmic brightness pulses over it.
             bool precise = IsPrecise(payload);
+            float timingOffset = payload.inputSongPosMs - payload.targetTimeMs;
             if (payload.triggerMesh && !payload.isHoldExtra)
             {
-                float timingOffset = payload.inputSongPosMs - payload.targetTimeMs;
                 ShowNoteMeshEffect(note, payload.result, false, true, timingOffset, true,
                     payload.buttonId, precise);
             }
             if (payload.triggerHitSound) { try { handler?.PlayHeadSound(note, payload.inputSongPosMs, payload.result); } catch { } }
-            if (payload.triggerPopup) { ShowJudgementPopups(payload.buttonId, note.transform.position, payload.result, precise); }
+            // 長音的節奏加分和顫音的後續格子不是玩家瞄準的，它們的偏差是合成的 0。
+            if (payload.triggerPopup)
+            {
+                ShowJudgementPopups(payload.buttonId, note.transform.position, payload.result, precise,
+                    payload.isHoldExtra || payload.isSustainTick ? 0f : timingOffset);
+            }
             TryIncrementStats(payload.result, payload.isSustainTick, RecitalWeight(payload, true));
             RecordTimingOffsetIfNeeded(payload);
             if (_cachedDebugMode) { try { if (payload.isHoldExtra) { BuildLogger.Log($"[JMgr] ApplyJudgmentPayload: isHoldExtra for note={note?.name ?? "<null>"} res={payload.result} songPos={payload.inputSongPosMs}"); } } catch { } }

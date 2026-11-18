@@ -81,7 +81,7 @@ public sealed class SongBookDressing : MonoBehaviour
     /// </summary>
     private void BuildBoard(RectTransform card)
     {
-        board = BookBoardGraphic.Attach(card, Mathf.Abs(card.GetInstanceID()) % 89);
+        board = BookBoardGraphic.Attach(card, (card.GetEntityId().GetHashCode() & 0x7fffffff) % 89);
         if (board == null) return;
         board.Profile = BookShape.Profile.Volume;
         // 這個曲庫裝的是練習曲集，不是皮裝全集：一張硬紙折過來釘住，封面是
@@ -128,7 +128,7 @@ public sealed class SongBookDressing : MonoBehaviour
     /// </remarks>
     private void BuildWear(RectTransform card)
     {
-        AgedPaperGraphic wear = AgedPaperGraphic.Attach(card, Mathf.Abs(card.GetInstanceID()) % 89, 1);
+        AgedPaperGraphic wear = AgedPaperGraphic.Attach(card, (card.GetEntityId().GetHashCode() & 0x7fffffff) % 89, 1);
         if (wear == null) return;
         // 磨損跟著板子的弧線，不然最外圈那道黑會在角落切過書的輪廓。
         wear.Shape(BookShape.Profile.Volume);

@@ -321,7 +321,7 @@ public sealed class ChartRadarGraphic : MaskableGraphic
         var label = go.GetComponent<TextMeshProUGUI>();
         label.fontSize = 10.5f;
         label.alignment = TextAlignmentOptions.Center;
-        label.enableWordWrapping = false;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
         label.raycastTarget = false;
         return label;
     }

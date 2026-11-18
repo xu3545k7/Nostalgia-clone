@@ -115,7 +115,7 @@ public class RealtimeInputBuffer : MonoBehaviour
             return Instance;
         }
 
-        var existing = FindFirstObjectByType<RealtimeInputBuffer>();
+        var existing = FindAnyObjectByType<RealtimeInputBuffer>();
         if (existing != null)
         {
             Instance = existing;

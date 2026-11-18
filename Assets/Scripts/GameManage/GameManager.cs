@@ -19,7 +19,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
         {
             if (_instance == null)
             {
-                _instance = FindFirstObjectByType<GameManager>();
+                _instance = FindAnyObjectByType<GameManager>();
             }
             return _instance;
         }
@@ -139,7 +139,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
             NoteSpawner = GetComponent<NoteSpawner>();
             if (NoteSpawner == null)
             {
-                NoteSpawner = FindFirstObjectByType<NoteSpawner>();
+                NoteSpawner = FindAnyObjectByType<NoteSpawner>();
             }
         }
         if (BeatLineSpawner == null)
@@ -147,7 +147,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
             BeatLineSpawner = GetComponent<BeatLineSpawner>();
             if (BeatLineSpawner == null)
             {
-                BeatLineSpawner = FindFirstObjectByType<BeatLineSpawner>();
+                BeatLineSpawner = FindAnyObjectByType<BeatLineSpawner>();
             }
         }
 
@@ -270,7 +270,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
 
         if (UIManager == null)
         {
-            UIManager = FindFirstObjectByType<UIManager>();
+            UIManager = FindAnyObjectByType<UIManager>();
         }
 
         if (UIManager != null)
@@ -476,11 +476,11 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
         cachedAudioSource = GetComponent<AudioSource>();
         NoteSpawner = GetComponent<NoteSpawner>();
         BeatLineSpawner = GetComponent<BeatLineSpawner>();
-        UIManager = FindFirstObjectByType<UIManager>(); // Find the UIManager in the scene
+        UIManager = FindAnyObjectByType<UIManager>(); // Find the UIManager in the scene
         
         // Initialize HitSoundManager (will be enabled later when Unity compiles the new script)
         /*
-        HitSoundManager = FindFirstObjectByType<HitSoundManager>();
+        HitSoundManager = FindAnyObjectByType<HitSoundManager>();
         if (HitSoundManager == null)
         {
             // Create HitSoundManager if it doesn't exist
@@ -986,7 +986,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
             NoteSpawner = GetComponent<NoteSpawner>();
             if (NoteSpawner == null)
             {
-                NoteSpawner = FindFirstObjectByType<NoteSpawner>();
+                NoteSpawner = FindAnyObjectByType<NoteSpawner>();
             }
         }
         if (BeatLineSpawner == null)
@@ -994,7 +994,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
             BeatLineSpawner = GetComponent<BeatLineSpawner>();
             if (BeatLineSpawner == null)
             {
-                BeatLineSpawner = FindFirstObjectByType<BeatLineSpawner>();
+                BeatLineSpawner = FindAnyObjectByType<BeatLineSpawner>();
             }
         }
 
@@ -1084,7 +1084,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
 
         if (UIManager == null)
         {
-            UIManager = FindFirstObjectByType<UIManager>();
+            UIManager = FindAnyObjectByType<UIManager>();
         }
 
         if (UIManager != null)
@@ -1420,7 +1420,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
     {
         var midiObj = MIDIInputManager.Instance;
         if (enable && (midiObj == null || !midiObj.isActiveAndEnabled))
-            midiObj = FindFirstObjectByType<MIDIInputManager>();
+            midiObj = FindAnyObjectByType<MIDIInputManager>();
         if (enable)
         {
             if (midiObj == null || !midiObj.isActiveAndEnabled)
@@ -1636,11 +1636,11 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
     /// <summary>找出用錯誤材質（洋紅）畫出來的東西，連路徑和位置一起印出來。</summary>
     private static void ReportBrokenMaterials()
     {
-        var stage = FindFirstObjectByType<ChartOverviewStage>(FindObjectsInactive.Include);
+        var stage = FindAnyObjectByType<ChartOverviewStage>(FindObjectsInactive.Include);
         Debug.LogWarning($"[材質診斷] 預覽舞台={(stage != null ? $"存在，音符 {stage.BuiltNotes}" : "沒有")}");
 
         int reported = 0;
-        var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude);
         foreach (var renderer in renderers)
         {
             if (renderer == null) continue;
@@ -3045,7 +3045,7 @@ public class GameManager : MonoBehaviour // Renamed class to match file name "Ga
             {
                 // Find any active JudgmentLine instances in the scene
                 // Use the newer API to avoid deprecation in newer Unity versions
-                var judgmentObjs = GameObject.FindObjectsByType<Transform>(UnityEngine.FindObjectsSortMode.None);
+                var judgmentObjs = GameObject.FindObjectsByType<Transform>();
                 Transform judgmentTransform = null;
                 foreach (var t in judgmentObjs)
                 {

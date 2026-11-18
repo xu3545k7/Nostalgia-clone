@@ -395,7 +395,7 @@ public class PianoVoiceManager : MonoBehaviour
     public static PianoVoiceManager EnsureCreated()
     {
         if (Instance != null) return Instance;
-        var existing = FindFirstObjectByType<PianoVoiceManager>();
+        var existing = FindAnyObjectByType<PianoVoiceManager>();
         if (existing != null)
         {
             Instance = existing;

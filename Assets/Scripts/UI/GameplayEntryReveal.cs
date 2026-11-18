@@ -204,7 +204,7 @@ public sealed class GameplayEntryReveal : MonoBehaviour
 
     private static Transform FindKeyboard()
     {
-        var keyboard = Object.FindFirstObjectByType<IvoryLaneKeyboard>(FindObjectsInactive.Exclude);
+        var keyboard = Object.FindAnyObjectByType<IvoryLaneKeyboard>(FindObjectsInactive.Exclude);
         return keyboard != null ? keyboard.transform : null;
     }
 

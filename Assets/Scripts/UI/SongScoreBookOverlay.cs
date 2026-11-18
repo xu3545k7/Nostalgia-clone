@@ -357,7 +357,7 @@ public sealed class SongScoreBookOverlay : MonoBehaviour
         analysisText.rectTransform.anchorMax = new Vector2(0.64f, 1f);
         analysisText.rectTransform.offsetMin = new Vector2(14f, 4f);
         analysisText.rectTransform.offsetMax = new Vector2(-4f, -12f);
-        analysisText.enableWordWrapping = true;
+        analysisText.textWrappingMode = TextWrappingModes.Normal;
         analysisText.lineSpacing = 4f;
 
         GameObject graphObject = new GameObject("HandDensityGraph", typeof(RectTransform),
@@ -1049,7 +1049,7 @@ public sealed class SongScoreBookOverlay : MonoBehaviour
         text.fontStyle = style;
         text.alignment = alignment;
         text.raycastTarget = false;
-        text.enableWordWrapping = false;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
         ClassicalBookUITheme.ApplyLocalizedFont(text);
         return text;
     }

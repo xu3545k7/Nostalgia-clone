@@ -66,7 +66,7 @@ public class VirtualKeyButton : MonoBehaviour
         if (registry.TryGetValue(id, out var rt)) return rt;
 
         // try to populate registry by finding existing components
-        var all = Object.FindObjectsByType<VirtualKeyButton>(FindObjectsSortMode.None);
+        var all = Object.FindObjectsByType<VirtualKeyButton>();
         foreach (var v in all)
         {
             if (v == null) continue;

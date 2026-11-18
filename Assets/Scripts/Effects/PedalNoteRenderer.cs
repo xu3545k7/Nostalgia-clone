@@ -117,14 +117,6 @@ public sealed class PedalNoteRenderer : MonoBehaviour
     private const float CueEdgeOutsetWorld = 0.55f;
 
     [Header("Pedal bracket")]
-    [Tooltip("Gap between the track's edge and the bracket's rail, in world units.")]
-    [SerializeField, Range(0.1f, 8f)] private float bracketGapWorld = 2.2f;
-    [Tooltip("Length of the ticks turned in towards the track, as a share of the track's width.")]
-    [SerializeField, Range(0.01f, 0.25f)] private float bracketTickShare = 0.055f;
-    [Tooltip("Stroke weight of the bracket, as a share of the track's width.")]
-    [SerializeField, Range(0.002f, 0.05f)] private float bracketStrokeShare = 0.018f;
-    [Tooltip("How far from the judgment line the press and release flare, as a share of the track's width.")]
-    [SerializeField, Range(0.05f, 1.5f)] private float bracketFlareShare = 0.30f;
     [Tooltip("Nudge the parked pedal bar along the track, in world units. Negative pulls it toward the player.")]
     [SerializeField, Range(-3f, 3f)] private float pedalBarZOffset = -0.35f;
     [Tooltip("Where the side speed lines sit and how wide their band is, as shares of the track's width.")]
@@ -149,15 +141,10 @@ public sealed class PedalNoteRenderer : MonoBehaviour
 
     [SerializeField, Range(0f, 4f)] private float cueEdgeGlow = 1.15f;
 
-    [SerializeField, Range(0.2f, 3f)]
-    [Tooltip("Extra edge glow on the pedal-down bar, over cueEdgeGlow. Its colour is already HDR, so this multiplies an above-1 value: the two together decide whether the bar reads as a line or as a band of light.")]
-    // Was a hard-coded 2.25, which put the bar at 1.397 x 1.15 x 2.25 = 3.62 —
-    // nearly three times the bloom threshold, and by a wide margin the brightest
-    // thing in the scene. A full-width line that far over blooms into a thick
-    // glowing band lying parallel to the judgment line, which is what it was
-    // mistaken for. 1.15 keeps it the brightest pedal cue and still glowing
-    // (about 1.8, comfortably past the threshold) without flooding the screen.
-    private float pressBarGlowMultiplier = 1.15f;
+    // 踩下那條棒子的額外光暈曾經是一個獨立倍率（寫死 2.25 太亮，調成 1.15）。
+    // 後來改成在 PressWall 裡直接用 0.42 x pressBarAlpha 算，這個欄位就沒人讀了
+    // —— 留著只會讓 Inspector 多一個轉了不會動的旋鈕。要把那 1.15 一階加回去的
+    // 話，動的是 PressWall 的 0.42。
     [SerializeField, Range(0.005f, 0.2f)] private float cueEdgeWidth = 0.045f;
 
     [SerializeField, Range(0.1f, 1.5f), Tooltip("Fixed world-space thickness of the pedal-down and pedal-up marker lines. It must not grow with note speed.")]
@@ -2971,8 +2958,7 @@ public sealed class PedalNoteRenderer : MonoBehaviour
             }
         }
 
-        // 連續那一片佔整體高度的幾成，以及它的濃度。光束從這個高度往上長。
-        const float SheetShare = 0.42f;
+        // 連續那一片的濃度。光束從它的高度往上長。
         const float SheetAlpha = 0.55f;
         // 一段光罩多長，佔軌道寬的比例。105 × 0.042 ≈ 4.4 世界單位，
         // 一條 46 單位長的踏板大約切成 10 段。

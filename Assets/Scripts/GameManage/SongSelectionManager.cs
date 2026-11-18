@@ -229,7 +229,6 @@ public class SongSelectionManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI currentSongLabel;
     [SerializeField] private TextMeshProUGUI authorLabel;
     [SerializeField] private RectTransform songButtonContainer;
-    [SerializeField] private Button songButtonPrefab;
 
     [Header("Carousel Layout")]
     [SerializeField] private SongPreviewSlot centerSlot;
@@ -246,15 +245,6 @@ public class SongSelectionManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI categoryCarouselLabel;
     [SerializeField] private Button previousCategoryButton;
     [SerializeField] private Button nextCategoryButton;
-
-    [Header("Data Settings")]
-    [SerializeField] private string songListResourcePath = "song_list";
-
-    [Header("Auto Discovery (Resources)")]
-    [Tooltip("啟動時從 Resources/songs 掃描 register.json 並合併到歌曲列表。")]
-    [SerializeField] private bool autoDiscoverOnStart = true;
-    [Tooltip("Resources 下自動發現歌曲的根目錄。如 'songs' => Assets/Resources/songs")]
-    [SerializeField] private string autoDiscoverResourcesRoot = "songs";
 
     [Header("Audio Preview")]
     [SerializeField] private AudioSource previewAudioSource;
@@ -307,7 +297,6 @@ public class SongSelectionManager : MonoBehaviour
 
     private RectTransform recitalToggleRoot;
     private bool recitalToggleReady;
-    private Image recitalToggleFace;
     private Button recitalToggleButton;
     private RecitalToggleGlow recitalToggleGlow;
     private TextMeshProUGUI recitalToggleLabel;
@@ -4409,7 +4398,7 @@ public class SongSelectionManager : MonoBehaviour
         if (parentCanvas == null && currentSongLabel != null) parentCanvas = currentSongLabel.canvas;
         if (parentCanvas == null)
         {
-            var canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Exclude);
             for (int i = 0; i < canvases.Length; i++)
             {
                 if (canvases[i] != null && canvases[i].isRootCanvas)

@@ -174,7 +174,7 @@ public class Conductor : MonoBehaviour
             if (audioSync == null)
             {
                 // Find first AudioSync in the scene as a fallback (keeps backward compatibility)
-                audioSync = Object.FindFirstObjectByType<AudioSync>();
+                audioSync = Object.FindAnyObjectByType<AudioSync>();
             }
         }
         if (audioSync != null && audioSync.audioSource != null)
@@ -826,7 +826,7 @@ public class Conductor : MonoBehaviour
     {
         if (chart == null) return;
         // Find all NoteSpawner instances in the scene
-    var noteSpawners = Object.FindObjectsByType<NoteSpawner>(FindObjectsSortMode.None);
+    var noteSpawners = Object.FindObjectsByType<NoteSpawner>();
         foreach (var ns in noteSpawners)
         {
             try
@@ -839,7 +839,7 @@ public class Conductor : MonoBehaviour
             }
         }
 
-    var beatLineSpawners = Object.FindObjectsByType<BeatLineSpawner>(FindObjectsSortMode.None);
+    var beatLineSpawners = Object.FindObjectsByType<BeatLineSpawner>();
         foreach (var bs in beatLineSpawners)
         {
             try

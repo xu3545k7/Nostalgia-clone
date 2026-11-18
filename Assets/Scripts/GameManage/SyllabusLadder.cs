@@ -57,7 +57,9 @@ public static class SyllabusLadder
     /// 之前沒有任何東西能讓玩家失敗，所以不存在失敗遙測。考場開張時第一件事應該是
     /// 把「每一首結束時剩多少容錯」寫進 oplog，跑過幾十次之後再回頭調。
     /// </remarks>
-    public const bool ExamHallOpen = true;
+    // 不是 const：這一格是開關，const 會讓編譯器把另一邊折成無法抵達的程式碼
+    // （CS0162）。換成 static readonly 之後兩邊都是活的，翻這一格仍然就是全部的改法。
+    public static readonly bool ExamHallOpen = true;
 
     /// <summary>
     /// 一階怎麼從曲庫裡挑譜。全部讀 <see cref="ChartAnalysis"/> 現成的欄位。

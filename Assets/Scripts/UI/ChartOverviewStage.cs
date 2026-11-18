@@ -77,8 +77,7 @@ public sealed class ChartOverviewStage : MonoBehaviour
     {
         // 先掃掉任何還活著的舊舞台。它們理論上會自我銷毀，但只要有一顆漏掉，畫面
         // 上就會多出一整份譜面的音符 —— 而且看起來就像「多出來、遊戲裡沒有的音」。
-        var stale = FindObjectsByType<ChartOverviewStage>(FindObjectsInactive.Include,
-            FindObjectsSortMode.None);
+        var stale = FindObjectsByType<ChartOverviewStage>(FindObjectsInactive.Include);
         for (int i = 0; i < stale.Length; i++)
         {
             if (stale[i] != null) DestroyImmediate(stale[i].gameObject);
@@ -143,7 +142,7 @@ public sealed class ChartOverviewStage : MonoBehaviour
     /// </remarks>
     private void TakeCensus()
     {
-        var all = FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        var all = FindObjectsByType<Renderer>(FindObjectsInactive.Include);
         int orphans = 0;
         string first = null;
         for (int i = 0; i < all.Length; i++)
@@ -426,7 +425,7 @@ public sealed class ChartOverviewStage : MonoBehaviour
         if (NoteSpawner.Instance != null) return NoteSpawner.Instance;
         if (GameManager.Instance != null && GameManager.Instance.NoteSpawner != null)
             return GameManager.Instance.NoteSpawner;
-        return FindFirstObjectByType<NoteSpawner>(FindObjectsInactive.Include);
+        return FindAnyObjectByType<NoteSpawner>(FindObjectsInactive.Include);
     }
 
     private static void SetLayerRecursively(Transform root, int layer)

@@ -11,7 +11,7 @@ public class StatsManager : MonoBehaviour
         {
             if (_instance == null)
             {
-                var existing = FindFirstObjectByType<StatsManager>();
+                var existing = FindAnyObjectByType<StatsManager>();
                 if (existing != null) _instance = existing;
                 else
                 {

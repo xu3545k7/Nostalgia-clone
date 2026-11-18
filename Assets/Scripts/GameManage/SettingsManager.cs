@@ -342,6 +342,10 @@ public class GameSettings
     [Range(0f, 3f)]
     public float strikeCueHeight = 1f;
 
+    [Tooltip("Length of the red strip laid on the track when a key is struck that no note asks for. Separate from strikeCueHeight because the two cues answer different questions: one being the right size says nothing about the other. 0 hides the strip; the red halo on the judgment line is not affected.")]
+    [Range(0f, 3f)]
+    public float mistouchCueHeight = 1f;
+
     [Tooltip("Filter a bouncing contact on the key that was just pressed. The block is lifted the moment the key comes up, so a genuine fast re-strike is never what gets stopped.")]
     public bool blockKeyChatter = true;
 
@@ -475,7 +479,7 @@ public class SettingsManager : MonoBehaviour
         {
             if (_instance == null)
             {
-                _instance = FindFirstObjectByType<SettingsManager>();
+                _instance = FindAnyObjectByType<SettingsManager>();
                 if (_instance == null)
                 {
                     GameObject settingsObj = new GameObject("SettingsManager");
@@ -608,6 +612,10 @@ public class SettingsManager : MonoBehaviour
             if (gameSettings != null && !json.Contains("strikeCueHeight"))
             {
                 gameSettings.strikeCueHeight = 1f;
+            }
+            if (gameSettings != null && !json.Contains("mistouchCueHeight"))
+            {
+                gameSettings.mistouchCueHeight = 1f;
             }
             if (gameSettings != null && !json.Contains("judgmentPreset"))
             {
@@ -797,7 +805,7 @@ public class SettingsManager : MonoBehaviour
     public void ApplySettings()
     {
         // Apply music volume to Conductor (so it affects only the music playback, not hit sounds)
-        var conductor = FindFirstObjectByType<Conductor>();
+        var conductor = FindAnyObjectByType<Conductor>();
         if (conductor != null)
         {
             conductor.SetMusicVolume(gameSettings.musicVolume);
@@ -812,7 +820,7 @@ public class SettingsManager : MonoBehaviour
         }
         
         // Apply default speed to UIManager
-        UIManager uiManager = FindFirstObjectByType<UIManager>();
+        UIManager uiManager = FindAnyObjectByType<UIManager>();
         if (uiManager != null)
         {
             uiManager.SetDefaultSpeed(gameSettings.defaultSpeed);
@@ -830,7 +838,7 @@ public class SettingsManager : MonoBehaviour
         SetTrackMarbleTheme(gameSettings.trackMarbleTheme);
 
         // Apply track dimmer to GameBackgroundManager so track visuals update immediately.
-        var backgroundManager = FindFirstObjectByType<GameBackgroundManager>();
+        var backgroundManager = FindAnyObjectByType<GameBackgroundManager>();
         if (backgroundManager != null)
         {
             backgroundManager.ApplyTrackDimmerSetting(gameSettings.trackVideoDimmer);
@@ -839,7 +847,7 @@ public class SettingsManager : MonoBehaviour
         //Debug.Log($"Settings applied - Hit: {gameSettings.hitSoundVolume}, Music: {gameSettings.musicVolume}, Speed: {gameSettings.defaultSpeed}, Delay: {gameSettings.gameStartDelay}");
 
         // Apply judge popup Z offset to SimpleJudgePopupManager if present
-        var popupMgr = FindFirstObjectByType<SimpleJudgePopupManager>();
+        var popupMgr = FindAnyObjectByType<SimpleJudgePopupManager>();
         if (popupMgr != null)
         {
             // Assign judgePopupZOffset via reflection if the field/property exists to avoid compile-time dependency
@@ -856,7 +864,7 @@ public class SettingsManager : MonoBehaviour
             }
 
             // If a NoteSpawner exists, point the popup manager at it to allow anchor interpolation
-            var ns = FindFirstObjectByType<NoteSpawner>();
+            var ns = FindAnyObjectByType<NoteSpawner>();
             if (ns != null)
             {
                 // Use reflection to assign spawnAnchorTransform if the field/property exists
@@ -1223,7 +1231,7 @@ public class SettingsManager : MonoBehaviour
     {
         gameSettings.musicVolume = Mathf.Clamp01(volume);
         // Apply immediately to Conductor if present (affect music only)
-        var conductor = FindFirstObjectByType<Conductor>();
+        var conductor = FindAnyObjectByType<Conductor>();
         if (conductor != null)
         {
             conductor.SetMusicVolume(gameSettings.musicVolume);
@@ -1358,7 +1366,7 @@ public class SettingsManager : MonoBehaviour
 
         gameSettings.trackGuideLineOpacity = Mathf.Clamp01(opacity);
         TrackGuideLineOverlay[] overlays = FindObjectsByType<TrackGuideLineOverlay>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+            FindObjectsInactive.Include);
         for (int i = 0; i < overlays.Length; i++)
         {
             if (overlays[i] != null)
@@ -1401,7 +1409,7 @@ public class SettingsManager : MonoBehaviour
 
         gameSettings.trackMarbleTheme = theme;
         TrackMarbleThemeController[] controllers = FindObjectsByType<TrackMarbleThemeController>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+            FindObjectsInactive.Include);
         for (int i = 0; i < controllers.Length; i++)
         {
             if (controllers[i] != null)
@@ -1418,7 +1426,7 @@ public class SettingsManager : MonoBehaviour
             gameSettings = new GameSettings();
         }
         gameSettings.trackVideoDimmer = Mathf.Clamp01(value);
-        var backgroundManager = FindFirstObjectByType<GameBackgroundManager>();
+        var backgroundManager = FindAnyObjectByType<GameBackgroundManager>();
         if (backgroundManager != null)
         {
             backgroundManager.ApplyTrackDimmerSetting(gameSettings.trackVideoDimmer);
@@ -1428,7 +1436,7 @@ public class SettingsManager : MonoBehaviour
     public void SetJudgePopupZOffset(float z)
     {
         gameSettings.judgePopupZOffset = z;
-        var popupMgr = FindFirstObjectByType<SimpleJudgePopupManager>();
+        var popupMgr = FindAnyObjectByType<SimpleJudgePopupManager>();
         if (popupMgr != null)
         {
             var pmType = popupMgr.GetType();
@@ -1457,8 +1465,7 @@ public class SettingsManager : MonoBehaviour
     {
         if (gameSettings == null) gameSettings = new GameSettings();
         gameSettings.judgmentLineScreenHeight = Mathf.Clamp(height, 0.12f, 0.55f);
-        JudgmentLineBar[] bars = FindObjectsByType<JudgmentLineBar>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        JudgmentLineBar[] bars = FindObjectsByType<JudgmentLineBar>(FindObjectsInactive.Include);
         for (int i = 0; i < bars.Length; i++)
             if (bars[i] != null) bars[i].SetScreenHeight(gameSettings.judgmentLineScreenHeight);
     }
@@ -1509,8 +1516,7 @@ public class SettingsManager : MonoBehaviour
 
     private static void UpdateJudgmentLineCameraAnchor(Camera camera)
     {
-        JudgmentLineBar[] bars = FindObjectsByType<JudgmentLineBar>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        JudgmentLineBar[] bars = FindObjectsByType<JudgmentLineBar>(FindObjectsInactive.Include);
         for (int i = 0; i < bars.Length; i++)
             if (bars[i] != null) bars[i].ApplyCameraZResponsiveAnchor(camera);
     }
@@ -1997,6 +2003,28 @@ public class SettingsManager : MonoBehaviour
         float clamped = Mathf.Clamp(value, 0f, 3f);
         if (Mathf.Approximately(gameSettings.strikeCueHeight, clamped)) return;
         gameSettings.strikeCueHeight = clamped;
+        SaveSettings();
+    }
+
+    /// <summary>按錯了的時候，判定線上那條紅提示有多長。0 = 不顯示那條帶子。</summary>
+    /// <remarks>
+    /// **和按鍵提示分開一列**，因為兩條講的是不同的事：一條是「機器收到了」，
+    /// 一條是「你按錯了」。把確認調到剛好的長度，完全不代表警報也剛好 ——
+    /// 想要很淡的確認、很明顯的警報（或者反過來）都是合理的。
+    ///
+    /// 這一列調到 0 只收掉軌道上那條帶子；判定線上的紅光暈不受它影響，
+    /// 所以誤觸永遠還有一個反應。
+    /// </remarks>
+    public float MistouchCueHeight => gameSettings != null
+        ? Mathf.Clamp(gameSettings.mistouchCueHeight, 0f, 3f)
+        : 1f;
+
+    public void SetMistouchCueHeight(float value)
+    {
+        if (gameSettings == null) return;
+        float clamped = Mathf.Clamp(value, 0f, 3f);
+        if (Mathf.Approximately(gameSettings.mistouchCueHeight, clamped)) return;
+        gameSettings.mistouchCueHeight = clamped;
         SaveSettings();
     }
 

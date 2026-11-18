@@ -26,13 +26,10 @@ public class BeatLineSpawner : MonoBehaviour
     private int nextBeatIndex = 0;
     private bool isInitialized = false;
     private Vector3 cachedCorrectedLocalScale = Vector3.one;
-    private bool cachedScaleValid = false;
     // For visual pre-roll: we synthesize negative-time beats back to -lookahead
     private bool precomputedNegativeBeats = false;
     private System.Collections.Generic.List<float> negativeBeats = new System.Collections.Generic.List<float>();
     private BeatLinePool beatLinePool;
-    // Dev-only: report once why spawning is blocked
-    private bool _reportedSpawnBlock = false;
 
     // Derive an initial beat interval from the chart to drive pre-roll beats; fall back to Conductor.bpm
     private float GetBeatIntervalMs()
@@ -125,7 +122,7 @@ public class BeatLineSpawner : MonoBehaviour
         // Only create a new owned container if we don't already have a usable one
         if (beatLineContainer == null)
         {
-            string containerName = $"BeatLineContainer_{gameObject.name}_{GetInstanceID()}";
+            string containerName = $"BeatLineContainer_{gameObject.name}_{GetEntityId()}";
             GameObject newContainer = new GameObject(containerName);
             // Determine a sensible world-space parent for runtime beatlines.
             // Prefer explicit trackTransform, then try to find a GameObject named "Track"
@@ -175,9 +172,17 @@ public class BeatLineSpawner : MonoBehaviour
                 //
                 // 24 曾經在遊玩中差一個（log: "[Beat Pool] Runtime miss; capacity=25"）。
                 // 上次只改了 EstimateVisibleBeatLineCapacity 的下限，但那條路要
-                // PreloadAllBeatLines 有拿到 beat_timings 才會走到——沒走到的時候
-                // 真正生效的就是這裡這個數字，所以兩邊要一起改。
-                beatLinePool = new BeatLinePool(beatLinePrefab2D, parentForPool, 48);
+                // PreloadAllBeatLines 有拿到 beat_timings 才會走到——而
+                // PreloadSpawners 現在沒有任何呼叫點，所以真正生效的一直是這裡。
+                //
+                // **寫死一個數字在快曲上一定不夠。** 同時活著的拍線數 ＝
+                // 產生視窗 ÷ 拍點間距，而間距是譜面決定的：`666` 那首一拍 90ms，
+                // 前奏期間要 90 幾條，池子只有 48 —— log 裡就留著
+                // "[Beat Pool] Runtime miss; capacity=49"。池子每 miss 一次會自己
+                // 長大一個，所以症狀是前奏那一兩秒連續補 Instantiate。
+                // 改成直接問估算函式；慢曲算出來還是落在下限 48，不受影響。
+                beatLinePool = new BeatLinePool(beatLinePrefab2D, parentForPool,
+                    EstimateVisibleBeatLineCapacity(chart));
             }
             else
             {
@@ -235,8 +240,6 @@ public class BeatLineSpawner : MonoBehaviour
             parentLossy.y != 0f ? desiredWorld.y / parentLossy.y : desiredWorld.y,
             parentLossy.z != 0f ? desiredWorld.z / parentLossy.z : desiredWorld.z
         );
-        cachedScaleValid = true;
-
         int required = EstimateVisibleBeatLineCapacity(chart);
         if (beatLinePool != null)
         {
@@ -256,6 +259,10 @@ public class BeatLineSpawner : MonoBehaviour
     //Debug.Log($"BeatLineSpawner PreloadAllBeatLines created {Mathf.Min(256, required)} warmed beat line instances.");
     }
 
+    /// <summary>估算時假設的前導長度（毫秒）。</summary>
+    /// <remarks><c>gameStartDelay</c> 的上限是 5 秒。</remarks>
+    private const float PreRollReserveMs = 5000f;
+
     private int EstimateVisibleBeatLineCapacity(Chart sourceChart)
     {
         if (sourceChart == null || sourceChart.beat_timings == null || sourceChart.beat_timings.Count == 0)
@@ -265,7 +272,18 @@ public class BeatLineSpawner : MonoBehaviour
         // judgment line. Find the densest such window instead of allocating one
         // GameObject for every beat in the entire song.
         float travelMs = travelTimeSeconds > 0f ? travelTimeSeconds * 1000f : spawnLookahead;
-        float windowMs = Mathf.Max(250f, travelMs * Mathf.Max(0.01f, runwayFactor));
+        // **視窗要和 Update 裡真正用的那個一樣大。** 那邊是
+        // `(travel + preRoll) * runwayFactor`，這裡原本漏掉了 preRoll —— 前奏
+        // 期間負拍線和開頭的正拍線是同時活著的，兩邊都在這個視窗裡。
+        // NoteSpawner.EstimateRequiredPoolCapacity 早就是這樣算的，這裡沒跟上。
+        float preRollMs = conductor != null
+            ? Mathf.Max(0f, conductor.LastPreRollDurationMs) : 0f;
+        // Initialize 可能跑在 StartVisualPreRoll 之前，那時候 conductor 還回 0。
+        // 倒數是設定值（gameStartDelay，範圍 2~5 秒），取上限當保守值：估多了
+        // 只是多幾個停用的 sprite，估少了就是在玩家看得到的前奏裡補 Instantiate。
+        preRollMs = Mathf.Max(preRollMs, PreRollReserveMs);
+        float windowMs = Mathf.Max(250f,
+            (travelMs + preRollMs) * Mathf.Max(0.01f, runwayFactor));
         var beats = sourceChart.beat_timings;
         int peak = 0;
         int left = 0;
@@ -289,18 +307,6 @@ public class BeatLineSpawner : MonoBehaviour
         // Prefer 2D prefab; log an error if beatLinePrefab2D is missing.
         if (!isInitialized || conductor == null || !conductor.isActive || beatLinePrefab2D == null)
         {
-                #if false
-                if (!_reportedSpawnBlock)
-                {
-                    string why = "";
-                    if (!isInitialized) why += "isInitialized=false; ";
-                    if (conductor == null) why += "conductor=null; ";
-                    else if (!conductor.isActive) why += "conductor.isActive=false; ";
-                    if (beatLinePrefab2D == null) why += "beatLinePrefab2D=null; ";
-                    BuildLogger.LogWarning($"[BeatLineSpawner] Update blocked: {why} (spawner={gameObject.name})");
-                    _reportedSpawnBlock = true;
-                }
-                #endif
             return;
         }
 

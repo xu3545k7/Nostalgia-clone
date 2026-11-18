@@ -186,7 +186,10 @@ public sealed class SongDifficultyStrip : MonoBehaviour
         record.raycastTarget = false;
         // 數字要工整：關掉字距調整，改用固定的字元間距。比例字體會把 1 排得比
         // 8 窄，分數每跳一次數字就左右扭一下 —— 均勻的間距讀起來才像一組數據。
-        record.enableKerning = false;
+        List<UnityEngine.TextCore.OTL_FeatureTag> features =
+            new List<UnityEngine.TextCore.OTL_FeatureTag>(record.fontFeatures);
+        if (features.Remove(UnityEngine.TextCore.OTL_FeatureTag.kern))
+            record.fontFeatures = features;
         record.characterSpacing = 7f;
     }
 

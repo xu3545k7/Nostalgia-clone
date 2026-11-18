@@ -67,3 +67,9 @@ Assets/_Recovery/
 Assets/_Recovery.meta
 tools/corrupt_image_backups/
 *.log
+
+# tools/ 底下的過程產物：調美術時一張一張產出來的 before/after 比對圖
+# （hold_magic_*、staccato_*_before_after、lilac_*、ref_* 之類，加起來 21 MB）。
+# 產生它們的腳本和 art_src/ 的來源圖都在版控裡，隨時重畫得出來，所以圖本身不進。
+tools/*.png
+tools/__pycache__/

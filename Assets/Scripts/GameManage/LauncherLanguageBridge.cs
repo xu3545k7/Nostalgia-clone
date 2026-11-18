@@ -26,7 +26,7 @@ public sealed class LauncherLanguageBridge : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
     {
-        if (FindFirstObjectByType<LauncherLanguageBridge>() != null) return;
+        if (FindAnyObjectByType<LauncherLanguageBridge>() != null) return;
         var go = new GameObject("LauncherLanguageBridge");
         DontDestroyOnLoad(go);
         go.AddComponent<LauncherLanguageBridge>();

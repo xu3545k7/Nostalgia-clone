@@ -124,7 +124,7 @@ public sealed class PitchEchoTrail : MonoBehaviour
     // 每一種「什麼都沒出現」的原因各報一次。這個效果失敗的方式全都是靜悄悄的，
     // 從截圖上分辨不出是哪一種。失敗路徑留成警告，成功路徑只是一般 log —— 會動的
     // 功能不該在 Console 留一排黃色。
-    private bool reportedNoTrack, reportedNoFilter, reportedNoCamera, reportedFirstEcho, reportedAxes, reportedFirstMesh, reportedJudgmentSpan, reportedFirstHold;
+    private bool reportedNoTrack, reportedNoFilter, reportedNoCamera, reportedAxes, reportedFirstMesh, reportedJudgmentSpan;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Install()
@@ -322,7 +322,7 @@ public sealed class PitchEchoTrail : MonoBehaviour
 
     private static Renderer FindTrack()
     {
-        foreach (var candidate in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+        foreach (var candidate in FindObjectsByType<Renderer>())
         {
             var materials = candidate.sharedMaterials;
             if (materials == null) continue;
@@ -349,7 +349,7 @@ public sealed class PitchEchoTrail : MonoBehaviour
         Camera camera = Camera.main;
         if (camera == null)
         {
-            var cameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
+            var cameras = FindObjectsByType<Camera>();
             for (int i = 0; i < cameras.Length && camera == null; i++)
                 if (cameras[i] != null && cameras[i].isActiveAndEnabled) camera = cameras[i];
         }

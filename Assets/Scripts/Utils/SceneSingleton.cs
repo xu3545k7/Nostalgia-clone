@@ -5,7 +5,7 @@ using UnityEngine;
 /// </summary>
 /// <remarks>
 /// 這個專案的管理器大多是「找不到就自己建一個」。問題在於
-/// <c>FindFirstObjectByType</c> / <c>FindAnyObjectByType</c> **看不到未啟用的
+/// <c>FindAnyObjectByType</c> / <c>FindAnyObjectByType</c> **看不到未啟用的
 /// 物件**，而場景裡設定好的那些管理器全都掛在 gameplay root 底下——那個東西
 /// 在遊戲真正開始之前是關著的。
 ///

@@ -29,7 +29,7 @@ public sealed class ClassicalAtmosphere : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
-        if (FindFirstObjectByType<ClassicalAtmosphere>() != null) return;
+        if (FindAnyObjectByType<ClassicalAtmosphere>() != null) return;
         new GameObject("Classical Atmosphere").AddComponent<ClassicalAtmosphere>();
     }
 

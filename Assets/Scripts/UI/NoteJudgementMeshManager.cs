@@ -194,8 +194,6 @@ public class NoteJudgementMeshManager : MonoBehaviour
 
     [SerializeField, Range(0f, 1f), Tooltip("Top alpha multiplier for the hit effect gradient (0 = fully transparent at top)."),]
     private float gradientTopAlpha = 0.15f;
-    [SerializeField, Tooltip("If disabled, the effect will not fade out over lifetime (only the vertical gradient applies).")]
-    private bool enableLifetimeFade = true;
 
     private readonly List<EffectState> effectPool = new List<EffectState>(DefaultPool);
     private Camera cachedCamera;
@@ -283,7 +281,7 @@ public class NoteJudgementMeshManager : MonoBehaviour
         // settingsOverride、poolSize 都是在編輯器裡調好的），而它掛在 gameplay root
         // 底下——那個東西在遊戲真正開始之前是關著的。
         //
-        // FindFirstObjectByType 看不到未啟用的物件，於是這裡會以為場景裡沒有，
+        // FindAnyObjectByType 看不到未啟用的物件，於是這裡會以為場景裡沒有，
         // 就建一個欄位全是預設值的替身出來。等場景那個真的被啟用，它的 Awake
         // 看到 Instance 已經被替身佔住，就會把**自己**銷毀——設定好的那個消失，
         // 留下沒有材質的替身，判定光效因此看起來整個不見。
@@ -1351,7 +1349,7 @@ public class NoteJudgementMeshManager : MonoBehaviour
             return cachedNoteSpawner;
         }
 
-        cachedNoteSpawner = FindFirstObjectByType<NoteSpawner>();
+        cachedNoteSpawner = FindAnyObjectByType<NoteSpawner>();
         return cachedNoteSpawner;
     }
 

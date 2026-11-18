@@ -37,7 +37,7 @@ namespace Judgment
         {
             if (scheduler != null) return scheduler;
 
-            var existing = Object.FindFirstObjectByType<ProtectionScheduler>();
+            var existing = Object.FindAnyObjectByType<ProtectionScheduler>();
             if (existing != null)
             {
                 scheduler = existing;

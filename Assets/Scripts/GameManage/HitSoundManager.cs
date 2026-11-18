@@ -71,7 +71,7 @@ public class HitSoundManager : MonoBehaviour
         if (SFXManager.Instance != null) return;
         try
         {
-            var existing = FindFirstObjectByType<SFXManager>();
+            var existing = FindAnyObjectByType<SFXManager>();
             if (existing != null)
             {
                 // Attach settings if available
@@ -93,7 +93,7 @@ public class HitSoundManager : MonoBehaviour
     /// </summary>
     public void PrewarmPool()
     {
-        var mgr = SFXManager.Instance ?? FindFirstObjectByType<SFXManager>();
+        var mgr = SFXManager.Instance ?? FindAnyObjectByType<SFXManager>();
         if (mgr == null) return;
         try
         {
@@ -114,7 +114,7 @@ public class HitSoundManager : MonoBehaviour
         if (Instance != null) return Instance;
 
         // Try to find an existing one in the scene first.
-        var existing = FindFirstObjectByType<HitSoundManager>();
+        var existing = FindAnyObjectByType<HitSoundManager>();
         if (existing != null)
         {
             Instance = existing;
